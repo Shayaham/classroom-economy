@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Student Detail</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="p-4">
+    <h2>🧑‍🎓 {{ student.name }} (Block {{ student.block }})</h2>
+
+    <!-- SECTION 1: STUDENT INFO -->
+    {% set checking_total = transactions | selectattr("account_type", "equalto", "checking") | rejectattr("is_void") | map(attribute="amount") | sum %}
+    {% set savings_total = transactions | selectattr("account_type", "equalto", "savings") | rejectattr("is_void") | map(attribute="amount") | sum %}
+    <div class="card mb-4">
+        <div class="card-header bg-info text-white">Student Information</div>
+        <div class="card-body">
+            <p><strong>ID:</strong> {{ student.id }}</p>
+            <p><strong>PIN:</strong> ****</p>
+            <p><strong>Email:</strong> {{ student.email }}</p>
+            <p><strong>QR Code ID:</strong> {{ student.qr_id }}</p>
+            <p><strong>Owns Seat:</strong> {{ 'Yes' if student.owns_seat else 'No' }}</p>
+            <p><strong>Checking Balance:</strong> ${{ "%.2f"|format(checking_total) }}</p>
+            <p><strong>Savings Balance:</strong> ${{ "%.2f"|format(savings_total) }}</p>
+            <hr>
+            <h6>📅 Current Bill Status</h6>
+            <ul>
+                <li><strong>Rent Paid:</strong>
+                    {% if student.is_rent_enabled %}
+                        {% if student.owns_seat %}N/A{% else %}Yes{% endif %}
+                    {% else %}No{% endif %}
+                </li>
+                <li><strong>Property Tax Paid:</strong>
+                    {% if student.is_property_tax_enabled %}Yes{% else %}No{% endif %}
+                </li>
+                <li><strong>Insurance Plan:</strong>
+                    {% if student.insurance_plan != 'none' %}
+                        {{ student.insurance_plan.replace('_', ' ').title() }}
+                        (Last Paid: {{ student.insurance_last_paid.strftime('%Y-%m-%d') if student.insurance_last_paid else 'Never' }})
+                    {% else %}
+                        None
+                    {% endif %}
+                </li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- SECTION 2: SETTINGS -->
+    <div class="card mb-4">
+        <div class="card-header bg-secondary text-white">Settings</div>
+        <div class="card-body">
+            <form method="POST" action="/admin/students/{{ student.id }}/bills">
+                <h6>Update Monthly Bills</h6>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" name="rent" {% if student.is_rent_enabled %}checked{% endif %}>
+                    <label class="form-check-label">Rent ($800/month)</label>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" name="property_tax" {% if student.is_property_tax_enabled %}checked{% endif %}>
+                    <label class="form-check-label">Property Tax ($120/month)</label>
+                </div>
+                <button type="submit" class="btn btn-outline-primary mt-3">💾 Update Bills</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- SECTION 3: LOGS -->
+    <div class="card mb-4">
+        <div class="card-header bg-dark text-white">Logs: Transactions & Purchases</div>
+        <div class="card-body">
+            <h6>💳 Transaction History</h6>
+            {% if transactions %}
+            <table class="table table-sm table-striped">
+                <thead>
+                    <tr><th>Type</th><th>Amount</th><th>Description</th><th>Timestamp</th><th>Action</th></tr>
+                </thead>
+                <tbody>
+{% for tx in transactions %}
+<tr {% if tx.is_void %}class="text-muted text-decoration-line-through"{% endif %}>
+    <td>{{ tx.type }}</td>
+    <td>${{ "%.2f"|format(tx.amount) }}</td>
+    <td>{{ tx.description }}</td>
+    <td>{{ tx.timestamp.strftime('%Y-%m-%d %H:%M') }}</td>
+    <td>
+        {% if tx.is_void %}
+            <span class="badge bg-secondary">Voided</span>
+        {% elif tx.type == 'refund' %}
+<span class="badge bg-secondary">Refund</span>
+        {% else %}
+            <form method="POST" action="/admin/transactions/{{ tx.id }}/void" style="display:inline;" onsubmit="return confirm('Void this transaction?');">
+                <button type="submit" class="btn btn-sm btn-outline-danger">❌ Void</button>
+            </form>
+        {% endif %}
+    </td>
+</tr>
+{% endfor %}
+                    </tr>
+                </tbody>
+            </table>
+            {% else %}
+            <p><em>No transactions recorded.</em></p>
+            {% endif %}
+
+            <hr>
+            <h6>🛒 Store Purchases</h6>
+            <p><em>Coming soon: Display of items bought and what they were used for.</em></p>
+        </div>
+    </div>
+
+    <!-- SECTION 4: PAYROLL AND BONUSES -->
+    <div class="card mb-4">
+        <div class="card-header bg-success text-white">Payroll & Bonuses</div>
+        <div class="card-body">
+            <p><em>Coming soon: Log of automatic pay and manual bonuses.</em></p>
+        </div>
+    </div>
+
+    <a href="/admin/students?block={{ student.block }}" class="btn btn-outline-secondary">← Back to Block {{ student.block }}</a>
+</body>
+</html>
