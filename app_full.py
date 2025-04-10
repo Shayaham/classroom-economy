@@ -91,40 +91,15 @@ def login_required(f):
 
 def get_logged_in_student():
     return Student.query.get(session['student_id']) if 'student_id' in session else None
-
+def admin_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not session.get("is_admin"):
+            flash("You must be an admin to view this page.")
+            return redirect(url_for("admin_login"))
+        return f(*args, **kwargs)
+    return decorated_function
 # -------------------- STUDENT SETUP FLOW --------------------
-@app.route('/setup-totp', methods=['GET', 'POST'])
-@login_required
-def setup_totp():
-    student = get_logged_in_student()
-    if request.method == 'POST':
-        token = request.form.get('totp_token')
-        if pyotp.TOTP(student.second_factor_secret).verify(token):
-            student.second_factor_enabled = True
-            student.has_completed_setup = True
-            db.session.commit()
-            flash("TOTP setup complete!")
-            return redirect(url_for('student_dashboard'))
-        else:
-            flash("Invalid token. Please try again.")
-
-    if not student.second_factor_secret:
-        student.second_factor_secret = pyotp.random_base32()
-        db.session.commit()
-
-    totp_uri = pyotp.TOTP(student.second_factor_secret).provisioning_uri(
-        name=student.email, issuer_name="Classroom Economy"
-    )
-    return render_template('student_setup_totp.html', student=student, totp_uri=totp_uri)
-
-@app.route('/setup-passphrase')
-@login_required
-def setup_passphrase():
-    student = get_logged_in_student()
-    student.has_completed_setup = True
-    db.session.commit()
-    return render_template('student_setup_passphrase.html', student=student)
-
 @app.route('/setup-complete')
 @login_required
 def setup_complete():
@@ -138,21 +113,23 @@ def setup_complete():
 def student_setup():
     student = get_logged_in_student()
     if request.method == 'POST':
+        # Save the new PIN
         student.pin_hash = generate_password_hash(request.form.get("pin"))
-        student.second_factor_type = request.form.get("second_factor")
-        if student.second_factor_type == "passphrase":
-            student.second_factor_secret = request.form.get("second_factor_secret")
+
+        # Save the passphrase as the second factor secret
+        passphrase = request.form.get("second_factor_secret")
+        if passphrase:
+            student.second_factor_secret = passphrase
+        else:
+            flash("Passphrase is required.", "danger")
+            return redirect(url_for('student_setup'))
+
+        student.has_completed_setup = True
         db.session.commit()
 
-        if student.second_factor_type == "totp":
-            return redirect(url_for('setup_totp'))
-        elif student.second_factor_type == "passphrase":
-            return redirect(url_for('setup_passphrase'))
-        else:
-            return redirect(url_for('setup_complete'))
+        return redirect(url_for('setup_complete'))
 
     return render_template('student_setup.html', student=student)
-
 # -------------------- STUDENT DASHBOARD --------------------
 @app.route('/student/dashboard')
 @login_required
@@ -160,7 +137,7 @@ def student_dashboard():
     student = get_logged_in_student()
     transactions = Transaction.query.filter_by(student_id=student.id).order_by(Transaction.timestamp.desc()).all()
     purchases = Purchase.query.filter_by(student_id=student.id).all()
-    return render_template('student_dashboard.html', student=student, transactions=transactions, purchases=purchases)
+    return render_template('student_dashboard.html', student=student, transactions=transactions, purchases=purchases, now=datetime.now())
 
 # -------------------- STUDENT LOGIN --------------------
 @app.route('/student/login', methods=['GET', 'POST'])
@@ -169,20 +146,46 @@ def student_login():
         qr_id = request.form.get('qr_id')
         pin = request.form.get('pin')
         student = Student.query.filter_by(qr_id=qr_id).first()
-        if student and check_password_hash(student.pin_hash, pin):
-            session['student_id'] = student.id
-            flash("Logged in successfully.")
-            return redirect(url_for('student_dashboard'))
-        else:
-            flash("Invalid credentials.")
-    return render_template('student_login.html')
 
+        if not student or not check_password_hash(student.pin_hash, pin):
+            flash("Invalid credentials")
+            return redirect(url_for('student_login'))
+
+        session['student_id'] = student.id
+
+        if not student.has_completed_setup:
+            return redirect(url_for('student_setup'))
+
+        return redirect(url_for('student_dashboard'))
+
+    return render_template('student_login.html')
 # -------------------- ADMIN DASHBOARD --------------------
 @app.route('/admin')
+@admin_required
 def admin_dashboard():
     students = Student.query.order_by(Student.name).all()
     transactions = Transaction.query.order_by(Transaction.timestamp.desc()).limit(20).all()
     return render_template('admin_dashboard.html', students=students, transactions=transactions)
+@app.route('/admin/login', methods=['GET', 'POST'])
+def admin_login():
+    if request.method == 'POST':
+        username = request.form.get("username")
+        password = request.form.get("password")
 
+        # Replace with something more secure later!
+        if username == "admin" and password == "bhu87ygv":
+            session["is_admin"] = True
+            flash("Admin login successful.")
+            return redirect(url_for("admin_dashboard"))
+        else:
+            flash("Invalid credentials.")
+            return redirect(url_for("admin_login"))
+    return render_template("admin_login.html")
+
+@app.route('/admin/logout')
+def admin_logout():
+    session.pop("is_admin", None)
+    flash("Logged out.")
+    return redirect(url_for("admin_login"))
 if __name__ == '__main__':
     app.run(debug=True)
