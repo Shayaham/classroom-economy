@@ -87,7 +87,8 @@
     <div class="setup-container">
         <h1>Hi, {{ student.name }}!</h1>
         <p class="description">Let’s finish setting up your account with a PIN and a secure passphrase.</p>
-        <p class="description">You will need your PIN when you sign in to your account. You will need your passphrase when you conduct any purchases in your account.</p>
+        <p class="description">PIN is required when you sign in to your Class Economy account. You also need it to tap in and out for attendance. It should not be something easy to guess and should never be your birthdate.</p>
+        <p class="description">Passphrase is required when you take actions involving spending or moving money. A passphrase should be long and easy to remember.</p> 
 {% with messages = get_flashed_messages(category_filter=['setup']) %}
           {% if messages %}
             <ul>
@@ -104,8 +105,8 @@
             <div class="hint">Use 4-8 digits number that you will remember. You will sign in using this PIN</div>
 
             <label for="passphrase">Create a secure passphrase.</label>
-            <input type="text" id="passphrase" name="second_factor_secret" placeholder="e.g. BlueTiger42!" required>
-            <div class="hint">A good passphrase is at least six words long with symbols and numbers within. It should be something easy for you to remember but hard for someone else to guess</div>
+            <input type="text" id="passphrase" name="second_factor_secret" placeholder="e.g. Surprised!Banana!2!You!" required>
+            <div class="hint">A good passphrase is at least four words long with symbols and numbers within. It should be something easy for you to remember but hard for someone else to guess</div>
             <div class="strength-meter">
             
                 <div class="strength-meter-fill" id="strength-bar"></div>

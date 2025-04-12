@@ -1,15 +1,24 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify
+from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify, Response
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, timedelta
 from functools import wraps
 import pytz
 import pyotp
+import urllib.parse
 
 app = Flask(__name__)
+app.secret_key = '1%Inspiration&99%Effort'
+
+def url_encode_filter(s):
+    return urllib.parse.quote_plus(s)
+
+app.jinja_env.filters['url_encode'] = url_encode_filter
+
 app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://timwonderer:Deduce-Python5-Customize@localhost/classroom_economy'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.secret_key = '1%Inspiration&99%Effort'
+
+
 db = SQLAlchemy(app)
 
 # -------------------- MODELS --------------------
@@ -184,10 +193,12 @@ def student_dashboard():
     
     forecast_interest = round(student.savings_balance * (0.045 / 12), 2)
 
+    tz = pytz.timezone('America/Los_Angeles')
+    local_now = datetime.now(tz)
     return render_template('student_dashboard.html', student=student,
                            checking_transactions=checking_transactions,
                            savings_transactions=savings_transactions,
-                           purchases=purchases, now=datetime.now(), forecast_interest=forecast_interest)
+                           purchases=purchases, now=local_now, forecast_interest=forecast_interest)
 
 # -------------------- TRANSFER ROUTE --------------------
 @app.route('/student/transfer', methods=['GET', 'POST'])
@@ -359,6 +370,72 @@ def student_logout():
     session.pop('student_id', None)
     flash("You’ve been logged out.")
     return redirect(url_for('student_login'))
+
+@app.route('/admin/add-student', methods=['GET', 'POST'])
+@admin_required
+def admin_add_student():
+    if request.method == 'POST':
+        name = request.form.get('name')
+        email = request.form.get('email')
+        qr_id = request.form.get('qr_id')
+        pin = request.form.get('pin')
+        block = request.form.get('block')
+        if not (name and email and qr_id and pin and block):
+            flash("Please fill in all required fields.", "admin_error")
+            return redirect(url_for('admin_add_student'))
+        new_student = Student(name=name, email=email, qr_id=qr_id, block=block,
+                              pin_hash=generate_password_hash(pin))
+        db.session.add(new_student)
+        db.session.commit()
+        flash("Student added successfully!", "admin_success")
+        return redirect(url_for('admin_students'))
+    return render_template('admin_add_student.html')
+
+@app.route('/admin/upload-students', methods=['GET', 'POST'])
+@admin_required
+def admin_upload_students():
+    if request.method == 'POST':
+        file = request.files.get('csv_file')
+        if not file:
+            flash("No file provided", "admin_error")
+            return redirect(url_for('admin_upload_students'))
+        import csv, io
+        stream = io.StringIO(file.stream.read().decode("UTF8"), newline=None)
+        csv_input = csv.DictReader(stream)
+        added_count = 0
+        for row in csv_input:
+            try:
+                new_student = Student(
+                    name=row.get('name'),
+                    email=row.get('email'),
+                    qr_id=row.get('qr_id'),
+                    block=row.get('block'),
+                    pin_hash=generate_password_hash(row.get('pin')) if row.get('pin') else None,
+                )
+                db.session.add(new_student)
+                added_count += 1
+            except Exception as e:
+                flash(f"Error processing row: {e}", "admin_error")
+        db.session.commit()
+        flash(f"Uploaded {added_count} students successfully!", "admin_success")
+        return redirect(url_for('admin_students'))
+    return render_template('admin_upload_students.html')
+
+@app.route('/admin/download-csv-template')
+@admin_required
+def download_csv_template():
+    """
+    Provides a pre-formatted CSV template for student information.
+    Columns: name, email, qr_id, block, pin
+    """
+    csv_content = "name,email,qr_id,block,pin\nSample Name,sample@example.com,QR12345,1,YourPINHere\n"
+    return Response(csv_content,
+                    mimetype='text/csv',
+                    headers={"Content-disposition": "attachment; filename=student_template.csv"})
+
+@app.route('/debug/filters')
+def debug_filters():
+    return jsonify(list(app.jinja_env.filters.keys()))
 
 if __name__ == '__main__':
     app.run(debug=True)
