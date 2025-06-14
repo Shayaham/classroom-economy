@@ -156,6 +156,7 @@ def get_logged_in_student():
 def admin_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
+        app.logger.info(f"🧪 Admin access attempt: session = {dict(session)}")
         if not session.get("is_admin"):
             flash("You must be an admin to view this page.")
             return redirect(url_for("admin_login"))
@@ -494,11 +495,26 @@ def admin_logout():
     flash("Logged out.")
     return redirect(url_for("admin_login"))
 
+
 @app.route('/admin/students')
 @admin_required
 def admin_students():
     students = Student.query.order_by(Student.block, Student.name).all()
-    return render_template('admin_students.html', students=students)
+    return render_template('admin_students.html', students=students, selected_page="students")
+
+# -------------------- ADMIN HALL PASS MANAGEMENT PLACEHOLDER --------------------
+@app.route('/admin/hall-pass-management')
+@admin_required
+def admin_pass_management():
+    flash("Hall pass management is not implemented yet.", "admin_info")
+    return redirect(url_for('admin_dashboard'))
+
+# -------------------- ADMIN TRANSACTION LOG PLACEHOLDER --------------------
+@app.route('/admin/transaction-log')
+@admin_required
+def admin_transaction_log():
+    flash("Transaction log is not implemented yet.", "admin_info")
+    return redirect(url_for('admin_dashboard'))
 
 @app.route('/admin/students/<int:student_id>')
 @admin_required
@@ -545,22 +561,24 @@ def admin_add_student():
     return render_template('admin_add_student.html')
 
 # -------------------- ADMIN FULL ATTENDANCE LOG --------------------
-@app.route('/admin/attendance-log', endpoint='admin_attendance_log')
+@app.route('/admin/attendance-log')
 @admin_required
 def admin_attendance_log():
     try:
+        app.logger.info("🔄 Entered admin_attendance_log route")
         logs = TapSession.query.order_by(TapSession.tap_in_time.desc()).all()
-        students = {s.id: s for s in Student.query.all()}
-        app.logger.info(f"Loaded {len(logs)} attendance logs for display.")
-        if logs:
-            app.logger.info(f"Sample log: {logs[0].tap_in_time}")
-        else:
-            app.logger.info("No logs found.")
-        app.logger.info(f"Student count loaded: {len(students)}")
-        # Pass logs (which include .reason) and students to template
-        return render_template('admin_attendance_log.html', logs=logs, students=students)
+        students = {
+            s.id: {"name": s.name, "block": s.block} for s in Student.query.all()
+        }
+        app.logger.info("✔️ Successfully fetched logs and students")
+        return render_template(
+            'admin_attendance_log.html',
+            logs=logs,
+            students=students,
+            selected_page="attendance"
+        )
     except Exception as e:
-        app.logger.error(f"Failed to load attendance log: {e}")
+        app.logger.error(f"❌ Exception in admin_attendance_log: {e}")
         flash("An error occurred while loading the attendance log.", "admin_error")
         return redirect(url_for('admin_dashboard'))
 

@@ -5,7 +5,7 @@
     <div class="mb-3">
         <a href="{{ url_for('admin_dashboard') }}" class="btn btn-secondary">← Back to Dashboard</a>
     </div>
-    <h2>👩🏫 Admin - Students by Block</h2>
+    
 
     <div class="mb-3">
         <label for="block-select">Filter by Block:</label>
@@ -49,15 +49,15 @@
                 <td>{{ student.passes_left if student.passes_left is not none else '—' }}</td>
                 <td>${{ "%.2f"|format(student.checking_balance) }}</td>
                 <td>
-                    {% if student.last_tap_in %}
-                        {{ student.last_tap_in.strftime('%Y-%m-%d %H:%M') }}
+                    {% if student.latest_tap_in %}
+                        {{ student.latest_tap_in.strftime('%Y-%m-%d %H:%M') }}
                     {% else %}
                         —
                     {% endif %}
                 </td>
                 <td>
-                    {% if student.last_tap_out %}
-                        {{ student.last_tap_out.strftime('%Y-%m-%d %H:%M') }}
+                    {% if student.latest_tap_out %}
+                        {{ student.latest_tap_out.strftime('%Y-%m-%d %H:%M') }}
                     {% else %}
                         —
                     {% endif %}
