@@ -378,7 +378,7 @@ def apply_savings_interest(student, annual_rate=0.045):
            (now - tx.date_funds_available).days >= 30
     )
     monthly_rate = annual_rate / 12
-    interest = round(eligible_balance * monthly_rate, 2)
+    interest = round((eligible_balance or 0.0) * monthly_rate, 2)
 
     if interest > 0:
         interest_tx = Transaction(
@@ -551,6 +551,45 @@ def download_csv_template():
     return Response(csv_content,
                     mimetype='text/csv',
                     headers={"Content-disposition": "attachment; filename=student_template.csv"})
+
+
+@app.route('/api/tap', methods=['POST'])
+@login_required
+def handle_tap():
+    data = request.get_json()
+    period = data.get("period")
+    action = data.get("action")
+    seconds = data.get("seconds", 0)
+
+    if period not in ["a", "b"] or action not in ["tap_in", "tap_out"]:
+        return jsonify({"error": "Invalid input"}), 400
+
+    now = datetime.utcnow()
+    student = get_logged_in_student()
+
+    session_entry = TapSession.query.filter_by(
+        student_id=student.id,
+        period=period,
+        is_done=False
+    ).first()
+
+    if action == "tap_in":
+        if not session_entry:
+            session_entry = TapSession(
+                student_id=student.id,
+                period=period,
+                tap_in_time=now,
+                is_done=False
+            )
+            db.session.add(session_entry)
+    elif action == "tap_out":
+        if session_entry:
+            session_entry.tap_out_time = now
+            session_entry.is_done = True
+
+    db.session.commit()
+    return jsonify({"status": "ok"})
+
 
 @app.route('/debug/filters')
 def debug_filters():
