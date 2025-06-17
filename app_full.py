@@ -259,80 +259,69 @@ def student_dashboard():
     
     forecast_interest = round(student.savings_balance * (0.045 / 12), 2)
 
-    # Updated tap session status logic for periods a and b
-    def get_session_status(student_id, period):
-        utc = pytz.utc
-        now_utc = datetime.utcnow().replace(tzinfo=utc)
-        now = now_utc.astimezone(PACIFIC)
-        # Find the most recent active session (no tap_out_time)
-        active_session = TapSession.query.filter_by(
+    # ---- Compute session status for each block based on real DB state ----
+    from datetime import date
+
+    def get_session_status(student_id, blk):
+        today = date.today()
+        # Active session: no tap_out_time
+        active = TapSession.query.filter_by(
             student_id=student_id,
-            period=period,
+            period=blk,
             tap_out_time=None
         ).first()
-
-        if active_session:
-            # User is currently tapped in
-            is_tapped_in = True
-            is_done = False
-            # Duration is time since tap_in
-            t_in = active_session.tap_in_time
+        if active:
+            # still tapped in
+            t_in = active.tap_in_time
             if getattr(t_in, 'tzinfo', None) is None:
                 t_in = utc.localize(t_in)
-            t_in = t_in.astimezone(PACIFIC)
-            duration_seconds = int((now - t_in).total_seconds())
-        else:
-            # No active session: check if last session ended today
-            last_done = TapSession.query.filter_by(
-                student_id=student_id,
-                period=period,
-                is_done=True
-            ).order_by(TapSession.tap_out_time.desc()).first()
-            if last_done:
-                out_date = last_done.tap_out_time
-                if getattr(out_date, 'tzinfo', None) is None:
-                    out_date = utc.localize(out_date)
-                out_date = out_date.astimezone(PACIFIC).date()
-                # Only consider period done when the reason was explicitly 'done'
-                is_done = (
-                    out_date == now.date()
-                    and last_done.reason
-                    and last_done.reason.lower() == 'done'
-                )
-            else:
-                is_done = False
-            is_tapped_in = False
-            # Show last session duration if done, else zero
-            if last_done:
-                t_in = last_done.tap_in_time
-                t_out = last_done.tap_out_time
-                if getattr(t_in, 'tzinfo', None) is None:
-                    t_in = utc.localize(t_in)
-                t_in = t_in.astimezone(PACIFIC)
-                if getattr(t_out, 'tzinfo', None) is None:
-                    t_out = utc.localize(t_out)
-                t_out = t_out.astimezone(PACIFIC)
-                duration_seconds = int((t_out - t_in).total_seconds())
-            else:
-                duration_seconds = 0
+            seconds = int((datetime.now(PACIFIC) - t_in.astimezone(PACIFIC)).total_seconds())
+            return True, False, seconds
 
-        return is_tapped_in, is_done, duration_seconds
+        # Not active: sum all sessions today for this block
+        sessions = TapSession.query.filter(
+            TapSession.student_id==student_id,
+            TapSession.period==blk,
+            func.date(TapSession.tap_in_time)==today
+        ).all()
+        total = 0
+        done = False
+        for s in sessions:
+            t_in = s.tap_in_time
+            t_out = s.tap_out_time or datetime.now(PACIFIC)
+            if getattr(t_in, 'tzinfo', None) is None:
+                t_in = utc.localize(t_in)
+            if getattr(t_out, 'tzinfo', None) is None:
+                t_out = utc.localize(t_out)
+            total += (t_out.astimezone(PACIFIC) - t_in.astimezone(PACIFIC)).total_seconds()
+            # mark done if any session had reason 'done'
+            if s.reason and s.reason.lower() == 'done':
+                done = True
+        return False, done, int(total)
 
-    is_tapped_in_a, is_done_a, duration_seconds_a = get_session_status(student.id, 'a')
-    is_tapped_in_b, is_done_b, duration_seconds_b = get_session_status(student.id, 'b')
+    # Determine all blocks for this student dynamically
+    student_blocks = [b.strip().upper() for b in student.block.split(',') if b.strip()]
+    period_states = {blk: get_session_status(student.id, blk) for blk in student_blocks}
+
+    # Compute most recent deposit and insurance paid flag
+    recent_deposit = student.recent_deposits[0] if student.recent_deposits else None
+    insurance_paid = bool(student.insurance_last_paid)
 
     tz = pytz.timezone('America/Los_Angeles')
     local_now = datetime.now(tz)
-    return render_template('student_dashboard.html', student=student,
-                           checking_transactions=checking_transactions,
-                           savings_transactions=savings_transactions,
-                           purchases=purchases, now=local_now, forecast_interest=forecast_interest,
-                           is_tapped_in_a=is_tapped_in_a,
-                           is_done_a=is_done_a,
-                           duration_seconds_a=duration_seconds_a,
-                           is_tapped_in_b=is_tapped_in_b,
-                           is_done_b=is_done_b,
-                           duration_seconds_b=duration_seconds_b)
+    return render_template(
+        'student_dashboard.html',
+        student=student,
+        student_blocks=student_blocks,
+        period_states=period_states,
+        checking_transactions=checking_transactions,
+        savings_transactions=savings_transactions,
+        purchases=purchases,
+        now=local_now,
+        forecast_interest=forecast_interest,
+        recent_deposit=recent_deposit,
+        insurance_paid=insurance_paid
+    )
 
 # -------------------- TRANSFER ROUTE --------------------
 @app.route('/student/transfer', methods=['GET', 'POST'])
@@ -596,7 +585,8 @@ def give_bonus_all():
     amount = float(request.form.get('amount'))
     tx_type = request.form.get('type')
 
-    students = Student.query.all()
+    # Stream students in batches to reduce memory usage
+    students = Student.query.yield_per(50)
     for student in students:
         tx = Transaction(student_id=student.id, amount=amount, type=tx_type, description=title, account_type='checking')
         db.session.add(tx)
@@ -639,8 +629,13 @@ def admin_students():
     students = Student.query.order_by(Student.block, Student.name).all()
     from datetime import datetime
     for student in students:
-        # fetch latest completed session tap_out_time
-        latest_session = TapSession.query.filter_by(student_id=student.id, is_done=True).order_by(TapSession.tap_out_time.desc()).first()
+        # fetch latest session with tap_out_time (regardless of is_done)
+        latest_session = (
+            TapSession.query
+            .filter(TapSession.student_id == student.id, TapSession.tap_out_time != None)
+            .order_by(TapSession.tap_out_time.desc())
+            .first()
+        )
         if latest_session:
             student.last_tap_out = latest_session.tap_out_time
         else:
@@ -653,7 +648,7 @@ def admin_students():
             student.last_tap_in = latest_in.tap_in_time
         else:
             student.last_tap_in = None
-    return render_template('admin_students.html', students=students, selected_page="students")
+    return render_template('admin_students.html', students=students, current_page="students")
 
 # -------------------- ADMIN HALL PASS MANAGEMENT PLACEHOLDER --------------------
 @app.route('/admin/hall-pass-management')
@@ -725,7 +720,8 @@ def admin_transactions():
         'admin_transactions.html',
         transactions=transactions,
         page=page,
-        total_pages=total_pages
+        total_pages=total_pages,
+        current_page="transactions"
     )
 
 
@@ -800,7 +796,8 @@ def admin_payroll_history():
     query = Transaction.query.filter_by(type="payroll")
 
     if block:
-        student_ids = [s.id for s in Student.query.filter_by(block=block).all()]
+        # Stream students in batches for this block
+        student_ids = [s.id for s in Student.query.filter_by(block=block).yield_per(50).all()]
         app.logger.info(f"👥 Student IDs in block '{block}': {student_ids}")
         query = query.filter(Transaction.student_id.in_(student_ids))
 
@@ -815,7 +812,8 @@ def admin_payroll_history():
     payroll_transactions = query.order_by(desc(Transaction.timestamp)).all()
     app.logger.info(f"🔎 Payroll transactions found: {len(payroll_transactions)}")
 
-    student_lookup = {s.id: s for s in Student.query.all()}
+    # Stream students in batches to reduce memory usage for the lookup
+    student_lookup = {s.id: s for s in Student.query.yield_per(50)}
     # Gather distinct block names for the dropdown
     blocks = sorted({s.block for s in student_lookup.values() if s.block})
 
@@ -842,7 +840,7 @@ def admin_payroll_history():
         'admin_payroll_history.html',
         payroll_history=payroll_records,
         blocks=blocks,
-        selected_page="payroll_history",
+        current_page="payroll_history",
         selected_block=block,
         selected_start=start_date_str,
         selected_end=end_date_str,
@@ -901,7 +899,6 @@ def admin_payroll():
     from sqlalchemy import desc
     from datetime import datetime, timedelta
     import pytz
-
     # Next scheduled payroll: every other Friday from last payroll
     last_payroll_tx = Transaction.query.filter_by(type="payroll").order_by(desc(Transaction.timestamp)).first()
     pacific = pytz.timezone('America/Los_Angeles')
@@ -933,11 +930,23 @@ def admin_payroll():
         for tx, name, block in recent_raw
     ]
 
+    # Compute total estimate from unpaid sessions
+    RATE_PER_SECOND = 0.25 / 60  # $0.25 per minute, must match run_payroll
+    unpaid_sessions = TapSession.query.filter_by(is_done=True, is_paid=False).all()
+    total_payroll_estimate = round(sum(
+        session.duration_seconds * RATE_PER_SECOND
+        for session in unpaid_sessions
+        if session.duration_seconds and session.duration_seconds > 0
+    ), 2)
+
+    next_payroll_date = next_pay_date
+
     return render_template(
         'admin_payroll.html',
         recent_payrolls=recent_payrolls,
-        next_pay_date=next_pay_date,
-        selected_page="payroll",
+        next_payroll_date=next_payroll_date,
+        current_page="payroll",
+        total_payroll_estimate=total_payroll_estimate,
         now=datetime.now(pacific).strftime("%Y-%m-%d %I:%M %p")
     )
 
@@ -972,10 +981,10 @@ def admin_add_student():
 @app.route('/admin/attendance-log')
 @admin_required
 def admin_attendance_log():
-    # Build student lookup for names and blocks
-    students = {s.id: {'name': s.name, 'block': s.block} for s in Student.query.all()}
-    # Fetch attendance sessions
-    raw_logs = TapSession.query.order_by(TapSession.tap_in_time.desc()).all()
+    # Build student lookup for names and blocks, streaming in batches
+    students = {s.id: {'name': s.name, 'block': s.block} for s in Student.query.yield_per(50)}
+    # Fetch attendance sessions, streaming in batches
+    raw_logs = TapSession.query.order_by(TapSession.tap_in_time.desc()).yield_per(100)
     # Format logs as dicts, normalizing negative durations
     attendance_logs = []
     for log in raw_logs:
@@ -1000,7 +1009,7 @@ def admin_attendance_log():
         'admin_attendance_log.html',
         logs=attendance_logs,
         students=students,
-        selected_page="attendance"
+        current_page="attendance"
     )
 
 @app.route('/admin/upload-students', methods=['GET', 'POST'])
@@ -1031,7 +1040,7 @@ def admin_upload_students():
         db.session.commit()
         flash(f"Uploaded {added_count} students successfully!", "admin_success")
         return redirect(url_for('admin_students'))
-    return render_template('admin_upload_students.html')
+    return render_template('admin_upload_students.html', current_page="upload_students")
 
 @app.route('/admin/download-csv-template')
 @admin_required
@@ -1050,14 +1059,20 @@ def download_csv_template():
 @login_required
 def handle_tap():
     data = request.get_json()
-    period = data.get("period")
+    student = get_logged_in_student()
+    # Derive valid blocks (uppercase) from the student's block field
+    if isinstance(student.block, str):
+        valid_periods = [b.strip().upper() for b in student.block.split(',') if b.strip()]
+    else:
+        valid_periods = []
+
+    period = data.get("period", "").upper()
     action = data.get("action")
 
-    if period not in ["a", "b"] or action not in ["tap_in", "tap_out"]:
-        return jsonify({"error": "Invalid input"}), 400
+    if period not in valid_periods or action not in ["tap_in", "tap_out"]:
+        return jsonify({"error": "Invalid period or action"}), 400
 
     now = datetime.now(PACIFIC)
-    student = get_logged_in_student()
 
     session_entry = TapSession.query.filter_by(
         student_id=student.id,

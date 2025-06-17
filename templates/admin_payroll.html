@@ -19,10 +19,8 @@
                     N/A
                 {% endif %}
             </p>
-            <p><strong>Estimated Payout:</strong> ${{ total_payroll_estimate or "0.00" }}</p>
-            <form action="{{ url_for('run_payroll') }}" method="POST">
-                <button type="submit" class="btn btn-primary">Run Payroll Now</button>
-            </form>
+            <p><strong>Estimated Payout:</strong> <span id="estimatedPayout">${{ total_payroll_estimate|default(0)|round(2) }}</span></p>
+            <button id="runPayrollBtn" class="btn btn-primary">Run Payroll Now</button>
         </div>
     </div>
 
@@ -88,4 +86,26 @@
         </div>
     </div>
 </div>
+<script>
+document.getElementById('runPayrollBtn').addEventListener('click', async function() {
+  try {
+    const resp = await fetch('{{ url_for("run_payroll") }}', {
+      method: 'POST',
+      headers: {
+        'X-Requested-With': 'XMLHttpRequest',
+        'Content-Type': 'application/json'
+      }
+    });
+    const payload = await resp.json();
+    if (!resp.ok) throw new Error(payload.message || 'Payroll failed');
+    showToast(payload.message || 'Payroll complete.', 'success');
+    document.getElementById('runPayrollBtn').disabled = true;
+    // Reset on‐page estimate to zero
+    const estEl = document.getElementById('estimatedPayout');
+    if (estEl) estEl.textContent = '$0.00';
+  } catch (e) {
+    showToast(e.message, 'error');
+  }
+});
+</script>
 {% endblock %}
