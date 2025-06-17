@@ -38,13 +38,7 @@
     <div class="alert alert-warning text-center fw-bold shadow-sm sticky-top" id="session-timer">
         ⏳ You will be signed out in <span id="countdown">10:00</span>
     </div>
-    {% with messages = get_flashed_messages(category_filter=["transfer_success"]) %}
-      {% if messages %}
-        <div class="alert alert-success text-center fw-bold shadow-sm">
-          {{ messages[0] }}
-        </div>
-      {% endif %}
-    {% endwith %}
+   
 
     <!-- Session Timeout Modal -->
     <div class="modal fade" id="timeoutModal" tabindex="-1" aria-labelledby="timeoutModalLabel" aria-hidden="true">

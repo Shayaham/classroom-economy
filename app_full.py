@@ -4,6 +4,8 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, timedelta
 from functools import wraps
 import pytz
+from sqlalchemy import or_, func, text
+import math
 PACIFIC = pytz.timezone('America/Los_Angeles')
 utc = pytz.utc
 import pyotp
@@ -339,8 +341,11 @@ def student_transfer():
     student = get_logged_in_student()
 
     if request.method == 'POST':
+        is_json = request.is_json or request.headers.get("X-Requested-With") == "XMLHttpRequest"
         passphrase = request.form.get("passphrase")
         if passphrase != student.second_factor_secret:
+            if is_json:
+                return jsonify(status="error", message="Incorrect passphrase"), 400
             flash("Incorrect passphrase. Transfer canceled.", "transfer_error")
             return redirect(url_for("student_transfer"))
 
@@ -349,21 +354,48 @@ def student_transfer():
         amount = float(request.form.get('amount'))
 
         if from_account == to_account:
+            if is_json:
+                return jsonify(status="error", message="Cannot transfer to the same account."), 400
             flash("Cannot transfer to the same account.", "transfer_error")
+            return redirect(url_for("student_transfer"))
         elif amount <= 0:
+            if is_json:
+                return jsonify(status="error", message="Amount must be greater than 0."), 400
             flash("Amount must be greater than 0.", "transfer_error")
+            return redirect(url_for("student_transfer"))
         elif from_account == 'checking' and amount > student.checking_balance:
+            if is_json:
+                return jsonify(status="error", message="Insufficient checking funds."), 400
             flash("Insufficient checking funds.", "transfer_error")
+            return redirect(url_for("student_transfer"))
         elif from_account == 'savings' and amount > student.savings_balance:
+            if is_json:
+                return jsonify(status="error", message="Insufficient savings funds."), 400
             flash("Insufficient savings funds.", "transfer_error")
+            return redirect(url_for("student_transfer"))
         else:
-            db.session.add(Transaction(student_id=student.id, amount=-amount, account_type=from_account, description=f"Transfer to {to_account}"))
-            db.session.add(Transaction(student_id=student.id, amount=amount, account_type=to_account, description=f"Transfer from {from_account}"))
-            flash("Transfer completed successfully!", "transfer_success")
+            # Record the withdrawal side of the transfer
+            db.session.add(Transaction(
+                student_id=student.id,
+                amount=-amount,
+                account_type=from_account,
+                type='Withdrawal',
+                description=f'Transfer to {to_account}'
+            ))
+            # Record the deposit side of the transfer
+            db.session.add(Transaction(
+                student_id=student.id,
+                amount=amount,
+                account_type=to_account,
+                type='Deposit',
+                description=f'Transfer from {from_account}'
+            ))
             db.session.commit()
+            if is_json:
+                return jsonify(status="success", message="Transfer completed successfully!")
+            flash("Transfer completed successfully!", "transfer_success")
             return redirect(url_for('student_dashboard'))
 
-#    return render_template('student_transfer.html', student=student)
     return render_template('student_transfer.html', student=student)
 
 # -------------------- INSURANCE ROUTE --------------------
@@ -402,8 +434,9 @@ def student_insurance():
             db.session.add(Transaction(
                 student_id=student.id,
                 amount=-15,
-                description="NSF Fee for Insurance Purchase",
                 account_type="checking",
+                type='Fees',
+                description="NSF Fee for Insurance Purchase"
             ))
             db.session.commit()
             flash("Insufficient funds for insurance. NSF Fee charged.", "insurance_error")
@@ -419,16 +452,18 @@ def student_insurance():
                 db.session.add(Transaction(
                     student_id=student.id,
                     amount=prorated_refund,
-                    description=f"Prorated Refund for {current_plan.replace('_', ' ').title()}",
                     account_type="checking",
+                    type='Refund',
+                    description=f"Prorated Refund for {current_plan.replace('_', ' ').title()}"
                 ))
 
         # Charge new premium
         db.session.add(Transaction(
             student_id=student.id,
             amount=-premium,
-            description=f"Insurance Premium for {selected_plan.replace('_', ' ').title()}",
             account_type="checking",
+            type='Bill',
+            description=f"Insurance Premium for {selected_plan.replace('_', ' ').title()}"
         ))
 
         student.insurance_plan = selected_plan
@@ -451,7 +486,6 @@ def student_insurance_change():
 
     current_plan = student.insurance_plan if student.insurance_plan and student.insurance_plan != "none" else None
     return render_template('student_insurance_change.html', student=student, current_plan=current_plan)
-# -------------------- TRANSFER ROUTE SUPPORT FUNCTIONS --------------------
 
 # -------------------- TRANSFER ROUTE SUPPORT FUNCTIONS --------------------
 def apply_savings_interest(student, annual_rate=0.045):
@@ -487,6 +521,7 @@ def apply_savings_interest(student, annual_rate=0.045):
             student_id=student.id,
             amount=interest,
             account_type='savings',
+            type='Interest',
             description="Monthly Savings Interest"
         )
         db.session.add(interest_tx)
@@ -496,20 +531,27 @@ def apply_savings_interest(student, annual_rate=0.045):
 @app.route('/student/login', methods=['GET', 'POST'])
 def student_login():
     if request.method == 'POST':
+        is_json = request.is_json or request.headers.get("X-Requested-With") == "XMLHttpRequest"
         qr_id = request.form.get('qr_id')
         pin = request.form.get('pin')
         student = Student.query.filter_by(qr_id=qr_id).first()
 
         if not student or not check_password_hash(student.pin_hash, pin):
-            flash("Invalid credentials")
+            if is_json:
+                return jsonify(status="error", message="Invalid credentials"), 401
+            flash("Invalid credentials", "error")
             return redirect(url_for('student_login'))
 
         session['student_id'] = student.id
         session['last_activity'] = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
 
         if not student.has_completed_setup:
+            if is_json:
+                return jsonify(status="success", message="Login successful")
             return redirect(url_for('student_setup'))
 
+        if is_json:
+            return jsonify(status="success", message="Login successful")
         return redirect(url_for('student_dashboard'))
 
     return render_template('student_login.html')
@@ -566,16 +608,21 @@ def give_bonus_all():
 @app.route('/admin/login', methods=['GET', 'POST'])
 def admin_login():
     if request.method == 'POST':
+        is_json = request.is_json or request.headers.get("X-Requested-With") == "XMLHttpRequest"
         username = request.form.get("username")
         password = request.form.get("password")
 
         # Replace with something more secure later!
         if username == "admin" and password == "bhu87ygv":
             session["is_admin"] = True
+            if is_json:
+                return jsonify(status="success", message="Login successful")
             flash("Admin login successful.")
             return redirect(url_for("admin_dashboard"))
         else:
-            flash("Invalid credentials.")
+            if is_json:
+                return jsonify(status="error", message="Invalid credentials"), 401
+            flash("Invalid credentials.", "error")
             return redirect(url_for("admin_login"))
     return render_template("admin_login.html")
 
@@ -615,12 +662,72 @@ def admin_pass_management():
     flash("Hall pass management is not implemented yet.", "admin_info")
     return redirect(url_for('admin_dashboard'))
 
-# -------------------- ADMIN TRANSACTION LOG PLACEHOLDER --------------------
-@app.route('/admin/transaction-log')
+
+
+@app.route('/admin/transactions')
 @admin_required
-def admin_transaction_log():
-    flash("Transaction log is not implemented yet.", "admin_info")
-    return redirect(url_for('admin_dashboard'))
+def admin_transactions():
+    # Read filter and pagination parameters
+    student_q = request.args.get('student', '').strip()
+    block_q = request.args.get('block', '')
+    type_q = request.args.get('type', '')
+    start_date = request.args.get('start_date')
+    end_date = request.args.get('end_date')
+    page = int(request.args.get('page', 1))
+    per_page = 20
+
+    # Base query joining Transaction with Student
+    query = db.session.query(
+        Transaction,
+        Student.name.label('student_name'),
+        Student.block.label('student_block')
+    ).join(Student, Transaction.student_id == Student.id)
+
+    # Apply filters
+    if student_q:
+        query = query.filter(
+            or_(
+                Student.name.ilike(f"%{student_q}%"),
+                func.cast(Student.id, db.String).ilike(f"%{student_q}%")
+            )
+        )
+    if block_q:
+        query = query.filter(Student.block == block_q)
+    if type_q:
+        query = query.filter(Transaction.type == type_q)
+    if start_date:
+        query = query.filter(Transaction.timestamp >= start_date)
+    if end_date:
+        # include entire end_date
+        query = query.filter(Transaction.timestamp < text(f"'{end_date}'::date + interval '1 day'"))
+    # Count and paginate
+    total = query.count()
+    total_pages = math.ceil(total / per_page) if total else 1
+
+    raw = query.order_by(Transaction.timestamp.desc()) \
+               .limit(per_page).offset((page - 1) * per_page).all()
+
+    # Build list of dicts for template
+    transactions = []
+    for tx, name, block in raw:
+        transactions.append({
+            'id': tx.id,
+            'timestamp': tx.timestamp,
+            'student_name': name,
+            'student_block': block,
+            'type': tx.type,
+            'amount': tx.amount,
+            'reason': tx.description,
+            'is_void': tx.is_void
+        })
+
+    return render_template(
+        'admin_transactions.html',
+        transactions=transactions,
+        page=page,
+        total_pages=total_pages
+    )
+
 
 @app.route('/admin/students/<int:student_id>')
 @admin_required
@@ -666,11 +773,14 @@ def student_detail(student_id):
 @app.route('/admin/void-transaction/<int:transaction_id>', methods=['POST'])
 @admin_required
 def void_transaction(transaction_id):
+    is_json = request.is_json or request.headers.get("X-Requested-With") == "XMLHttpRequest"
     tx = Transaction.query.get_or_404(transaction_id)
     tx.is_void = True
     db.session.commit()
+    if is_json:
+        return jsonify(status="success", message="Transaction voided.")
     flash("✅ Transaction voided.", "success")
-    return redirect(url_for('admin_payroll'))
+    return redirect(request.referrer or url_for('admin_dashboard'))
 
 
 # -------------------- ADMIN PAYROLL HISTORY --------------------
@@ -744,6 +854,7 @@ def admin_payroll_history():
 @app.route('/admin/run-payroll', methods=['POST'])
 @admin_required
 def run_payroll():
+    is_json = request.is_json or request.headers.get("X-Requested-With") == "XMLHttpRequest"
     try:
         from sqlalchemy.sql import func
         RATE_PER_SECOND = 0.25 / 60  # $0.25 per minute
@@ -772,11 +883,16 @@ def run_payroll():
             summary[session.student_id] += amount
 
         db.session.commit()
+        if is_json:
+            return jsonify(status="success", message=f"Payroll complete. Paid {len(summary)} students.")
         flash(f"✅ Payroll complete. Paid {len(summary)} students.", "admin_success")
     except Exception as e:
         app.logger.error(f"❌ Payroll error: {e}")
+        if is_json:
+            return jsonify(status="error", message="Payroll error occurred. Check logs."), 500
         flash("Payroll error occurred. Check logs.", "admin_error")
-    return redirect(url_for('admin_dashboard'))
+    if not is_json:
+        return redirect(url_for('admin_dashboard'))
 
 # -------------------- ADMIN PAYROLL PAGE --------------------
 @app.route('/admin/payroll')
