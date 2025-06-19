@@ -20,6 +20,7 @@ app.config.update(
     SESSION_COOKIE_SAMESITE="None"
 )
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "1%Inspiration&99%Effort")
+app.config["SQLALCHEMY_DATABASE_URI"] = os.environ["DATABASE_URL"]
 
 def url_encode_filter(s):
     return urllib.parse.quote_plus(s)
@@ -50,7 +51,7 @@ def format_datetime(value, fmt='%Y-%m-%d %I:%M %p', tz_name='America/Los_Angeles
 
 app.jinja_env.filters['format_datetime'] = format_datetime
 
-app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://timwonderer:Deduce-Python5-Customize@localhost/classroom_economy'
+
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 
