@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 from functools import wraps
 import pytz
 from sqlalchemy import or_, func, text
+from sqlalchemy.exc import SQLAlchemyError
 import math
 PACIFIC = pytz.timezone('America/Los_Angeles')
 utc = pytz.utc
@@ -12,18 +13,23 @@ import pyotp
 import urllib.parse
 import os
 
+required_env_vars = ["SECRET_KEY", "DATABASE_URL", "FLASK_ENV"]
+missing_vars = [var for var in required_env_vars if not os.getenv(var)]
+if missing_vars:
+    raise RuntimeError(
+        "Missing required environment variables: " + ", ".join(missing_vars)
+    )
+
 app = Flask(__name__)
-app.config['DEBUG']=False
-app.config['ENV']='production'
-app.config.update(
+app.config.from_mapping(
+    DEBUG=False,
+    ENV=os.environ["FLASK_ENV"],
+    SECRET_KEY=os.environ["SECRET_KEY"],
+    SQLALCHEMY_DATABASE_URI=os.environ["DATABASE_URL"],
     SESSION_COOKIE_SECURE=True,
-    SESSION_COOKIE_SAMESITE="None"
+    SESSION_COOKIE_SAMESITE="None",
 )
-secret_key = os.environ.get("SECRET_KEY")
-if not secret_key:
-    raise RuntimeError("SECRET_KEY environment variable not set")
-app.config['SECRET_KEY'] = secret_key
-app.config["SQLALCHEMY_DATABASE_URI"] = os.environ["DATABASE_URL"]
+
 
 def url_encode_filter(s):
     return urllib.parse.quote_plus(s)
@@ -31,11 +37,29 @@ def url_encode_filter(s):
 app.jinja_env.filters['url_encode'] = url_encode_filter
 
 import logging
-# Ensure our app.logger emits INFO and DEBUG (not just WARNING+)
-handler = logging.StreamHandler()
-handler.setLevel(logging.DEBUG)
-app.logger.addHandler(handler)
-app.logger.setLevel(logging.DEBUG)
+from logging.handlers import RotatingFileHandler
+
+# ----- Logging Configuration -----
+log_level_name = os.getenv("LOG_LEVEL", "INFO").upper()
+log_level = getattr(logging, log_level_name, logging.INFO)
+log_format = os.getenv(
+    "LOG_FORMAT",
+    "[%(asctime)s] %(levelname)s in %(module)s: %(message)s",
+)
+
+stream_handler = logging.StreamHandler()
+stream_handler.setLevel(log_level)
+stream_handler.setFormatter(logging.Formatter(log_format))
+
+app.logger.setLevel(log_level)
+app.logger.addHandler(stream_handler)
+
+if os.getenv("FLASK_ENV", app.config.get("ENV")) == "production":
+    log_file = os.getenv("LOG_FILE", "app.log")
+    file_handler = RotatingFileHandler(log_file, maxBytes=1_000_000, backupCount=5)
+    file_handler.setLevel(log_level)
+    file_handler.setFormatter(logging.Formatter(log_format))
+    app.logger.addHandler(file_handler)
 
 # ---- Jinja2 filter: Format UTC datetime to Pacific Time ----
 import pytz
@@ -181,6 +205,7 @@ class Admin(db.Model):
         return check_password_hash(self.password_hash, pw)
 
 # after your models are defined but before you start serving requests
+from flask.cli import with_appcontext
 from app import db, Admin
 import os
 
@@ -195,9 +220,15 @@ def ensure_default_admin():
         app.logger.info(f"🚀 Created default admin '{user}'")
 
 
-# Bootstrap default admin within application context
-with app.app_context():
+# ---- Flask CLI command to manually ensure default admin ----
+@app.cli.command("ensure-admin")
+@with_appcontext
+def ensure_admin_command():
+    """Create the default admin user if credentials are provided."""
     ensure_default_admin()
+
+
+
 
 
 # -------------------- AUTH HELPERS --------------------
@@ -207,7 +238,7 @@ def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if 'student_id' not in session:
-            return redirect(url_for('student_login'))
+            return redirect(url_for('student_login', next=request.url))
 
         now = datetime.now(utc)
         last_activity = session.get('last_activity')
@@ -217,7 +248,7 @@ def login_required(f):
             if (now - last_activity) > timedelta(minutes=SESSION_TIMEOUT_MINUTES):
                 session.pop('student_id', None)
                 flash("Session expired. Please log in again.")
-                return redirect(url_for('student_login'))
+                return redirect(url_for('student_login', next=request.url))
 
         session['last_activity'] = now.strftime("%Y-%m-%d %H:%M:%S")
         return f(*args, **kwargs)
@@ -232,7 +263,7 @@ def admin_required(f):
         app.logger.info(f"🧪 Admin access attempt: session = {dict(session)}")
         if not session.get("is_admin"):
             flash("You must be an admin to view this page.")
-            return redirect(url_for("admin_login"))
+            return redirect(url_for("admin_login", next=request.url))
 
         now = datetime.now(utc)
         last_activity = session.get('last_activity')
@@ -242,7 +273,7 @@ def admin_required(f):
             if (now - last_activity) > timedelta(minutes=SESSION_TIMEOUT_MINUTES):
                 session.pop("is_admin", None)
                 flash("Admin session expired. Please log in again.")
-                return redirect(url_for("admin_login"))
+                return redirect(url_for("admin_login", next=request.url))
 
         session['last_activity'] = now.strftime("%Y-%m-%d %H:%M:%S")
         return f(*args, **kwargs)
@@ -423,7 +454,20 @@ def student_transfer():
                 type='Deposit',
                 description=f'Transfer from {from_account}'
             ))
-            db.session.commit()
+            try:
+                db.session.commit()
+                app.logger.info(
+                    f"Transfer {amount} from {from_account} to {to_account} for student {student.id}"
+                )
+            except SQLAlchemyError as e:
+                db.session.rollback()
+                app.logger.error(
+                    f"Transfer failed for student {student.id}: {e}", exc_info=True
+                )
+                if is_json:
+                    return jsonify(status="error", message="Transfer failed."), 500
+                flash("Transfer failed due to a database error.", "transfer_error")
+                return redirect(url_for("student_transfer"))
             if is_json:
                 return jsonify(status="success", message="Transfer completed successfully!")
             flash("Transfer completed successfully!", "transfer_success")
@@ -573,7 +617,7 @@ def student_login():
             if is_json:
                 return jsonify(status="error", message="Invalid credentials"), 401
             flash("Invalid credentials", "error")
-            return redirect(url_for('student_login'))
+            return redirect(url_for('student_login', next=request.args.get('next')))
 
         session['student_id'] = student.id
         session['last_activity'] = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
@@ -585,6 +629,10 @@ def student_login():
 
         if is_json:
             return jsonify(status="success", message="Login successful")
+
+        next_url = request.args.get('next')
+        if next_url:
+            return redirect(next_url)
         return redirect(url_for('student_dashboard'))
 
     return render_template('student_login.html')
@@ -653,12 +701,15 @@ def admin_login():
             if is_json:
                 return jsonify(status="success", message="Login successful")
             flash("Admin login successful.")
+            next_url = request.args.get("next")
+            if next_url:
+                return redirect(next_url)
             return redirect(url_for("admin_dashboard"))
         else:
             if is_json:
                 return jsonify(status="error", message="Invalid credentials"), 401
             flash("Invalid credentials.", "error")
-            return redirect(url_for("admin_login"))
+            return redirect(url_for("admin_login", next=request.args.get("next")))
     return render_template("admin_login.html")
 
 @app.route('/admin/logout')
@@ -817,7 +868,16 @@ def void_transaction(transaction_id):
     is_json = request.is_json or request.headers.get("X-Requested-With") == "XMLHttpRequest"
     tx = Transaction.query.get_or_404(transaction_id)
     tx.is_void = True
-    db.session.commit()
+    try:
+        db.session.commit()
+        app.logger.info(f"Transaction {transaction_id} voided")
+    except SQLAlchemyError as e:
+        db.session.rollback()
+        app.logger.error(f"Failed to void transaction {transaction_id}: {e}", exc_info=True)
+        if is_json:
+            return jsonify(status="error", message="Failed to void transaction"), 500
+        flash("Error voiding transaction.", "error")
+        return redirect(request.referrer or url_for('admin_dashboard'))
     if is_json:
         return jsonify(status="success", message="Transaction voided.")
     flash("✅ Transaction voided.", "success")
@@ -1155,8 +1215,30 @@ def handle_tap():
                     t_out = PACIFIC.localize(t_out)
                 session_entry.duration_seconds = int((t_out - t_in).total_seconds())
 
-    db.session.commit()
+    try:
+        db.session.commit()
+        app.logger.info(
+            f"TAP success - student {student.id} {period} {action}"
+        )
+    except SQLAlchemyError as e:
+        db.session.rollback()
+        app.logger.error(
+            f"TAP failed for student {student.id}: {e}", exc_info=True
+        )
+        return jsonify({"error": "Database error"}), 500
+
     return jsonify({"status": "ok"})
+
+
+@app.route('/health')
+def health_check():
+    """Simple health check endpoint for uptime monitoring."""
+    try:
+        db.session.execute(text('SELECT 1'))
+        return 'ok', 200
+    except Exception:
+        app.logger.exception('Health check failed')
+        return 'db error', 500
 
 
 @app.route('/debug/filters')
