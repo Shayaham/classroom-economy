@@ -1,4 +1,4 @@
-from app_full import db, Student, TapSession
+from app import db, Student, TapSession
 from werkzeug.security import generate_password_hash
 from bs4 import BeautifulSoup
 import json

@@ -1,4 +1,4 @@
-from app_full import app, db, Student, TapSession
+from app import app, db, Student, TapSession
 from werkzeug.security import generate_password_hash
 from datetime import datetime, timedelta
 import random

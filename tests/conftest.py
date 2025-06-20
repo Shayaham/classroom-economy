@@ -3,7 +3,7 @@ import sys
 # Add the project root to PYTHONPATH so tests can import application modules
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 import pytest
-from app_full import app, db
+from app import app, db
 
 @pytest.fixture
 def client():
@@ -30,7 +30,7 @@ def client():
 
 @pytest.fixture
 def test_student():
-    from app_full import Student
+    from app import Student
     # Create and return a default test student
     stu = Student(
         name="Test Student",
