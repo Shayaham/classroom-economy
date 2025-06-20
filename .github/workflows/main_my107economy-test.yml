@@ -71,7 +71,6 @@ jobs:
           app-name: 'my107economy-test'
           slot-name: 'Production'
           publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_3DA4645AEC3847F2B8A407C23C69724C }}
-          remove-additional-files: true
 
 
 
