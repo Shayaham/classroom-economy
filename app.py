@@ -178,6 +178,7 @@ class Admin(db.Model):
         return check_password_hash(self.password_hash, pw)
 
 # after your models are defined but before you start serving requests
+from flask.cli import with_appcontext
 from app import db, Admin
 import os
 
@@ -192,9 +193,15 @@ def ensure_default_admin():
         app.logger.info(f"🚀 Created default admin '{user}'")
 
 
-# Bootstrap default admin within application context
-with app.app_context():
+# ---- Flask CLI command to manually ensure default admin ----
+@app.cli.command("ensure-admin")
+@with_appcontext
+def ensure_admin_command():
+    """Create the default admin user if credentials are provided."""
     ensure_default_admin()
+
+
+
 
 
 # -------------------- AUTH HELPERS --------------------
