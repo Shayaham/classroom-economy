@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 from functools import wraps
 import pytz
 from sqlalchemy import or_, func, text
+from sqlalchemy.exc import SQLAlchemyError
 import math
 PACIFIC = pytz.timezone('America/Los_Angeles')
 utc = pytz.utc
@@ -420,7 +421,20 @@ def student_transfer():
                 type='Deposit',
                 description=f'Transfer from {from_account}'
             ))
-            db.session.commit()
+            try:
+                db.session.commit()
+                app.logger.info(
+                    f"Transfer {amount} from {from_account} to {to_account} for student {student.id}"
+                )
+            except SQLAlchemyError as e:
+                db.session.rollback()
+                app.logger.error(
+                    f"Transfer failed for student {student.id}: {e}", exc_info=True
+                )
+                if is_json:
+                    return jsonify(status="error", message="Transfer failed."), 500
+                flash("Transfer failed due to a database error.", "transfer_error")
+                return redirect(url_for("student_transfer"))
             if is_json:
                 return jsonify(status="success", message="Transfer completed successfully!")
             flash("Transfer completed successfully!", "transfer_success")
@@ -814,7 +828,16 @@ def void_transaction(transaction_id):
     is_json = request.is_json or request.headers.get("X-Requested-With") == "XMLHttpRequest"
     tx = Transaction.query.get_or_404(transaction_id)
     tx.is_void = True
-    db.session.commit()
+    try:
+        db.session.commit()
+        app.logger.info(f"Transaction {transaction_id} voided")
+    except SQLAlchemyError as e:
+        db.session.rollback()
+        app.logger.error(f"Failed to void transaction {transaction_id}: {e}", exc_info=True)
+        if is_json:
+            return jsonify(status="error", message="Failed to void transaction"), 500
+        flash("Error voiding transaction.", "error")
+        return redirect(request.referrer or url_for('admin_dashboard'))
     if is_json:
         return jsonify(status="success", message="Transaction voided.")
     flash("✅ Transaction voided.", "success")
@@ -1152,7 +1175,18 @@ def handle_tap():
                     t_out = PACIFIC.localize(t_out)
                 session_entry.duration_seconds = int((t_out - t_in).total_seconds())
 
-    db.session.commit()
+    try:
+        db.session.commit()
+        app.logger.info(
+            f"TAP success - student {student.id} {period} {action}"
+        )
+    except SQLAlchemyError as e:
+        db.session.rollback()
+        app.logger.error(
+            f"TAP failed for student {student.id}: {e}", exc_info=True
+        )
+        return jsonify({"error": "Database error"}), 500
+
     return jsonify({"status": "ok"})
 
 
