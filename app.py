@@ -30,6 +30,7 @@ app.config.from_mapping(
     SESSION_COOKIE_SAMESITE="None",
 )
 
+
 def url_encode_filter(s):
     return urllib.parse.quote_plus(s)
 
