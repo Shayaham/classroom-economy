@@ -37,6 +37,8 @@ pip install -r requirements.txt
 flask run
 ```
 Seed data can be generated with `python seed_students.py`.
+Run `flask ensure-admin` to create the default admin account using the
+`ADMIN_USERNAME` and `ADMIN_PASSWORD` environment variables.
 
 ## Roadmap
 - Mobile‑friendly redesign
