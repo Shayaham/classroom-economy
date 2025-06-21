@@ -1237,9 +1237,9 @@ def health_check():
     try:
         db.session.execute(text('SELECT 1'))
         return 'ok', 200
-    except Exception:
+    except SQLAlchemyError as e:
         app.logger.exception('Health check failed')
-        return 'db error', 500
+        return jsonify(error='Database error'), 500
 
 
 @app.route('/debug/filters')
