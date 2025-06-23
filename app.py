@@ -7,6 +7,9 @@ import pytz
 from sqlalchemy import or_, func, text
 from sqlalchemy.exc import SQLAlchemyError
 import math
+# --- Encryption dependencies ---
+from sqlalchemy.types import TypeDecorator, LargeBinary
+from cryptography.fernet import Fernet
 PACIFIC = pytz.timezone('America/Los_Angeles')
 utc = pytz.utc
 import pyotp
@@ -19,6 +22,35 @@ if missing_vars:
     raise RuntimeError(
         "Missing required environment variables: " + ", ".join(missing_vars)
     )
+
+# Encryption key for PII fields
+ENCRYPTION_KEY = os.getenv("ENCRYPTION_KEY")
+if not ENCRYPTION_KEY:
+    raise RuntimeError("Missing required environment variable: ENCRYPTION_KEY")
+
+# Custom AES encryption for PII fields using Fernet
+class PIIEncryptedType(TypeDecorator):
+    impl = LargeBinary
+
+    def __init__(self, key_env_var, *args, **kwargs):
+        key = os.getenv(key_env_var)
+        if not key:
+            raise RuntimeError(f"Missing required environment variable: {key_env_var}")
+        self.fernet = Fernet(key)
+        super().__init__(*args, **kwargs)
+
+    def process_bind_param(self, value, dialect):
+        if value is None:
+            return None
+        if isinstance(value, str):
+            value = value.encode('utf-8')
+        return self.fernet.encrypt(value)
+
+    def process_result_value(self, value, dialect):
+        if value is None:
+            return None
+        decrypted = self.fernet.decrypt(value)
+        return decrypted.decode('utf-8')
 
 app = Flask(__name__)
 app.config.from_mapping(
@@ -91,8 +123,10 @@ migrate = Migrate(app, db)
 class Student(db.Model):
     __tablename__ = 'students'
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(100))
-    email = db.Column(db.String(120))
+    name = db.Column(PIIEncryptedType("ENCRYPTION_KEY"), nullable=False)
+    email = db.Column(PIIEncryptedType("ENCRYPTION_KEY"), nullable=False)
+    dob = db.Column(PIIEncryptedType("ENCRYPTION_KEY"), nullable=False)
+    dob_sum = db.Column(db.String(8), nullable=False)
     qr_id = db.Column(db.String(100), unique=True, nullable=False)
     pin_hash = db.Column(db.String(256), nullable=False)
     block = db.Column(db.String(1), nullable=False)
