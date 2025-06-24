@@ -243,11 +243,15 @@ from flask.cli import with_appcontext
 import os
 
 def ensure_default_admin():
+    """Create the default admin account if env vars are set and no account exists."""
     user = os.environ.get("ADMIN_USERNAME")
-    pw   = os.environ.get("ADMIN_PASSWORD")
-    if user and pw and not Admin.query.filter_by(username=user).first():
-        a = Admin(username=user,
-                  password_hash=Admin.hash_password(pw))
+    pw = os.environ.get("ADMIN_PASSWORD")
+    if not user or not pw:
+        app.logger.debug("Default admin credentials not configured")
+        return
+
+    if not Admin.query.filter_by(username=user).first():
+        a = Admin(username=user, password_hash=Admin.hash_password(pw))
         db.session.add(a)
         db.session.commit()
         app.logger.info(f"🚀 Created default admin '{user}'")
@@ -258,6 +262,13 @@ def ensure_default_admin():
 @with_appcontext
 def ensure_admin_command():
     """Create the default admin user if credentials are provided."""
+    ensure_default_admin()
+
+
+# Automatically create the default admin on first request in case
+# migrations ran but the CLI command was not executed (e.g. on Azure).
+@app.before_first_request
+def create_default_admin_if_needed():
     ensure_default_admin()
 
 
