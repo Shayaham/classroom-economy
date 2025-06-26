@@ -123,9 +123,7 @@ from flask_migrate import Migrate
 
 migrate = Migrate(app, db)
 
-# --- Ensure admin creation on startup, even on platforms like Azure ---
-with app.app_context():
-    ensure_default_admin()
+
 
 # -------------------- MODELS --------------------
 class Student(db.Model):
@@ -269,7 +267,8 @@ def ensure_default_admin():
 @with_appcontext
 def ensure_admin_command():
     """Create the default admin user if credentials are provided."""
-    ensure_default_admin()
+    with app.app_context():
+        ensure_default_admin()
 
 
 # Automatically create the default admin before the application starts serving
@@ -1325,7 +1324,10 @@ def health_check():
 def debug_filters():
     return jsonify(list(app.jinja_env.filters.keys()))
 
+
+# --- Ensure admin creation on startup, even on platforms like Azure ---
+with app.app_context():
+    ensure_default_admin()
+
 if __name__ == '__main__':
-    with app.app_context():
-        ensure_default_admin()
     app.run(debug=False, use_reloader=False)
