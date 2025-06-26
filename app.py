@@ -250,7 +250,9 @@ from flask.cli import with_appcontext
 def ensure_default_admin():
     """Create or reset the default admin account if env vars are set."""
     user = os.environ.get("ADMIN_USERNAME")
+    print (user)
     pw = os.environ.get("ADMIN_PASSWORD")
+    print (pw)
 
     if not user or not pw:
         app.logger.warning("⚠️ Default admin credentials not configured")
