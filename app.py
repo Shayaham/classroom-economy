@@ -777,6 +777,9 @@ def give_bonus_all():
 
 @app.route('/admin/login', methods=['GET', 'POST'])
 def admin_login():
+    # Clear previous admin session and reset session timer on page load
+    session.pop("is_admin", None)
+    session.pop("last_activity", None)
     if request.method == 'POST':
         is_json = request.is_json or request.headers.get("X-Requested-With") == "XMLHttpRequest"
         username = request.form.get("username")
