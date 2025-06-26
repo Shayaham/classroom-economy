@@ -243,11 +243,15 @@ from flask.cli import with_appcontext
 import os
 
 def ensure_default_admin():
+    """Create the default admin account if env vars are set and no account exists."""
     user = os.environ.get("ADMIN_USERNAME")
-    pw   = os.environ.get("ADMIN_PASSWORD")
-    if user and pw and not Admin.query.filter_by(username=user).first():
-        a = Admin(username=user,
-                  password_hash=Admin.hash_password(pw))
+    pw = os.environ.get("ADMIN_PASSWORD")
+    if not user or not pw:
+        app.logger.debug("Default admin credentials not configured")
+        return
+
+    if not Admin.query.filter_by(username=user).first():
+        a = Admin(username=user, password_hash=Admin.hash_password(pw))
         db.session.add(a)
         db.session.commit()
         app.logger.info(f"🚀 Created default admin '{user}'")
@@ -258,6 +262,15 @@ def ensure_default_admin():
 @with_appcontext
 def ensure_admin_command():
     """Create the default admin user if credentials are provided."""
+    ensure_default_admin()
+
+
+# Automatically create the default admin before the application starts serving
+# requests in case migrations ran but the CLI command was not executed
+# (e.g. on Azure). Flask 3 removed the ``before_first_request`` hook so we now
+# use ``before_serving`` which runs once when the server starts.
+@app.before_serving
+def create_default_admin_if_needed():
     ensure_default_admin()
 
 
@@ -273,7 +286,7 @@ def login_required(f):
         if 'student_id' not in session:
             return redirect(url_for('student_login', next=request.url))
 
-        now = datetime.now(utc)
+        now = datetime.utcnow()
         last_activity = session.get('last_activity')
 
         if last_activity:
@@ -298,7 +311,7 @@ def admin_required(f):
             flash("You must be an admin to view this page.")
             return redirect(url_for("admin_login", next=request.url))
 
-        now = datetime.now(utc)
+        now = datetime.utcnow()
         last_activity = session.get('last_activity')
 
         if last_activity:
