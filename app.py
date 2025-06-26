@@ -248,18 +248,26 @@ class Admin(db.Model):
 from flask.cli import with_appcontext
 
 def ensure_default_admin():
-    """Create the default admin account if env vars are set and no account exists."""
+    """Create or reset the default admin account if env vars are set."""
     user = os.environ.get("ADMIN_USERNAME")
     pw = os.environ.get("ADMIN_PASSWORD")
+
     if not user or not pw:
-        app.logger.debug("Default admin credentials not configured")
+        app.logger.warning("⚠️ Default admin credentials not configured")
         return
 
-    if not Admin.query.filter_by(username=user).first():
+    app.logger.info(f"🛠 ensure_default_admin called. USER: {user} | PW: {'set' if pw else 'missing'}")
+
+    admin = Admin.query.filter_by(username=user).first()
+    if admin:
+        admin.password_hash = Admin.hash_password(pw)
+        db.session.commit()
+        app.logger.warning(f"🔁 Reset password for admin '{user}'")
+    else:
         a = Admin(username=user, password_hash=Admin.hash_password(pw))
         db.session.add(a)
         db.session.commit()
-        app.logger.info(f"🚀 Created default admin '{user}'")
+        app.logger.warning(f"🚀 Created default admin '{user}'")
 
 
 # ---- Flask CLI command to manually ensure default admin ----
