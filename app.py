@@ -1236,6 +1236,7 @@ def download_csv_template():
 
 
 @app.route('/api/tap', methods=['POST'])
+@login_required
 def handle_tap():
     data = request.get_json()
     student = get_logged_in_student()
