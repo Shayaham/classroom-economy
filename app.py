@@ -123,6 +123,10 @@ from flask_migrate import Migrate
 
 migrate = Migrate(app, db)
 
+# --- Ensure admin creation on startup, even on platforms like Azure ---
+with app.app_context():
+    ensure_default_admin()
+
 # -------------------- MODELS --------------------
 class Student(db.Model):
     __tablename__ = 'students'
