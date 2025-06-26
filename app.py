@@ -67,6 +67,7 @@ def url_encode_filter(s):
     return urllib.parse.quote_plus(s)
 
 app.jinja_env.filters['url_encode'] = url_encode_filter
+app.jinja_env.filters['urlencode'] = url_encode_filter
 
 import logging
 from logging.handlers import RotatingFileHandler
@@ -125,8 +126,8 @@ class Student(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(PIIEncryptedType("ENCRYPTION_KEY"), nullable=False)
     email = db.Column(PIIEncryptedType("ENCRYPTION_KEY"), nullable=False)
-    dob = db.Column(PIIEncryptedType("ENCRYPTION_KEY"), nullable=False)
-    dob_sum = db.Column(db.String(8), nullable=False)
+    dob = db.Column(PIIEncryptedType("ENCRYPTION_KEY"), nullable=True)
+    dob_sum = db.Column(db.String(8), nullable=True)
     qr_id = db.Column(db.String(100), unique=True, nullable=False)
     pin_hash = db.Column(db.String(256), nullable=False)
     block = db.Column(db.String(1), nullable=False)
@@ -267,10 +268,18 @@ def ensure_admin_command():
 
 # Automatically create the default admin before the application starts serving
 # requests in case migrations ran but the CLI command was not executed
-# (e.g. on Azure). Flask 3 removed the ``before_first_request`` hook so we now
-# use ``before_serving`` which runs once when the server starts.
-@app.before_serving
-def create_default_admin_if_needed():
+# (e.g. on Azure). Use ``before_serving`` when available (Flask >=2.3),
+# otherwise fall back to ``before_first_request`` for older Flask versions.
+if hasattr(app, "before_serving"):
+    @app.before_serving
+    def create_default_admin_if_needed():
+        ensure_default_admin()
+elif hasattr(app, "before_first_request"):
+    @app.before_first_request
+    def create_default_admin_if_needed():
+        ensure_default_admin()
+else:
+    # Fall back to running immediately if neither hook is available
     ensure_default_admin()
 
 
