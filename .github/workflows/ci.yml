@@ -9,6 +9,12 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    env:
+      #CI-only settings to satisfy app.py’s required envs
+      SECRET_KEY: test-secret
+      DATABASE_URL: sqlite:///:memory:
+      FLASK_ENV: testing
+      ENCRYPTION_KEY: ci-test-encryption-key
     steps:
       - uses: actions/checkout@v3
       - name: Set up Python
