@@ -2,6 +2,8 @@
 
 An interactive banking and classroom management platform for students. The application simulates real-world finances while letting teachers track attendance and run payroll based on student participation.
 
+(Here are some edits I am adding to practice the GitHub flow)
+
 ## Features
 
 ### Implemented & manually tested
