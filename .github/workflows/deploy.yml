@@ -21,7 +21,9 @@ jobs:
     - name: Deploy to DO
       run: |
 
+
         ssh -o StrictHostKeyChecking=no root@24.199.127.184 "
+
 
           cd ~/classroom-economy &&
           git pull origin main &&
