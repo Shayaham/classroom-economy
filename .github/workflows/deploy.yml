@@ -22,7 +22,9 @@ jobs:
       run: |
 
 
+
         ssh -o StrictHostKeyChecking=no root@24.199.127.184 "
+
 
 
           cd ~/classroom-economy &&
