@@ -898,11 +898,11 @@ def admin_login():
             flash("Invalid credentials.", "error")
             return redirect(url_for("admin_login", next=request.args.get("next")))
         # Log the TOTP secret being used for verification
-        app.logger.info(f"🔍 Admin login: verifying TOTP for {username} using secret: {admin.totp_secret}")
+        app.logger.info(f"🔍 Admin login: verifying TOTP")
         # Verify TOTP code with explicit debug logging for drift
         import time
         current_time = int(time.time())
-        app.logger.info(f"🕒 Verifying TOTP with current_time={current_time}, code={totp_code}, valid_window=1")
+        
         totp = pyotp.TOTP(admin.totp_secret)
         if totp.verify(totp_code, valid_window=1):
             session["is_admin"] = True
@@ -944,21 +944,21 @@ def admin_signup():
             {"code": invite_code}
         ).fetchone()
         if not code_row:
-            app.logger.warning(f"🛑 Admin signup failed: invalid invite code {invite_code}")
+            app.logger.warning(f"🛑 Admin signup failed: invalid invite code")
             msg = "Invalid invite code."
             if is_json:
                 return jsonify(status="error", message=msg), 400
             flash(msg, "error")
             return redirect(url_for('admin_signup'))
         if code_row.used:
-            app.logger.warning(f"🛑 Admin signup failed: invite code {invite_code} already used")
+            app.logger.warning(f"🛑 Admin signup failed: invite code already used")
             msg = "Invite code already used."
             if is_json:
                 return jsonify(status="error", message=msg), 400
             flash(msg, "error")
             return redirect(url_for('admin_signup'))
         if code_row.expires_at and code_row.expires_at < datetime.utcnow():
-            app.logger.warning(f"🛑 Admin signup failed: invite code {invite_code} expired")
+            app.logger.warning(f"🛑 Admin signup failed: invite code expired")
             msg = "Invite code expired."
             if is_json:
                 return jsonify(status="error", message=msg), 400
@@ -966,7 +966,7 @@ def admin_signup():
             return redirect(url_for('admin_signup'))
         # Step 2: Check username uniqueness
         if Admin.query.filter_by(username=username).first():
-            app.logger.warning(f"🛑 Admin signup failed: username {username} already exists")
+            app.logger.warning(f"🛑 Admin signup failed: username already exists")
             msg = "Username already exists."
             if is_json:
                 return jsonify(status="error", message=msg), 400
@@ -1023,7 +1023,7 @@ def admin_signup():
             )
         # Step 6: Create admin account and mark invite as used
         # Log the TOTP secret being saved for debug
-        app.logger.info(f"🎯 Admin signup: TOTP secret being saved for {username}: {totp_secret}")
+        app.logger.info(f"🎯 Admin signup: TOTP secret being saved for {username}")
         new_admin = Admin(username=username, totp_secret=totp_secret)
         db.session.add(new_admin)
         db.session.execute(
@@ -1034,7 +1034,7 @@ def admin_signup():
         # Clear session
         session.pop("admin_totp_secret", None)
         session.pop("admin_totp_username", None)
-        app.logger.info(f"🎉 Admin signup: {username} created successfully via invite {invite_code}")
+        app.logger.info(f"🎉 Admin signup: {username} created successfully via invite")
         msg = "Admin account created successfully! Please log in using your authenticator app."
         if is_json:
             return jsonify(status="success", message=msg)
