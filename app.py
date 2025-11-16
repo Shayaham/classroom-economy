@@ -435,14 +435,16 @@ class InsurancePolicy(db.Model):
     is_monetary = db.Column(db.Boolean, default=True)  # True = monetary claims, False = item/service claims
 
     # Special rules
-    no_repurchase_after_cancel = db.Column(db.Boolean, default=False)
-    repurchase_wait_days = db.Column(db.Integer, default=30)  # Days to wait after cancel
+    no_repurchase_after_cancel = db.Column(db.Boolean, default=False)  # Permanent block on repurchase
+    enable_repurchase_cooldown = db.Column(db.Boolean, default=False)  # Enable temporary cooldown period
+    repurchase_wait_days = db.Column(db.Integer, default=30)  # Days to wait after cancel (if cooldown enabled)
     auto_cancel_nonpay_days = db.Column(db.Integer, default=7)  # Days of non-payment before cancel
     claim_time_limit_days = db.Column(db.Integer, default=30)  # Days from incident to file claim
 
     # Bundle settings (JSON or separate table in future)
     bundle_with_policy_ids = db.Column(db.Text, nullable=True)  # Comma-separated IDs
     bundle_discount_percent = db.Column(db.Float, default=0)  # Discount % for bundle
+    bundle_discount_amount = db.Column(db.Float, default=0)  # Discount $ amount for bundle
 
     is_active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -1013,14 +1015,20 @@ def student_purchase_insurance(policy_id):
         return redirect(url_for('student_insurance_marketplace'))
 
     # Check repurchase restrictions
-    if policy.no_repurchase_after_cancel:
-        cancelled = StudentInsurance.query.filter_by(
-            student_id=student.id,
-            policy_id=policy.id,
-            status='cancelled'
-        ).order_by(StudentInsurance.cancel_date.desc()).first()
+    cancelled = StudentInsurance.query.filter_by(
+        student_id=student.id,
+        policy_id=policy.id,
+        status='cancelled'
+    ).order_by(StudentInsurance.cancel_date.desc()).first()
 
-        if cancelled and cancelled.cancel_date:
+    if cancelled:
+        # Check for permanent block (no repurchase allowed EVER)
+        if policy.no_repurchase_after_cancel:
+            flash("This policy cannot be repurchased after cancellation.", "danger")
+            return redirect(url_for('student_insurance_marketplace'))
+
+        # Check for cooldown period (temporary restriction)
+        if policy.enable_repurchase_cooldown and cancelled.cancel_date:
             days_since_cancel = (datetime.utcnow() - cancelled.cancel_date).days
             if days_since_cancel < policy.repurchase_wait_days:
                 flash(f"You must wait {policy.repurchase_wait_days - days_since_cancel} more days before repurchasing this policy.", "warning")
@@ -2086,17 +2094,26 @@ def admin_edit_insurance_policy(policy_id):
         policy.max_claim_amount = form.max_claim_amount.data
         policy.is_monetary = form.is_monetary.data
         policy.no_repurchase_after_cancel = form.no_repurchase_after_cancel.data
+        policy.enable_repurchase_cooldown = form.enable_repurchase_cooldown.data
         policy.repurchase_wait_days = form.repurchase_wait_days.data
         policy.auto_cancel_nonpay_days = form.auto_cancel_nonpay_days.data
         policy.claim_time_limit_days = form.claim_time_limit_days.data
+        policy.bundle_with_policy_ids = form.bundle_with_policy_ids.data
         policy.bundle_discount_percent = form.bundle_discount_percent.data
+        policy.bundle_discount_amount = form.bundle_discount_amount.data
         policy.is_active = form.is_active.data
 
         db.session.commit()
         flash(f"Insurance policy '{policy.title}' updated successfully!", "success")
         return redirect(url_for('admin_insurance_management'))
 
-    return render_template('admin_edit_insurance_policy.html', form=form, policy=policy)
+    # Get other active policies for bundle selection (excluding current policy)
+    available_policies = InsurancePolicy.query.filter(
+        InsurancePolicy.is_active == True,
+        InsurancePolicy.id != policy_id
+    ).all()
+
+    return render_template('admin_edit_insurance_policy.html', form=form, policy=policy, available_policies=available_policies)
 
 @app.route('/admin/insurance/deactivate/<int:policy_id>', methods=['POST'])
 @admin_required
