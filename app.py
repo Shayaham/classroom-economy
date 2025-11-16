@@ -1,16 +1,36 @@
+THEME_PROMPTS = [
+    {"slug": "animal", "prompt": "Write in your favorite animal."},
+    {"slug": "color", "prompt": "Write in your favorite color."},
+    {"slug": "space", "prompt": "Write in something related to outer space."},
+    {"slug": "nature", "prompt": "Write in a nature word (tree, river, etc.)."},
+    {"slug": "food", "prompt": "Write in your favorite fruit or food."},
+    {"slug": "trait", "prompt": "Write in a positive character trait (bravery, kindness, etc.)."},
+    {"slug": "place", "prompt": "Write in a place you want to visit."},
+    {"slug": "science", "prompt": "Write in a science word you like."},
+    {"slug": "hobby", "prompt": "Write in your favorite hobby or sport."},
+    {"slug": "happy", "prompt": "Write in something that makes you happy."},
+]
 
 from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify, Response
 
 from forms import AdminSignupForm, SystemAdminInviteForm
+from forms import StudentClaimAccountForm, StudentCreateUsernameForm, StudentPinPassphraseForm
+from forms import StudentLoginForm, AdminLoginForm
 
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+from calendar import monthrange
 from functools import wraps
 import pytz
 from sqlalchemy import or_, func, text
+import sqlalchemy as sa
 # local security helpers
-from hash_utils import hash_username
+from hash_utils import (
+    get_random_salt,
+    hash_hmac,
+    hash_username,
+)
 import json
 import math
 import os
@@ -32,17 +52,12 @@ import pyotp
 # --- CSRF Protection ---
 from flask_wtf import CSRFProtect
 
-required_env_vars = ["SECRET_KEY", "DATABASE_URL", "FLASK_ENV"]
+required_env_vars = ["SECRET_KEY", "DATABASE_URL", "FLASK_ENV", "ENCRYPTION_KEY", "PEPPER_KEY"]
 missing_vars = [var for var in required_env_vars if not os.getenv(var)]
 if missing_vars:
     raise RuntimeError(
         "Missing required environment variables: " + ", ".join(missing_vars)
     )
-
-# Encryption key for PII fields
-ENCRYPTION_KEY = os.getenv("ENCRYPTION_KEY")
-if not ENCRYPTION_KEY:
-    raise RuntimeError("Missing required environment variable: ENCRYPTION_KEY")
 
 # Custom AES encryption for PII fields using Fernet
 class PIIEncryptedType(TypeDecorator):
@@ -75,7 +90,7 @@ app.config.from_mapping(
     SECRET_KEY=os.environ["SECRET_KEY"],
     SQLALCHEMY_DATABASE_URI=os.environ["DATABASE_URL"],
     SESSION_COOKIE_SECURE=True,
-    SESSION_COOKIE_SAMESITE="None",
+    SESSION_COOKIE_SAMESITE="Lax",
 )
 
 # Enable Jinja2 template hot reloading without server restart
@@ -84,6 +99,20 @@ app.config['TEMPLATES_AUTO_RELOAD'] = True
 
 # --- Enable CSRF protection ---
 csrf = CSRFProtect(app)
+
+
+# --- URL Safety Checker ---
+from urllib.parse import urlparse, urljoin
+def is_safe_url(target):
+    """
+    Ensure a redirect URL is safe by checking if it's on the same domain.
+    """
+    # Allow empty targets
+    if not target:
+        return True
+    ref_url = urlparse(request.host_url)
+    test_url = urlparse(urljoin(request.host_url, target))
+    return test_url.scheme in ('http', 'https') and ref_url.netloc == test_url.netloc
 
 
 def url_encode_filter(s):
@@ -119,18 +148,29 @@ if os.getenv("FLASK_ENV", app.config.get("ENV")) == "production":
     file_handler.setFormatter(logging.Formatter(log_format))
     app.logger.addHandler(file_handler)
 
-# ---- Jinja2 filter: Format UTC datetime to Pacific Time ----
+# ---- Jinja2 filter: Format UTC datetime to user's local time ----
 import pytz
-def format_datetime(value, fmt='%Y-%m-%d %I:%M %p', tz_name='America/Los_Angeles'):
+def format_datetime(value, fmt='%Y-%m-%d %I:%M %p'):
     """
-    Convert a UTC datetime to the specified timezone and format it.
+    Convert a UTC datetime to the user's timezone (from session) and format it.
+    Defaults to Pacific Time if no timezone is set in the session.
     """
     if not value:
         return ''
+
+    # Get user's timezone from session, default to Los Angeles
+    tz_name = session.get('timezone', 'America/Los_Angeles')
+    try:
+        target_tz = pytz.timezone(tz_name)
+    except pytz.UnknownTimeZoneError:
+        app.logger.warning(f"Invalid timezone '{tz_name}' in session, defaulting to LA.")
+        target_tz = pytz.timezone('America/Los_Angeles')
+
     utc = pytz.utc
-    target_tz = pytz.timezone(tz_name)
-    # Localize naive datetimes as UTC
+
+    # Localize naive datetimes as UTC before converting
     dt = value if getattr(value, 'tzinfo', None) else utc.localize(value)
+
     local_dt = dt.astimezone(target_tz)
     return local_dt.strftime(fmt)
 
@@ -151,7 +191,7 @@ migrate = Migrate(app, db)
 class Student(db.Model):
     __tablename__ = 'students'
     id = db.Column(db.Integer, primary_key=True)
-    first_name = db.Column(db.String(50), nullable=False)
+    first_name = db.Column(PIIEncryptedType(key_env_var='ENCRYPTION_KEY'), nullable=False)
     last_initial = db.Column(db.String(1), nullable=False)
     block = db.Column(db.String(10), nullable=False)
 
@@ -164,16 +204,14 @@ class Student(db.Model):
     pin_hash = db.Column(db.Text, nullable=True)
     passphrase_hash = db.Column(db.Text, nullable=True)
 
-    passes_left = db.Column(db.Integer, default=3)
-    last_tap_in = db.Column(db.DateTime)
-    last_tap_out = db.Column(db.DateTime)
+    hall_passes = db.Column(db.Integer, default=3)
+    
     is_rent_enabled = db.Column(db.Boolean, default=True)
     is_property_tax_enabled = db.Column(db.Boolean, default=False)
     owns_seat = db.Column(db.Boolean, default=False)
     insurance_plan = db.Column(db.String, default="none")
     insurance_last_paid = db.Column(db.DateTime, nullable=True)
     second_factor_type = db.Column(db.String, nullable=True)
-    second_factor_secret = db.Column(db.String, nullable=True)
     second_factor_enabled = db.Column(db.Boolean, default=False)
     has_completed_setup = db.Column(db.Boolean, default=False)
     # Privacy-aligned DOB sum for username generation (non-reversible)
@@ -184,8 +222,7 @@ class Student(db.Model):
         return f"{self.first_name} {self.last_initial}."
 
     transactions = db.relationship('Transaction', backref='student', lazy=True)
-    purchases = db.relationship('Purchase', backref='student', lazy=True)
-    tap_sessions = db.relationship('TapSession', back_populates='student', lazy='dynamic')
+
 
     @property
     def checking_balance(self):
@@ -201,15 +238,27 @@ class Student(db.Model):
 
     @property
     def recent_deposits(self):
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         recent_timeframe = now - timedelta(days=2)
-        return [
-            tx for tx in self.transactions
-            if tx.amount > 0
-            and not tx.is_void
-            and tx.timestamp >= recent_timeframe
-            and not tx.description.lower().startswith("transfer")
-        ]
+
+        def _as_utc(dt):
+            if dt is None:
+                return None
+            if dt.tzinfo is None:
+                return dt.replace(tzinfo=timezone.utc)
+            return dt.astimezone(timezone.utc)
+
+        deposits = []
+        for tx in self.transactions:
+            if tx.amount <= 0 or tx.is_void:
+                continue
+            if (tx.description or "").lower().startswith("transfer"):
+                continue
+            tx_time = _as_utc(tx.timestamp)
+            if not tx_time or tx_time < recent_timeframe:
+                continue
+            deposits.append(tx)
+        return deposits
 
     @property
     def amount_needed_to_cover_bills(self):
@@ -222,10 +271,7 @@ class Student(db.Model):
             total_due += 200  # Estimated insurance cost
         return max(0, total_due - self.checking_balance)
 
-    @property
-    def next_pay_date(self):
-        from datetime import timedelta
-        return (self.last_tap_in or datetime.utcnow()) + timedelta(days=14)
+    # Removed deprecated last_tap_in/last_tap_out properties; backend is source of truth.
 
 class AdminInviteCode(db.Model):
     __tablename__ = 'admin_invite_codes'
@@ -233,6 +279,7 @@ class AdminInviteCode(db.Model):
     code = db.Column(db.String(255), unique=True, nullable=False)
     expires_at = db.Column(db.DateTime, nullable=True)
     used = db.Column(db.Boolean, default=False)
+    # All times stored as UTC (see header note)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 
@@ -250,9 +297,9 @@ def system_admin_required(f):
             flash("System administrator access required.")
             return redirect(url_for('system_admin_login', next=request.path))
         last_activity = session.get('last_activity')
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         if last_activity:
-            last_activity = datetime.strptime(last_activity, "%Y-%m-%d %H:%M:%S")
+            last_activity = datetime.strptime(last_activity, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
             if now - last_activity > timedelta(minutes=SESSION_TIMEOUT_MINUTES):
                 session.pop("is_system_admin", None)
                 flash("Session expired. Please log in again.")
@@ -267,36 +314,102 @@ class Transaction(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     student_id = db.Column(db.Integer, db.ForeignKey('students.id'), nullable=False)
     amount = db.Column(db.Float, nullable=False)
+    # All times stored as UTC (see header note)
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
     account_type = db.Column(db.String(20), default='checking')
     description = db.Column(db.String(255))
     is_void = db.Column(db.Boolean, default=False)
     type = db.Column(db.String(50))  # optional field to describe the transaction type
+    # All times stored as UTC
     date_funds_available = db.Column(db.DateTime, default=datetime.utcnow)
 
-class Purchase(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    student_id = db.Column(db.Integer, db.ForeignKey('students.id'), nullable=False)
-    item_name = db.Column(db.String(100))
-    redeemed = db.Column(db.Boolean, default=False)
-    date_purchased = db.Column(db.DateTime, default=datetime.utcnow)
-
-# ---- TapSession Model ----
-from datetime import datetime
-class TapSession(db.Model):
-    __tablename__ = 'tap_sessions'
+# ---- TapEvent Model (append-only) ----
+class TapEvent(db.Model):
+    __tablename__ = 'tap_events'
 
     id = db.Column(db.Integer, primary_key=True)
     student_id = db.Column(db.Integer, db.ForeignKey('students.id'), nullable=False)
-    period = db.Column(db.String(10), nullable=False)  # e.g., 'a', 'b'
-    tap_in_time = db.Column(db.DateTime, default=lambda: datetime.now(PACIFIC))
-    tap_out_time = db.Column(db.DateTime, nullable=True)
+    period = db.Column(db.String(10), nullable=False)
+    status = db.Column(db.String(10), nullable=False)  # 'active' or 'inactive'
+    # All times stored as UTC (see header note)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
     reason = db.Column(db.String(50), nullable=True)
-    is_done = db.Column(db.Boolean, default=False)
-    duration_seconds = db.Column(db.Integer, default=0)
-    is_paid = db.Column(db.Boolean, default=False)
 
-    student = db.relationship("Student", back_populates="tap_sessions")
+    student = db.relationship("Student", backref="tap_events")
+
+# ---- Hall Pass Log Model ----
+class HallPassLog(db.Model):
+    __tablename__ = 'hall_pass_logs'
+    id = db.Column(db.Integer, primary_key=True)
+    student_id = db.Column(db.Integer, db.ForeignKey('students.id'), nullable=False)
+    reason = db.Column(db.String(50), nullable=False)
+    status = db.Column(db.String(20), default='pending', nullable=False) # pending, approved, rejected, left_class, returned
+    request_time = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    decision_time = db.Column(db.DateTime, nullable=True)
+    left_time = db.Column(db.DateTime, nullable=True)
+    return_time = db.Column(db.DateTime, nullable=True)
+
+    student = db.relationship('Student', backref='hall_pass_logs')
+
+
+# -------------------- STORE MODELS --------------------
+class StoreItem(db.Model):
+    __tablename__ = 'store_items'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    price = db.Column(db.Float, nullable=False)
+    item_type = db.Column(db.String(20), nullable=False, default='delayed') # immediate, delayed, collective
+    inventory = db.Column(db.Integer, nullable=True) # null for unlimited
+    limit_per_student = db.Column(db.Integer, nullable=True) # null for no limit
+    auto_delist_date = db.Column(db.DateTime, nullable=True)
+    auto_expiry_days = db.Column(db.Integer, nullable=True) # days student has to use the item
+    is_active = db.Column(db.Boolean, default=True, nullable=False)
+
+    # Relationship to student items
+    student_items = db.relationship('StudentItem', backref='store_item', lazy=True)
+
+class StudentItem(db.Model):
+    __tablename__ = 'student_items'
+    id = db.Column(db.Integer, primary_key=True)
+    student_id = db.Column(db.Integer, db.ForeignKey('students.id'), nullable=False)
+    store_item_id = db.Column(db.Integer, db.ForeignKey('store_items.id'), nullable=False)
+    purchase_date = db.Column(db.DateTime, default=datetime.utcnow)
+    expiry_date = db.Column(db.DateTime, nullable=True)
+    # purchased, pending (for collective), processing, completed, expired, redeemed
+    status = db.Column(db.String(20), default='purchased', nullable=False)
+    redemption_details = db.Column(db.Text, nullable=True) # For student notes on usage
+    redemption_date = db.Column(db.DateTime, nullable=True) # When student used it
+
+    # Relationships
+    student = db.relationship('Student', backref=db.backref('items', lazy='dynamic'))
+
+
+# -------------------- RENT SETTINGS MODEL --------------------
+class RentSettings(db.Model):
+    __tablename__ = 'rent_settings'
+    id = db.Column(db.Integer, primary_key=True)
+    rent_amount = db.Column(db.Float, default=50.0)
+    due_day_of_month = db.Column(db.Integer, default=1)  # Day of month rent is due (1-31)
+    late_fee = db.Column(db.Float, default=10.0)
+    grace_period_days = db.Column(db.Integer, default=3)  # Days after due date before late fee
+    is_enabled = db.Column(db.Boolean, default=True)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+class RentPayment(db.Model):
+    __tablename__ = 'rent_payments'
+    id = db.Column(db.Integer, primary_key=True)
+    student_id = db.Column(db.Integer, db.ForeignKey('students.id'), nullable=False)
+    period = db.Column(db.String(10), nullable=False)  # Block/Period (e.g., 'A', 'B', 'C')
+    amount_paid = db.Column(db.Float, nullable=False)
+    period_month = db.Column(db.Integer, nullable=False)  # Month (1-12)
+    period_year = db.Column(db.Integer, nullable=False)  # Year (e.g., 2025)
+    payment_date = db.Column(db.DateTime, default=datetime.utcnow)
+    was_late = db.Column(db.Boolean, default=False)
+    late_fee_charged = db.Column(db.Float, default=0.0)
+
+    student = db.relationship('Student', backref='rent_payments')
+
 
 # ---- Admin Model ----
 class Admin(db.Model):
@@ -370,18 +483,28 @@ def login_required(f):
             encoded_next = urllib.parse.quote(request.path, safe="")
             return redirect(f"{url_for('student_login')}?next={encoded_next}")
 
-        now = datetime.utcnow()
-        last_activity = session.get('last_activity')
+        # Enforce strict 10-minute timeout from login time
+        login_time_str = session.get('login_time')
+        if not login_time_str:
+            # Clear student-specific keys but preserve CSRF token
+            session.pop('student_id', None)
+            session.pop('login_time', None)
+            session.pop('last_activity', None)
+            flash("Session is invalid. Please log in again.")
+            return redirect(url_for('student_login'))
 
-        if last_activity:
-            last_activity = datetime.strptime(last_activity, "%Y-%m-%d %H:%M:%S")
-            if (now - last_activity) > timedelta(minutes=SESSION_TIMEOUT_MINUTES):
-                session.pop('student_id', None)
-                flash("Session expired. Please log in again.")
-                encoded_next = urllib.parse.quote(request.path, safe="")
-                return redirect(f"{url_for('student_login')}?next={encoded_next}")
+        login_time = datetime.fromisoformat(login_time_str)
+        if (datetime.now(timezone.utc) - login_time) > timedelta(minutes=SESSION_TIMEOUT_MINUTES):
+            # Clear student-specific keys but preserve CSRF token
+            session.pop('student_id', None)
+            session.pop('login_time', None)
+            session.pop('last_activity', None)
+            flash("Session expired. Please log in again.")
+            encoded_next = urllib.parse.quote(request.path, safe="")
+            return redirect(f"{url_for('student_login')}?next={encoded_next}")
 
-        session['last_activity'] = now.strftime("%Y-%m-%d %H:%M:%S")
+        # Continue to update last_activity for other potential uses, but it no longer controls the timeout
+        session['last_activity'] = datetime.now(timezone.utc).isoformat()
         return f(*args, **kwargs)
     return decorated_function
 
@@ -397,11 +520,11 @@ def admin_required(f):
             encoded_next = urllib.parse.quote(request.path, safe="")
             return redirect(f"{url_for('admin_login')}?next={encoded_next}")
 
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         last_activity = session.get('last_activity')
 
         if last_activity:
-            last_activity = datetime.strptime(last_activity, "%Y-%m-%d %H:%M:%S")
+            last_activity = datetime.strptime(last_activity, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
             if (now - last_activity) > timedelta(minutes=SESSION_TIMEOUT_MINUTES):
                 session.pop("is_admin", None)
                 flash("Admin session expired. Please log in again.")
@@ -417,6 +540,117 @@ def admin_required(f):
 def home():
     return redirect(url_for('student_login'))  # Or wherever you want to go
 
+# --- PAGE 1: Claim Account ---
+@app.route('/student/claim-account', methods=['GET', 'POST'])
+def student_claim_account():
+    form = StudentClaimAccountForm()
+
+    if form.validate_on_submit():
+        first_half = form.first_half.data.strip().lower()
+        second_half = form.second_half.data.strip().lower()
+        dob_sum = form.dob_sum.data.strip()
+
+        if not dob_sum.isdigit():
+            flash("DOB sum must be a number.", "claim")
+            return redirect(url_for('student_claim_account'))
+
+        for s in Student.query.filter_by(has_completed_setup=False).all():
+            name_code = first_half
+
+            if (
+                s.first_half_hash == hash_hmac(name_code.encode(), s.salt)
+                and s.second_half_hash == hash_hmac(dob_sum.encode(), s.salt)
+                and str(s.dob_sum) == dob_sum
+            ):
+                session['claimed_student_id'] = s.id
+                session.pop('generated_username', None)
+                session.pop('theme_prompt', None)
+                session.pop('theme_slug', None)
+
+                return redirect(url_for('student_create_username'))
+
+        flash("No matching account found. Please check your info.", "claim")
+        return redirect(url_for('student_claim_account'))
+
+    return render_template('student_account_claim.html', form=form)
+
+# --- PAGE 2: Create Username ---
+@app.route('/student/create-username', methods=['GET', 'POST'])
+def student_create_username():
+    import random, re
+    from hash_utils import hash_username
+    # Only allow if claimed
+    student_id = session.get('claimed_student_id')
+    if not student_id:
+        flash("Please claim your account first.", "setup")
+        return redirect(url_for('student_claim_account'))
+    student = Student.query.get(student_id)
+    if not student or student.has_completed_setup:
+        flash("Invalid or already setup account.", "setup")
+        return redirect(url_for('student_login'))
+    # Assign a random theme prompt if not yet in session
+    if 'theme_prompt' not in session:
+        selected_theme = random.choice(THEME_PROMPTS)
+        session['theme_slug'] = selected_theme['slug']
+        session['theme_prompt'] = selected_theme['prompt']
+    form = StudentCreateUsernameForm()
+    if form.validate_on_submit():
+        write_in_word = form.write_in_word.data.strip().lower()
+        if not write_in_word.isalpha() or len(write_in_word) < 3 or len(write_in_word) > 12:
+            flash("Please enter a valid word (3-12 letters, no numbers or spaces).", "setup")
+            return redirect(url_for('student_create_username'))
+        adjectives = [
+            "brave", "clever", "curious", "daring", "eager", "fancy", "gentle", "honest", "jolly", "kind",
+            "lucky", "mighty", "noble", "quick", "proud", "silly", "witty", "zesty", "sunny", "chill"
+        ]
+        adjective = random.choice(adjectives)
+        dob_sum = student.dob_sum if student.dob_sum is not None else 0
+        initials = f"{student.first_name[0].upper()}{student.last_initial.upper()}"
+        username = f"{adjective}{write_in_word}{dob_sum}{initials}"
+        # Save username plaintext in session for display
+        session['generated_username'] = username
+        # Hash and store in DB
+        student.username_hash = hash_username(username, student.salt)
+        db.session.commit()
+        # Clear theme prompt from session
+        session.pop('theme_prompt', None)
+        session.pop('theme_slug', None)
+        return redirect(url_for('student_setup_pin_passphrase'))
+    return render_template('student_create_username.html', theme_prompt=session['theme_prompt'], form=form)
+
+# --- PAGE 3: Setup PIN & Passphrase ---
+@app.route('/student/setup-pin-passphrase', methods=['GET', 'POST'])
+def student_setup_pin_passphrase():
+    from werkzeug.security import generate_password_hash
+    # Only allow if claimed and username generated
+    student_id = session.get('claimed_student_id')
+    username = session.get('generated_username')
+    if not student_id or not username:
+        flash("Please complete previous steps.", "setup")
+        return redirect(url_for('student_claim_account'))
+    student = Student.query.get(student_id)
+    if not student or student.has_completed_setup:
+        flash("Invalid or already setup account.", "setup")
+        return redirect(url_for('student_login'))
+    form = StudentPinPassphraseForm()
+    if form.validate_on_submit():
+        pin = form.pin.data
+        passphrase = form.passphrase.data
+        if not pin or not passphrase:
+            flash("PIN and passphrase are required.", "setup")
+            return redirect(url_for('student_setup_pin_passphrase'))
+        # Save credentials (store passphrase as hash)
+        student.pin_hash = generate_password_hash(pin)
+        student.passphrase_hash = generate_password_hash(passphrase)
+        student.has_completed_setup = True
+        db.session.commit()
+        # Clear session onboarding keys
+        session.pop('claimed_student_id', None)
+        session.pop('generated_username', None)
+        flash("Setup completed successfully!", "setup")
+        return redirect(url_for('setup_complete'))
+    return render_template('student_pin_setup.html', username=username, form=form)
+
 @app.route('/setup-complete')
 @login_required
 def setup_complete():
@@ -425,92 +659,72 @@ def setup_complete():
     db.session.commit()
     return render_template('student_setup_complete.html')
 
-@app.route('/student/setup', methods=['GET', 'POST'])
-@login_required
-def student_setup():
-    student = get_logged_in_student()
-    if request.method == 'POST':
-        # Clear unrelated flash messages
-        for category in ['setup']:
-            session.modified = True
-            flash("Setup completed successfully!", category)
-
-        # Save the new PIN
-        student.pin_hash = generate_password_hash(request.form.get("pin"))
-
-        # Save the passphrase as the second factor secret
-        passphrase = request.form.get("second_factor_secret")
-        if passphrase:
-            student.second_factor_secret = passphrase
-        else:
-            flash("Passphrase is required.", "setup")
-            return redirect(url_for('student_setup'))
-
-        student.has_completed_setup = True
-        db.session.commit()
-        flash("Setup completed successfully!", "setup")
-        return redirect(url_for('setup_complete'))
-
-    return render_template('student_setup.html', student=student)
-
 # -------------------- STUDENT DASHBOARD --------------------
+
+
+from attendance import get_last_payroll_time, calculate_unpaid_attendance_seconds
+
 @app.route('/student/dashboard')
 @login_required
 def student_dashboard():
     student = get_logged_in_student()
     apply_savings_interest(student)  # Apply savings interest if not already applied
     transactions = Transaction.query.filter_by(student_id=student.id).order_by(Transaction.timestamp.desc()).all()
-    purchases = Purchase.query.filter_by(student_id=student.id).all()
-    
+    student_items = student.items.filter(
+        StudentItem.status.in_(['purchased', 'pending', 'processing'])
+    ).order_by(StudentItem.purchase_date.desc()).all()
+
     checking_transactions = [tx for tx in transactions if tx.account_type == 'checking']
     savings_transactions = [tx for tx in transactions if tx.account_type == 'savings']
-    
+
     forecast_interest = round(student.savings_balance * (0.045 / 12), 2)
 
-    # ---- Compute session status for each block based on real DB state ----
-    from datetime import date
-
-    def get_session_status(student_id, blk):
-        today = date.today()
-        # Active session: no tap_out_time
-        active = TapSession.query.filter_by(
-            student_id=student_id,
-            period=blk,
-            tap_out_time=None
-        ).first()
-        if active:
-            # still tapped in
-            t_in = active.tap_in_time
-            if getattr(t_in, 'tzinfo', None) is None:
-                t_in = utc.localize(t_in)
-            seconds = int((datetime.now(PACIFIC) - t_in.astimezone(PACIFIC)).total_seconds())
-            return True, False, seconds
-
-        # Not active: sum all sessions today for this block
-        sessions = TapSession.query.filter(
-            TapSession.student_id==student_id,
-            TapSession.period==blk,
-            func.date(TapSession.tap_in_time)==today
-        ).all()
-        total = 0
-        done = False
-        for s in sessions:
-            t_in = s.tap_in_time
-            t_out = s.tap_out_time or datetime.now(PACIFIC)
-            if getattr(t_in, 'tzinfo', None) is None:
-                t_in = utc.localize(t_in)
-            if getattr(t_out, 'tzinfo', None) is None:
-                t_out = utc.localize(t_out)
-            total += (t_out.astimezone(PACIFIC) - t_in.astimezone(PACIFIC)).total_seconds()
-            # mark done if any session had reason 'done'
-            if s.reason and s.reason.lower() == 'done':
-                done = True
-        return False, done, int(total)
-
-    # Determine all blocks for this student dynamically
+    # --- Refactored logic to use unpaid seconds since last payroll ---
+    last_payroll_time = get_last_payroll_time()
     student_blocks = [b.strip().upper() for b in student.block.split(',') if b.strip()]
-    period_states = {blk: get_session_status(student.id, blk) for blk in student_blocks}
+
+    unpaid_seconds_per_block = {
+        blk: calculate_unpaid_attendance_seconds(student.id, blk, last_payroll_time)
+        for blk in student_blocks
+    }
+
+    # Simplified status logic, removing dependency on get_session_status
+    period_states = {}
+    for blk in student_blocks:
+        latest_event = TapEvent.query.filter_by(student_id=student.id, period=blk).order_by(TapEvent.timestamp.desc()).first()
+        is_active = latest_event.status == 'active' if latest_event else False
+
+        # Correctly check if the student has finished for *today* by looking for
+        # any tap-out event with a reason on the current date.
+        today = datetime.now(timezone.utc).date()
+        is_done = db.session.query(TapEvent.id).filter(
+            TapEvent.student_id == student.id,
+            TapEvent.period == blk,
+            func.date(TapEvent.timestamp) == today,
+            TapEvent.reason.isnot(None)
+        ).first() is not None
+
+        period_states[blk] = {
+            "active": is_active,
+            "done": is_done,
+            "duration": unpaid_seconds_per_block.get(blk, 0)  # Use the correct unpaid seconds
+        }
+
     period_states_json = json.dumps(period_states, separators=(',', ':'))
+
+    # Calculate projected pay based on unpaid seconds
+    RATE_PER_SECOND = 0.25 / 60
+    projected_pay_per_block = {
+        blk: unpaid_seconds_per_block.get(blk, 0) * RATE_PER_SECOND
+        for blk in student_blocks
+    }
+
+    # Compute total unpaid seconds and format as HH:MM:SS for display
+    total_unpaid_seconds = sum(unpaid_seconds_per_block.values())
+    hours, remainder = divmod(total_unpaid_seconds, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    total_unpaid_elapsed = f"{int(hours):02}:{int(minutes):02}:{int(seconds):02}"
+    student_name = student.full_name
 
     # Compute most recent deposit and insurance paid flag
     recent_deposit = student.recent_deposits[0] if student.recent_deposits else None
@@ -518,19 +732,40 @@ def student_dashboard():
 
     tz = pytz.timezone('America/Los_Angeles')
     local_now = datetime.now(tz)
+    # --- DASHBOARD DEBUG LOGGING ---
+    app.logger.info(f"📊 DASHBOARD DEBUG: Student {student.id} - Block states:")
+    for blk in student_blocks:
+        blk_state = period_states[blk]
+        active = blk_state["active"]
+        done = blk_state["done"]
+        seconds = blk_state["duration"]
+        app.logger.info(f"Block {blk} => DB Active={active}, Done={done}, Seconds (today)={seconds}, Total Unpaid Seconds={unpaid_seconds_per_block.get(blk, 0)}")
+
+
+    # --- Calculate remaining session time for frontend timer ---
+    login_time = datetime.fromisoformat(session['login_time'])
+    expiry_time = login_time + timedelta(minutes=SESSION_TIMEOUT_MINUTES)
+    session_remaining_seconds = max(0, int((expiry_time - datetime.now(timezone.utc)).total_seconds()))
+
+
     return render_template(
         'student_dashboard.html',
         student=student,
+        session_remaining_seconds=session_remaining_seconds,
         student_blocks=student_blocks,
         period_states=period_states,
         period_states_json=period_states_json,
         checking_transactions=checking_transactions,
         savings_transactions=savings_transactions,
-        purchases=purchases,
+        student_items=student_items,
         now=local_now,
         forecast_interest=forecast_interest,
         recent_deposit=recent_deposit,
-        insurance_paid=insurance_paid
+        insurance_paid=insurance_paid,
+        unpaid_seconds_per_block=unpaid_seconds_per_block,
+        projected_pay_per_block=projected_pay_per_block,
+        student_name=student_name,
+        total_unpaid_elapsed=total_unpaid_elapsed,
     )
 
 # -------------------- TRANSFER ROUTE --------------------
@@ -542,7 +777,7 @@ def student_transfer():
     if request.method == 'POST':
         is_json = request.is_json or request.headers.get("X-Requested-With") == "XMLHttpRequest"
         passphrase = request.form.get("passphrase")
-        if passphrase != student.second_factor_secret:
+        if not check_password_hash(student.passphrase_hash or '', passphrase):
             if is_json:
                 return jsonify(status="error", message="Incorrect passphrase"), 400
             flash("Incorrect passphrase. Transfer canceled.", "transfer_error")
@@ -629,7 +864,7 @@ def student_insurance():
             flash("Invalid insurance plan selected.", "insurance_error")
             return redirect(url_for("student_insurance"))
 
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         recent_cancellation_tx = Transaction.query.filter(
             Transaction.student_id == student.id,
             Transaction.description == f"Cancelled {selected_plan.replace('_', ' ').title()} Insurance"
@@ -699,32 +934,237 @@ def student_insurance_change():
     current_plan = student.insurance_plan if student.insurance_plan and student.insurance_plan != "none" else None
     return render_template('student_insurance_change.html', student=student, current_plan=current_plan)
 
+
+# -------------------- STUDENT SHOP --------------------
+@app.route('/student/shop')
+@login_required
+def student_shop():
+    student = get_logged_in_student()
+    # Fetch active items that haven't passed their auto-delist date
+    now = datetime.now(timezone.utc)
+    items = StoreItem.query.filter(
+        StoreItem.is_active == True,
+        or_(StoreItem.auto_delist_date == None, StoreItem.auto_delist_date > now)
+    ).order_by(StoreItem.name).all()
+
+    return render_template('student_shop.html', student=student, items=items)
+
+
+# -------------------- PURCHASE & REDEMPTION API --------------------
+@app.route('/api/purchase-item', methods=['POST'])
+@login_required
+def purchase_item():
+    student = get_logged_in_student()
+    data = request.get_json()
+    item_id = data.get('item_id')
+    passphrase = data.get('passphrase')
+
+    if not all([item_id, passphrase]):
+        return jsonify({"status": "error", "message": "Missing item ID or passphrase."}), 400
+
+    # 1. Verify passphrase
+    if not check_password_hash(student.passphrase_hash or '', passphrase):
+        return jsonify({"status": "error", "message": "Incorrect passphrase."}), 403
+
+    item = StoreItem.query.get(item_id)
+
+    # 2. Validate item and purchase conditions
+    if not item or not item.is_active:
+        return jsonify({"status": "error", "message": "This item is not available."}), 404
+
+    if student.checking_balance < item.price:
+        return jsonify({"status": "error", "message": "Insufficient funds."}), 400
+
+    if item.inventory is not None and item.inventory <= 0:
+        return jsonify({"status": "error", "message": "This item is out of stock."}), 400
+
+    if item.limit_per_student is not None:
+        if item.item_type == 'hall_pass':
+            # For hall passes, check transaction history since no StudentItem is created
+            purchase_count = Transaction.query.filter_by(
+                student_id=student.id,
+                type='purchase',
+                description=f"Purchase: {item.name}"
+            ).count()
+        else:
+            purchase_count = StudentItem.query.filter_by(student_id=student.id, store_item_id=item.id).count()
+        if purchase_count >= item.limit_per_student:
+            return jsonify({"status": "error", "message": "You have reached the purchase limit for this item."}), 400
+
+    # 3. Process the transaction
+    try:
+        # Deduct from checking account
+        purchase_tx = Transaction(
+            student_id=student.id,
+            amount=-item.price,
+            account_type='checking',
+            type='purchase',
+            description=f"Purchase: {item.name}"
+        )
+        db.session.add(purchase_tx)
+
+        # Handle inventory
+        if item.inventory is not None:
+            item.inventory -= 1
+
+        # --- Handle special item type: Hall Pass ---
+        if item.item_type == 'hall_pass':
+            student.hall_passes += 1
+            db.session.commit()
+            return jsonify({"status": "success", "message": f"You purchased a Hall Pass! Your new balance is {student.hall_passes}."})
+
+        # --- Standard Item Logic ---
+        # Create the student's item
+        expiry_date = None
+        if item.item_type == 'delayed' and item.auto_expiry_days:
+            expiry_date = datetime.now(timezone.utc) + timedelta(days=item.auto_expiry_days)
+
+        student_item_status = 'purchased'
+        if item.item_type == 'immediate':
+            student_item_status = 'redeemed' # Immediate use items are redeemed instantly
+        elif item.item_type == 'collective':
+            student_item_status = 'pending'
+        else: # delayed
+            student_item_status = 'purchased'
+
+        new_student_item = StudentItem(
+            student_id=student.id,
+            store_item_id=item.id,
+            purchase_date=datetime.now(timezone.utc),
+            expiry_date=expiry_date,
+            status=student_item_status
+        )
+        db.session.add(new_student_item)
+        db.session.commit()
+
+        # --- Collective Item Logic ---
+        if item.item_type == 'collective':
+            # Check if all students in the same block have purchased this item
+            students_in_block = Student.query.filter_by(block=student.block).all()
+            student_ids_in_block = {s.id for s in students_in_block}
+
+            purchased_students_count = db.session.query(func.count(func.distinct(StudentItem.student_id))).filter(
+                StudentItem.store_item_id == item.id,
+                StudentItem.student_id.in_(student_ids_in_block)
+            ).scalar()
+
+            if purchased_students_count >= len(student_ids_in_block):
+                # Threshold met, update all pending items for this collective goal to processing
+                StudentItem.query.filter(
+                    StudentItem.store_item_id == item.id,
+                    StudentItem.status == 'pending'
+                ).update({"status": "processing"})
+                db.session.commit()
+                # This flash won't be seen by the user due to the JSON response,
+                # but it's good for logging/debugging. A more robust solution might use websockets.
+                app.logger.info(f"Collective goal '{item.name}' for block {student.block} has been met!")
+
+        return jsonify({"status": "success", "message": f"You purchased {item.name}!"})
+
+    except SQLAlchemyError as e:
+        db.session.rollback()
+        app.logger.error(f"Purchase failed for student {student.id}: {e}", exc_info=True)
+        return jsonify({"status": "error", "message": "An error occurred during purchase. Please try again."}), 500
+
+
+@app.route('/api/use-item', methods=['POST'])
+@login_required
+def use_item():
+    student = get_logged_in_student()
+    data = request.get_json()
+    student_item_id = data.get('student_item_id')
+    details = data.get('redemption_details')
+
+    if not all([student_item_id, details]):
+        return jsonify({"status": "error", "message": "Missing item ID or usage details."}), 400
+
+    student_item = StudentItem.query.get(student_item_id)
+
+    # 1. Validate the item
+    if not student_item:
+        return jsonify({"status": "error", "message": "Item not found."}), 404
+
+    if student_item.student_id != student.id:
+        return jsonify({"status": "error", "message": "You do not own this item."}), 403
+
+    if student_item.store_item.item_type != 'delayed':
+         return jsonify({"status": "error", "message": "This item cannot be used this way."}), 400
+
+    if student_item.status != 'purchased':
+        return jsonify({"status": "error", "message": f"This item cannot be used (status: {student_item.status})."}), 400
+
+    if student_item.expiry_date and datetime.now(timezone.utc) > student_item.expiry_date:
+        student_item.status = 'expired'
+        db.session.commit()
+        return jsonify({"status": "error", "message": "This item has expired."}), 400
+
+    # 2. Process the redemption request
+    try:
+        student_item.status = 'processing'
+        student_item.redemption_details = details
+        student_item.redemption_date = datetime.now(timezone.utc)
+
+        redemption_tx = Transaction(
+            student_id=student.id,
+            amount=0,
+            account_type='checking',
+            type='redemption',
+            description=f"Used: {student_item.store_item.name}"
+        )
+        db.session.add(redemption_tx)
+
+        db.session.commit()
+        return jsonify({"status": "success", "message": f"Your request to use {student_item.store_item.name} has been submitted for approval."})
+
+    except SQLAlchemyError as e:
+        db.session.rollback()
+        app.logger.error(f"Item use failed for student {student.id}: {e}", exc_info=True)
+        return jsonify({"status": "error", "message": "An error occurred. Please try again."}), 500
+
+
 # -------------------- TRANSFER ROUTE SUPPORT FUNCTIONS --------------------
 def apply_savings_interest(student, annual_rate=0.045):
-    now = datetime.utcnow()
+    """
+    Apply monthly savings interest for a student.
+    All time calculations are in UTC.
+    """
+    now = datetime.now(timezone.utc)
     this_month = now.month
     this_year = now.year
 
+    def _as_utc(dt):
+        if dt is None:
+            return None
+        if dt.tzinfo is None:
+            return dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone(timezone.utc)
+
     # Check if interest was already applied this month
     for tx in student.transactions:
+        tx_timestamp = _as_utc(tx.timestamp)
         if (
             tx.account_type == 'savings'
             and tx.description == "Monthly Savings Interest"
-            and tx.timestamp.month == this_month
-            and tx.timestamp.year == this_year
+            and tx_timestamp
+            and tx_timestamp.month == this_month
+            and tx_timestamp.year == this_year
         ):
             return  # Interest already applied this month
 
-    if any(tx.account_type == 'savings' and "Transfer" in tx.description and tx.timestamp.date() == now.date() for tx in student.transactions):
-        return
+    for tx in student.transactions:
+        if tx.account_type != 'savings' or "Transfer" not in (tx.description or ""):
+            continue
+        tx_timestamp = _as_utc(tx.timestamp)
+        if tx_timestamp and tx_timestamp.date() == now.date():
+            return
 
-    eligible_balance = sum(
-        tx.amount for tx in student.transactions
-        if tx.account_type == 'savings' and
-           not tx.is_void and
-           tx.amount > 0 and
-           (now - tx.date_funds_available).days >= 30
-    )
+    eligible_balance = 0
+    for tx in student.transactions:
+        if tx.account_type != 'savings' or tx.is_void or tx.amount <= 0:
+            continue
+        available_at = _as_utc(tx.date_funds_available)
+        if available_at and (now - available_at).days >= 30:
+            eligible_balance += tx.amount
     monthly_rate = annual_rate / 12
     interest = round((eligible_balance or 0.0) * monthly_rate, 2)
 
@@ -739,70 +1179,177 @@ def apply_savings_interest(student, annual_rate=0.045):
         db.session.add(interest_tx)
         db.session.commit()
 
-# -------------------- MANUAL STUDENT ADDITION --------------------
-@app.route('/admin/add-student-manual', methods=['POST'])
-@admin_required
-def admin_add_student_manual():
-    import os, hashlib, hmac, re
-    from datetime import datetime
+# -------------------- RENT HELPERS --------------------
 
-    pepper = os.getenv('PEPPER_KEY', 'default_pepper').encode()
-    first_name = request.form.get('first_name', '').strip()
-    last_name = request.form.get('last_name', '').strip()
-    dob_str = request.form.get('dob', '').strip()
-    block = request.form.get('block', '').strip().upper()
+def _calculate_rent_deadlines(settings, reference_date=None):
+    """Return the due date and grace end date for the active month."""
+    reference_date = reference_date or datetime.now()
+    current_year = reference_date.year
+    current_month = reference_date.month
+    last_day_of_month = monthrange(current_year, current_month)[1]
+    due_day = min(settings.due_day_of_month, last_day_of_month)
+    due_date = datetime(current_year, current_month, due_day)
+    grace_end_date = due_date + timedelta(days=settings.grace_period_days)
+    return due_date, grace_end_date
 
-    if not all([first_name, last_name, dob_str, block]):
-        flash("All fields are required.", "admin_error")
-        return redirect(url_for('admin_students'))
 
-    # Generate last_initial
-    last_initial = last_name[0].upper()
+# -------------------- STUDENT RENT ROUTES --------------------
+@app.route('/student/rent')
+@login_required
+def student_rent():
+    """View rent status and payment history (per period)"""
+    student = get_logged_in_student()
+    settings = RentSettings.query.first()
 
-    # Check for duplicates
-    existing = Student.query.filter_by(first_name=first_name, last_initial=last_initial, block=block).first()
-    if existing:
-        flash(f"Student {first_name} {last_initial} in Block {block} already exists.", "admin_error")
-        return redirect(url_for('admin_students'))
+    if not settings or not settings.is_enabled:
+        flash("Rent system is currently disabled.", "info")
+        return redirect(url_for('student_dashboard'))
 
-    # Generate name_code (vowels from first_name + consonants from last_name)
-    vowels = re.findall(r'[AEIOUaeiou]', first_name)
-    consonants = re.findall(r'[^AEIOUaeiou\\W\\d_]', last_name)
-    name_code = ''.join(vowels + consonants).lower()
+    # Get student's periods
+    student_blocks = [b.strip().upper() for b in student.block.split(',') if b.strip()]
 
-    # Generate dob_sum
-    yyyy, mm, dd = map(int, dob_str.split('-'))  # using yyyy-mm-dd from <input type='date'>
-    dob_sum = mm + dd + yyyy
+    # Calculate rent status for each period
+    now = datetime.now()
+    due_date, grace_end_date = _calculate_rent_deadlines(settings, now)
+    current_month = now.month
+    current_year = now.year
 
-    # Generate salt and hashes
-    salt = os.urandom(16)
-    first_half_hash = hmac.new(pepper, salt + name_code.encode(), hashlib.sha256).hexdigest()
-    second_half_hash = hmac.new(pepper, salt + str(dob_sum).encode(), hashlib.sha256).hexdigest()
+    period_status = {}
+    for period in student_blocks:
+        # Check if already paid this month for this period
+        payment = RentPayment.query.filter_by(
+            student_id=student.id,
+            period=period,
+            period_month=current_month,
+            period_year=current_year
+        ).first()
 
-    student = Student(
-        first_name=first_name,
-        last_initial=last_initial,
-        block=block,
-        salt=salt,
-        first_half_hash=first_half_hash,
-        second_half_hash=second_half_hash,
-        dob_sum=dob_sum,
-        has_completed_setup=False
+        is_paid = payment is not None
+        is_late = now > grace_end_date and not is_paid
+
+        period_status[period] = {
+            'is_paid': is_paid,
+            'is_late': is_late,
+            'payment': payment
+        }
+
+    # Get payment history (all periods)
+    payment_history = RentPayment.query.filter_by(student_id=student.id).order_by(
+        RentPayment.payment_date.desc()
+    ).limit(24).all()  # Increased to show more history with multiple periods
+
+    return render_template('student_rent.html',
+                          student=student,
+                          settings=settings,
+                          student_blocks=student_blocks,
+                          period_status=period_status,
+                          due_date=due_date,
+                          grace_end_date=grace_end_date,
+                          payment_history=payment_history)
+
+
+@app.route('/student/rent/pay/<period>', methods=['POST'])
+@login_required
+def student_rent_pay(period):
+    """Process rent payment for a specific period"""
+    student = get_logged_in_student()
+    settings = RentSettings.query.first()
+
+    if not settings or not settings.is_enabled:
+        flash("Rent system is currently disabled.", "error")
+        return redirect(url_for('student_dashboard'))
+
+    if not student.is_rent_enabled:
+        flash("Rent is not enabled for your account.", "error")
+        return redirect(url_for('student_dashboard'))
+
+    # Validate period
+    student_blocks = [b.strip().upper() for b in student.block.split(',') if b.strip()]
+    period = period.upper()
+    if period not in student_blocks:
+        flash("Invalid period.", "error")
+        return redirect(url_for('student_rent'))
+
+    now = datetime.now()
+    current_month = now.month
+    current_year = now.year
+
+    # Check if already paid this month for this period
+    existing_payment = RentPayment.query.filter_by(
+        student_id=student.id,
+        period=period,
+        period_month=current_month,
+        period_year=current_year
+    ).first()
+
+    if existing_payment:
+        flash(f"You have already paid rent for Period {period} this month!", "info")
+        return redirect(url_for('student_rent'))
+
+    # Calculate if late and total amount
+    due_date, grace_end_date = _calculate_rent_deadlines(settings, now)
+    is_late = now > grace_end_date
+
+    total_amount = settings.rent_amount
+    late_fee = 0.0
+
+    if is_late:
+        late_fee = settings.late_fee
+        total_amount += late_fee
+
+    # Check if student has enough funds
+    if student.checking_balance < total_amount:
+        flash(f"Insufficient funds. You need ${total_amount:.2f} but only have ${student.checking_balance:.2f}.", "error")
+        return redirect(url_for('student_rent'))
+
+    # Process payment
+    # Deduct from checking account
+    transaction = Transaction(
+        student_id=student.id,
+        amount=-total_amount,
+        account_type='checking',
+        type='Rent Payment',
+        description=f'Rent for Period {period} - {now.strftime("%B %Y")}' + (f' (includes ${late_fee:.2f} late fee)' if is_late else '')
     )
-    db.session.add(student)
+    db.session.add(transaction)
+
+    # Record rent payment
+    payment = RentPayment(
+        student_id=student.id,
+        period=period,
+        amount_paid=total_amount,
+        period_month=current_month,
+        period_year=current_year,
+        was_late=is_late,
+        late_fee_charged=late_fee
+    )
+    db.session.add(payment)
+
     db.session.commit()
-    flash(f"✅ Student {first_name} {last_initial} added successfully.", "admin_success")
-    return redirect(url_for('admin_students'))
+
+    flash(f"Rent payment for Period {period} (${total_amount:.2f}) successful!", "success")
+    return redirect(url_for('student_rent'))
+
+
 # -------------------- STUDENT LOGIN --------------------
 @app.route('/student/login', methods=['GET', 'POST'])
 def student_login():
-    if request.method == 'POST':
+    form = StudentLoginForm()
+    if form.validate_on_submit():
         is_json = request.is_json or request.headers.get("X-Requested-With") == "XMLHttpRequest"
-        username = request.form.get('username')
-        pin = request.form.get('pin')
+        username = form.username.data.strip()
+        pin = form.pin.data.strip()
+        # Efficiently find the student by querying for the hash of all possible salts.
+        # This is still not ideal, but better than loading all students.
+        # A better long-term solution is a dedicated username table or a different auth method.
         student = None
-        for s in Student.query.all():
-            if s.username_hash and hash_username(username, s.salt) == s.username_hash:
+        students_with_matching_username_structure = Student.query.filter(
+            Student.username_hash.isnot(None)
+        ).all()
+
+        for s in students_with_matching_username_structure:
+            candidate_hash = hash_username(username, s.salt)
+            if candidate_hash == s.username_hash:
                 student = s
                 break
 
@@ -812,56 +1359,123 @@ def student_login():
             flash("Invalid credentials", "error")
             return redirect(url_for('student_login', next=request.args.get('next')))
 
-        session['student_id'] = student.id
-        session['last_activity'] = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+        # --- Set session timeout ---
+        # Clear old student-specific session keys without wiping the CSRF token
+        session.pop('student_id', None)
+        session.pop('login_time', None)
+        session.pop('last_activity', None)
+        # Explicitly clear other potential student-related session keys
+        session.pop('claimed_student_id', None)
+        session.pop('generated_username', None)
 
-        if not student.has_completed_setup:
-            if is_json:
-                return jsonify(status="success", message="Login successful")
-            return redirect(url_for('student_setup'))
+
+        session['student_id'] = student.id
+        session['login_time'] = datetime.now(timezone.utc).isoformat()
+        session['last_activity'] = session['login_time']
+
+
+        # Removed redirect to student_setup for has_completed_setup; new onboarding flow uses claim → username → pin/passphrase.
 
         if is_json:
             return jsonify(status="success", message="Login successful")
 
         next_url = request.args.get('next')
-        if next_url:
-            return redirect(next_url)
-        return redirect(url_for('student_dashboard'))
+        if not is_safe_url(next_url):
+            return redirect(url_for('student_dashboard'))
+        return redirect(next_url or url_for('student_dashboard'))
 
-    return render_template('student_login.html')
+    # Always display CTA to claim/create account for first-time users
+    setup_cta = True
+    return render_template('student_login.html', setup_cta=setup_cta, form=form)
 
 # -------------------- ADMIN DASHBOARD --------------------
 @app.route('/admin')
 @admin_required
 def admin_dashboard():
+    from payroll import calculate_payroll
+    from attendance import get_last_payroll_time
     students = Student.query.order_by(Student.first_name).all()
     transactions = Transaction.query.order_by(Transaction.timestamp.desc()).limit(20).all()
     student_lookup = {s.id: s for s in students}
-    raw_logs = TapSession.query.order_by(TapSession.tap_in_time.desc()).limit(20).all()
+
+    # --- Payroll Info ---
+    last_payroll_time = get_last_payroll_time()
+    payroll_summary = calculate_payroll(students, last_payroll_time)
+    total_payroll_estimate = sum(payroll_summary.values())
+
+    pacific = pytz.timezone('America/Los_Angeles')
+    if last_payroll_time:
+        next_pay_date_utc = last_payroll_time + timedelta(days=14)
+    else:
+        now_utc = datetime.now(timezone.utc)
+        days_until_friday = (4 - now_utc.weekday() + 7) % 7
+        if days_until_friday == 0:
+            days_until_friday = 7
+        next_pay_date_utc = now_utc + timedelta(days=days_until_friday)
+    next_payroll_date = next_pay_date_utc.astimezone(pacific)
+
+
+    # Use TapEvent for logs (append-only) - fetch with student name
+    raw_logs = (
+        db.session.query(
+            TapEvent,
+            Student.first_name,
+            Student.last_initial
+        )
+        .join(Student, TapEvent.student_id == Student.id)
+        .order_by(TapEvent.timestamp.desc())
+        .limit(20)
+        .all()
+    )
     logs = []
-    for log in raw_logs:
-        dur = log.duration_seconds or 0
-        # Recalculate if negative and both timestamps present
-        if dur < 0 and log.tap_in_time and log.tap_out_time:
-            t_in = log.tap_in_time
-            if getattr(t_in, 'tzinfo', None) is None:
-                t_in = utc.localize(t_in)
-            t_out = log.tap_out_time
-            if getattr(t_out, 'tzinfo', None) is None:
-                t_out = utc.localize(t_out)
-            dur = int((t_out - t_in).total_seconds())
+    for log, first_name, last_initial in raw_logs:
         logs.append({
             'student_id': log.student_id,
+            'student_name': f"{first_name} {last_initial}.",
             'period': log.period,
-            'tap_in_time': log.tap_in_time,
-            'tap_out_time': log.tap_out_time,
-            'duration_seconds': dur,
-            'reason': log.reason
+            'timestamp': log.timestamp,
+            'reason': log.reason,
+            'status': log.status
         })
     app.logger.info(f"📝 Dashboard logs data: {logs}")
     for entry in logs:
         app.logger.debug(f"Log entry - student_id: {entry['student_id']}, reason: {entry.get('reason')}")
-    return render_template('admin_dashboard.html', students=students, transactions=transactions, student_lookup=student_lookup, logs=logs)
+
+    # Fetch pending redemption requests
+    redemption_requests = StudentItem.query.filter_by(status='processing').order_by(StudentItem.redemption_date.asc()).all()
+
+    return render_template('admin_dashboard.html', students=students, transactions=transactions, student_lookup=student_lookup, logs=logs, redemption_requests=redemption_requests, current_page="dashboard")
+
+@app.route('/api/approve-redemption', methods=['POST'])
+@admin_required
+def approve_redemption():
+    data = request.get_json()
+    student_item_id = data.get('student_item_id')
+
+    student_item = StudentItem.query.get(student_item_id)
+    if not student_item or student_item.status != 'processing':
+        return jsonify({"status": "error", "message": "Invalid or already processed item."}), 404
+
+    try:
+        student_item.status = 'completed'
+
+        # Find the corresponding 'redemption' transaction and update its description
+        redemption_tx = Transaction.query.filter_by(
+            student_id=student_item.student_id,
+            type='redemption',
+            description=f"Used: {student_item.store_item.name}"
+        ).order_by(Transaction.timestamp.desc()).first()
+
+        if redemption_tx:
+            redemption_tx.description = f"Redeemed: {student_item.store_item.name}"
+
+        db.session.commit()
+        return jsonify({"status": "success", "message": "Redemption approved."})
+    except SQLAlchemyError as e:
+        db.session.rollback()
+        app.logger.error(f"Redemption approval failed for student_item {student_item_id}: {e}", exc_info=True)
+        return jsonify({"status": "error", "message": "An error occurred."}), 500
+
 
 @app.route('/admin/bonuses', methods=['POST'])
 @admin_required
@@ -883,45 +1497,28 @@ def give_bonus_all():
 # -------------------- ADMIN LOGIN (TOTP-ONLY) --------------------
 @app.route('/admin/login', methods=['GET', 'POST'])
 def admin_login():
-    # Clear admin session and timer on page load
     session.pop("is_admin", None)
     session.pop("last_activity", None)
-    if request.method == 'POST':
-        is_json = request.is_json or request.headers.get("X-Requested-With") == "XMLHttpRequest"
-        username = request.form.get("username", "").strip()
-        totp_code = request.form.get("totp_code", "").strip()
+    form = AdminLoginForm()
+    if form.validate_on_submit():
+        username = form.username.data.strip()
+        totp_code = form.totp_code.data.strip()
         admin = Admin.query.filter_by(username=username).first()
-        if not admin:
-            app.logger.warning(f"🔑 Admin login failed: username {username} not found")
-            if is_json:
-                return jsonify(status="error", message="Invalid credentials"), 401
-            flash("Invalid credentials.", "error")
-            return redirect(url_for("admin_login", next=request.args.get("next")))
-        # Log the TOTP secret being used for verification
-        app.logger.info(f"🔍 Admin login: verifying TOTP")
-        # Verify TOTP code with explicit debug logging for drift
-        import time
-        current_time = int(time.time())
-        
-        totp = pyotp.TOTP(admin.totp_secret)
-        if totp.verify(totp_code, valid_window=1):
-            session["is_admin"] = True
-            session["last_activity"] = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
-            app.logger.info(f"✅ Admin login success for {username}")
-            if is_json:
-                return jsonify(status="success", message="Login successful")
-            flash("Admin login successful.")
-            next_url = request.args.get("next")
-            if next_url:
-                return redirect(next_url)
-            return redirect(url_for("admin_dashboard"))
-        else:
-            app.logger.warning(f"🔑 Admin login failed: invalid TOTP for {username}")
-            if is_json:
-                return jsonify(status="error", message="Invalid TOTP code"), 401
-            flash("Invalid TOTP code.", "error")
-            return redirect(url_for("admin_login", next=request.args.get("next")))
-    return render_template("admin_login.html")
+        if admin:
+            totp = pyotp.TOTP(admin.totp_secret)
+            if totp.verify(totp_code, valid_window=1):
+                session["is_admin"] = True
+                session["last_activity"] = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+                app.logger.info(f"✅ Admin login success for {username}")
+                flash("Admin login successful.")
+                next_url = request.args.get("next")
+                if not is_safe_url(next_url):
+                    return redirect(url_for("admin_dashboard"))
+                return redirect(next_url or url_for("admin_dashboard"))
+        app.logger.warning(f"🔑 Admin login failed for {username}")
+        flash("Invalid credentials or TOTP code.", "error")
+        return redirect(url_for("admin_login", next=request.args.get("next")))
+    return render_template("admin_login.html", form=form)
 
 # -------------------- ADMIN SIGNUP (TOTP-ONLY) --------------------
 @app.route('/admin/signup', methods=['GET', 'POST'])
@@ -1054,37 +1651,96 @@ def admin_logout():
 @admin_required
 def admin_students():
     students = Student.query.order_by(Student.block, Student.first_name).all()
-    from datetime import datetime
-    for student in students:
-        # fetch latest session with tap_out_time (regardless of is_done)
-        latest_session = (
-            TapSession.query
-            .filter(TapSession.student_id == student.id, TapSession.tap_out_time != None)
-            .order_by(TapSession.tap_out_time.desc())
-            .first()
-        )
-        if latest_session:
-            student.last_tap_out = latest_session.tap_out_time
-        else:
-            student.last_tap_out = None
-        # Attach tap-out reason
-        student.last_tap_out_reason = latest_session.reason if latest_session else None
-        # fetch latest session tap_in_time
-        latest_in = TapSession.query.filter_by(student_id=student.id).order_by(TapSession.tap_in_time.desc()).first()
-        if latest_in:
-            student.last_tap_in = latest_in.tap_in_time
-        else:
-            student.last_tap_in = None
+    # Remove deprecated last_tap_in/last_tap_out logic; templates should not reference them.
     return render_template('admin_students.html', students=students, current_page="students")
 
-# -------------------- ADMIN HALL PASS MANAGEMENT PLACEHOLDER --------------------
-@app.route('/admin/hall-pass-management')
+
+# -------------------- ADMIN STORE MANAGEMENT --------------------
+from forms import StoreItemForm
+@app.route('/admin/store', methods=['GET', 'POST'])
 @admin_required
-def admin_pass_management():
-    flash("Hall pass management is not implemented yet.", "admin_info")
-    return redirect(url_for('admin_dashboard'))
+def admin_store_management():
+    form = StoreItemForm()
+    if form.validate_on_submit():
+        new_item = StoreItem(
+            name=form.name.data,
+            description=form.description.data,
+            price=form.price.data,
+            item_type=form.item_type.data,
+            inventory=form.inventory.data,
+            limit_per_student=form.limit_per_student.data,
+            auto_delist_date=form.auto_delist_date.data,
+            auto_expiry_days=form.auto_expiry_days.data,
+            is_active=form.is_active.data
+        )
+        db.session.add(new_item)
+        db.session.commit()
+        flash(f"'{new_item.name}' has been added to the store.", "success")
+        return redirect(url_for('admin_store_management'))
+
+    items = StoreItem.query.order_by(StoreItem.name).all()
+    return render_template('admin_store.html', form=form, items=items, current_page="store")
 
 
+@app.route('/admin/store/edit/<int:item_id>', methods=['GET', 'POST'])
+@admin_required
+def admin_edit_store_item(item_id):
+    item = StoreItem.query.get_or_404(item_id)
+    form = StoreItemForm(obj=item)
+    if form.validate_on_submit():
+        form.populate_obj(item)
+        db.session.commit()
+        flash(f"'{item.name}' has been updated.", "success")
+        return redirect(url_for('admin_store_management'))
+    return render_template('admin_edit_item.html', form=form, item=item, current_page="store")
+
+@app.route('/admin/store/delete/<int:item_id>', methods=['POST'])
+@admin_required
+def admin_delete_store_item(item_id):
+    item = StoreItem.query.get_or_404(item_id)
+    # To preserve history, we'll just deactivate it instead of a hard delete
+    # A hard delete would be: db.session.delete(item)
+    item.is_active = False
+    db.session.commit()
+    flash(f"'{item.name}' has been deactivated and removed from the store.", "success")
+    return redirect(url_for('admin_store_management'))
+
+# -------------------- RENT SETTINGS ROUTES --------------------
+@app.route('/admin/rent-settings', methods=['GET', 'POST'])
+@admin_required
+def admin_rent_settings():
+    """Configure rent settings"""
+    # Get or create rent settings (singleton)
+    settings = RentSettings.query.first()
+    if not settings:
+        settings = RentSettings()
+        db.session.add(settings)
+        db.session.commit()
+
+    if request.method == 'POST':
+        settings.rent_amount = float(request.form.get('rent_amount'))
+        settings.due_day_of_month = int(request.form.get('due_day_of_month'))
+        settings.late_fee = float(request.form.get('late_fee'))
+        settings.grace_period_days = int(request.form.get('grace_period_days'))
+        settings.is_enabled = request.form.get('is_enabled') == 'on'
+
+        db.session.commit()
+        flash("Rent settings updated successfully!", "success")
+        return redirect(url_for('admin_rent_settings'))
+
+    # Get statistics
+    total_students = Student.query.filter_by(is_rent_enabled=True).count()
+    current_month = datetime.now().month
+    current_year = datetime.now().year
+    paid_this_month = RentPayment.query.filter_by(
+        period_month=current_month,
+        period_year=current_year
+    ).count()
+
+    return render_template('admin_rent_settings.html',
+                          settings=settings,
+                          total_students=total_students,
+                          paid_this_month=paid_this_month)
 
 @app.route('/admin/transactions')
 @admin_required
@@ -1107,12 +1763,27 @@ def admin_transactions():
 
     # Apply filters
     if student_q:
-        query = query.filter(
-            or_(
-                Student.first_name.ilike(f"%{student_q}%"),
-                func.cast(Student.id, db.String).ilike(f"%{student_q}%")
-            )
-        )
+        # Since first_name is encrypted, we cannot use `ilike`.
+        # We must fetch students, decrypt names, and filter in Python.
+        matching_student_ids = []
+        # Handle if the query is a student ID
+        if student_q.isdigit():
+            matching_student_ids.append(int(student_q))
+
+        # Handle if the query is a name
+        all_students = Student.query.all()
+        for s in all_students:
+            # The full_name property will decrypt the first_name
+            if student_q.lower() in s.full_name.lower():
+                matching_student_ids.append(s.id)
+
+        # If there are any matches (by ID or name), filter the query
+        if matching_student_ids:
+            query = query.filter(Student.id.in_(matching_student_ids))
+        else:
+            # If no students match, return no results
+            query = query.filter(sa.false())
+
     if block_q:
         query = query.filter(Student.block == block_q)
     if type_q:
@@ -1122,6 +1793,7 @@ def admin_transactions():
     if end_date:
         # include entire end_date
         query = query.filter(Transaction.timestamp < text(f"'{end_date}'::date + interval '1 day'"))
+
     # Count and paginate
     total = query.count()
     total_pages = math.ceil(total / per_page) if total else 1
@@ -1156,17 +1828,7 @@ def admin_transactions():
 @admin_required
 def student_detail(student_id):
     student = Student.query.get_or_404(student_id)
-    # Fetch latest tap session for additional info
-    latest_session = TapSession.query.filter_by(student_id=student.id).order_by(TapSession.tap_in_time.desc()).first()
-    if latest_session:
-        student.last_tap_in = latest_session.tap_in_time
-        student.last_tap_out = latest_session.tap_out_time
-        student.last_tap_out_reason = latest_session.reason
-    else:
-        student.last_tap_in = None
-        student.last_tap_out = None
-        student.last_tap_out_reason = None
-
+    # Remove deprecated last_tap_in/last_tap_out logic; rely on TapEvent backend.
     # Fetch last rent payment
     latest_rent = Transaction.query.filter_by(student_id=student.id, type="rent").order_by(Transaction.timestamp.desc()).first()
     student.rent_last_paid = latest_rent.timestamp if latest_rent else None
@@ -1189,8 +1851,10 @@ def student_detail(student_id):
     student.property_tax_overdue = today > tax_due and (not student.property_tax_last_paid or student.property_tax_last_paid.astimezone(PACIFIC).date() <= tax_due)
 
     transactions = Transaction.query.filter_by(student_id=student.id).order_by(Transaction.timestamp.desc()).all()
-    purchases = Purchase.query.filter_by(student_id=student.id).all()
-    return render_template('student_detail.html', student=student, transactions=transactions, purchases=purchases)
+    student_items = student.items.order_by(StudentItem.purchase_date.desc()).all()
+    # Fetch most recent TapEvent for this student
+    latest_tap_event = TapEvent.query.filter_by(student_id=student.id).order_by(TapEvent.timestamp.desc()).first()
+    return render_template('student_detail.html', student=student, transactions=transactions, student_items=student_items, latest_tap_event=latest_tap_event)
 
 
 @app.route('/admin/void-transaction/<int:transaction_id>', methods=['POST'])
@@ -1213,6 +1877,104 @@ def void_transaction(transaction_id):
         return jsonify(status="success", message="Transaction voided.")
     flash("✅ Transaction voided.", "success")
     return redirect(request.referrer or url_for('admin_dashboard'))
+
+
+# -------------------- ADMIN HALL PASS MANAGEMENT --------------------
+@app.route('/admin/hall-pass')
+@admin_required
+def admin_hall_pass():
+    pending_requests = HallPassLog.query.filter_by(status='pending').order_by(HallPassLog.request_time.asc()).all()
+    approved_queue = HallPassLog.query.filter_by(status='approved').order_by(HallPassLog.decision_time.asc()).all()
+    out_of_class = HallPassLog.query.filter_by(status='left_class').order_by(HallPassLog.left_time.asc()).all()
+
+    return render_template(
+        'admin_hall_pass.html',
+        pending_requests=pending_requests,
+        approved_queue=approved_queue,
+        out_of_class=out_of_class,
+        current_page="hall_pass"
+    )
+
+@app.route('/api/hall-pass/<int:pass_id>/<string:action>', methods=['POST'])
+@admin_required
+def handle_hall_pass_action(pass_id, action):
+    log_entry = HallPassLog.query.get_or_404(pass_id)
+    student = log_entry.student
+    now = datetime.now(timezone.utc)
+
+    if action == 'approve':
+        if log_entry.status != 'pending':
+            return jsonify({"status": "error", "message": "Pass is not pending."}), 400
+        if student.hall_passes <= 0:
+            return jsonify({"status": "error", "message": "Student has no hall passes left."}), 400
+
+        log_entry.status = 'approved'
+        log_entry.decision_time = now
+        student.hall_passes -= 1
+        db.session.commit()
+        return jsonify({"status": "success", "message": "Pass approved."})
+
+    elif action == 'reject':
+        if log_entry.status != 'pending':
+            return jsonify({"status": "error", "message": "Pass is not pending."}), 400
+
+        log_entry.status = 'rejected'
+        log_entry.decision_time = now
+        db.session.commit()
+        return jsonify({"status": "success", "message": "Pass rejected."})
+
+    elif action == 'leave':
+        if log_entry.status != 'approved':
+            return jsonify({"status": "error", "message": "Pass is not approved."}), 400
+
+        # Create a tap-out event for attendance tracking
+        tap_out_event = TapEvent(
+            student_id=student.id,
+            period="HALLPASS", # Use a special period for hall pass events
+            status='inactive',
+            timestamp=now,
+            reason=log_entry.reason
+        )
+        log_entry.status = 'left_class'
+        log_entry.left_time = now
+        db.session.add(tap_out_event)
+        db.session.commit()
+        return jsonify({"status": "success", "message": "Student has left the class."})
+
+    elif action == 'return':
+        if log_entry.status != 'left_class':
+            return jsonify({"status": "error", "message": "Student is not out of class."}), 400
+
+        # Create a tap-in event to close the loop
+        tap_in_event = TapEvent(
+            student_id=student.id,
+            period="HALLPASS",
+            status='active',
+            timestamp=now,
+            reason="Return from hall pass"
+        )
+        log_entry.status = 'returned'
+        log_entry.return_time = now
+        db.session.add(tap_in_event)
+        db.session.commit()
+        return jsonify({"status": "success", "message": "Student has returned."})
+
+    return jsonify({"status": "error", "message": "Invalid action."}), 400
+
+@app.route('/admin/student/<int:student_id>/set-hall-passes', methods=['POST'])
+@admin_required
+def set_hall_passes(student_id):
+    student = Student.query.get_or_404(student_id)
+    new_balance = request.form.get('hall_passes', type=int)
+
+    if new_balance is not None and new_balance >= 0:
+        student.hall_passes = new_balance
+        db.session.commit()
+        flash(f"Successfully updated {student.full_name}'s hall pass balance to {new_balance}.", "success")
+    else:
+        flash("Invalid hall pass balance provided.", "error")
+
+    return redirect(url_for('student_detail', student_id=student_id))
 
 
 # -------------------- ADMIN PAYROLL HISTORY --------------------
@@ -1284,39 +2046,38 @@ def admin_payroll_history():
     )
 
 
+from payroll import calculate_payroll
+
 # -------------------- ADMIN RUN PAYROLL MANUALLY --------------------
 @app.route('/admin/run-payroll', methods=['POST'])
 @admin_required
 def run_payroll():
+    """
+    Run payroll by computing earned seconds from TapEvent append-only log.
+    For each student, for each block, match active/inactive pairs since last payroll,
+    sum total seconds, and post Transaction(s) of type 'payroll'.
+    """
     is_json = request.is_json or request.headers.get("X-Requested-With") == "XMLHttpRequest"
     try:
-        from sqlalchemy.sql import func
-        RATE_PER_SECOND = 0.25 / 60  # $0.25 per minute
+        last_payroll_tx = Transaction.query.filter_by(type="payroll").order_by(Transaction.timestamp.desc()).first()
+        last_payroll_time = last_payroll_tx.timestamp if last_payroll_tx else None
+        app.logger.info(f"🧮 RUN PAYROLL: Last payroll at {last_payroll_time}")
 
-        unpaid_sessions = TapSession.query.filter_by(is_done=True, is_paid=False).all()
-        summary = {}
+        students = Student.query.all()
+        summary = calculate_payroll(students, last_payroll_time)
 
-        for session in unpaid_sessions:
-            if not session.duration_seconds or session.duration_seconds <= 0:
-                continue
-
-            amount = round(session.duration_seconds * RATE_PER_SECOND, 2)
-            if amount <= 0:
-                continue
-
+        for student_id, amount in summary.items():
             tx = Transaction(
-                student_id=session.student_id,
+                student_id=student_id,
                 amount=amount,
-                description="Payroll based on attendance",
+                description=f"Payroll based on attendance",
                 account_type="checking",
                 type="payroll"
             )
             db.session.add(tx)
-            session.is_paid = True
-            summary.setdefault(session.student_id, 0)
-            summary[session.student_id] += amount
 
         db.session.commit()
+        app.logger.info(f"✅ Payroll complete. Paid {len(summary)} students.")
         if is_json:
             return jsonify(status="success", message=f"Payroll complete. Paid {len(summary)} students.")
         flash(f"✅ Payroll complete. Paid {len(summary)} students.", "admin_success")
@@ -1333,14 +2094,26 @@ def run_payroll():
 @app.route('/admin/payroll')
 @admin_required
 def admin_payroll():
+    """
+    Payroll page: Show payroll estimate and recent payrolls.
+    Estimate is computed from TapEvent (append-only), not TapSession.
+    """
     from sqlalchemy import desc
     from datetime import datetime, timedelta
     import pytz
-    # Next scheduled payroll: every other Friday from last payroll
-    last_payroll_tx = Transaction.query.filter_by(type="payroll").order_by(desc(Transaction.timestamp)).first()
+
     pacific = pytz.timezone('America/Los_Angeles')
-    next_pay_date = (last_payroll_tx.timestamp + timedelta(days=14)) if last_payroll_tx else datetime.utcnow()
-    next_pay_date = next_pay_date.astimezone(pacific)  # raw datetime for template filter
+
+    # Get the last payroll time once; it's already UTC-aware from the helper.
+    last_payroll_time = get_last_payroll_time()
+
+    # Next scheduled payroll: every other Friday from last payroll
+    if last_payroll_time:
+        next_pay_date_utc = last_payroll_time + timedelta(days=14)
+    else:
+        next_pay_date_utc = datetime.now(timezone.utc)
+
+    next_pay_date = next_pay_date_utc.astimezone(pacific)
 
     # Recent payroll activity: 20 most recent payroll transactions, joined with student info
     recent_raw = (
@@ -1355,7 +2128,6 @@ def admin_payroll():
         .limit(20)
         .all()
     )
-
     recent_payrolls = [
         {
             'student_id': tx.student_id,
@@ -1367,21 +2139,19 @@ def admin_payroll():
         for tx, name, block in recent_raw
     ]
 
-    # Compute total estimate from unpaid sessions
-    RATE_PER_SECOND = 0.25 / 60  # $0.25 per minute, must match run_payroll
-    unpaid_sessions = TapSession.query.filter_by(is_done=True, is_paid=False).all()
-    total_payroll_estimate = round(sum(
-        session.duration_seconds * RATE_PER_SECOND
-        for session in unpaid_sessions
-        if session.duration_seconds and session.duration_seconds > 0
-    ), 2)
+    # Estimate payroll from TapEvent (since last payroll)
+    students = Student.query.all()
 
-    next_payroll_date = next_pay_date
+    # Use the centralized payroll calculation logic
+    payroll_summary = calculate_payroll(students, last_payroll_time)
+    total_payroll_estimate = sum(payroll_summary.values())
+
+    app.logger.info(f"PAYROLL ESTIMATE DEBUG: Total estimate is ${total_payroll_estimate:.2f}")
 
     return render_template(
         'admin_payroll.html',
         recent_payrolls=recent_payrolls,
-        next_payroll_date=next_payroll_date,
+        next_payroll_date=next_pay_date,
         current_page="payroll",
         total_payroll_estimate=total_payroll_estimate,
         now=datetime.now(pacific).strftime("%Y-%m-%d %I:%M %p")
@@ -1394,34 +2164,6 @@ def student_logout():
     flash("You’ve been logged out.")
     return redirect(url_for('student_login'))
 
-@app.route('/admin/add-student', methods=['GET', 'POST'])
-@admin_required
-def admin_add_student():
-    if request.method == 'POST':
-        name = request.form.get('name')
-        email = request.form.get('email')
-        qr_id = request.form.get('qr_id')
-        pin = request.form.get('pin')
-        block = request.form.get('block')
-        if not (name and email and qr_id and pin and block):
-            flash("Please fill in all required fields.", "admin_error")
-            return redirect(url_for('admin_add_student'))
-        first_name = name.split()[0]
-        last_initial = name.split()[1][0] if len(name.split()) > 1 else ""
-        salt = b'0'*16
-        new_student = Student(
-            first_name=first_name,
-            last_initial=last_initial,
-            block=block,
-            salt=salt,
-            username_hash=None,
-            pin_hash=generate_password_hash(pin)
-        )
-        db.session.add(new_student)
-        db.session.commit()
-        flash("Student added successfully!", "admin_success")
-        return redirect(url_for('admin_students'))
-    return render_template('admin_add_student.html')
 
 # -------------------- ADMIN FULL ATTENDANCE LOG --------------------
 @app.route('/admin/attendance-log')
@@ -1429,26 +2171,18 @@ def admin_add_student():
 def admin_attendance_log():
     # Build student lookup for names and blocks, streaming in batches
     students = {s.id: {'name': s.full_name, 'block': s.block} for s in Student.query.yield_per(50)}
-    # Fetch attendance sessions, streaming in batches
-    raw_logs = TapSession.query.order_by(TapSession.tap_in_time.desc()).yield_per(100)
-    # Format logs as dicts, normalizing negative durations
+    # Fetch attendance events from TapEvent, streaming in batches
+    raw_logs = TapEvent.query.order_by(TapEvent.timestamp.desc()).yield_per(100)
     attendance_logs = []
     for log in raw_logs:
-        # Compute a positive duration if the stored one is negative or missing
-        dur = log.duration_seconds or 0
-        if dur < 0 and log.tap_in_time and log.tap_out_time:
-            t_in = log.tap_in_time
-            if getattr(t_in, 'tzinfo', None) is None:
-                t_in = utc.localize(t_in)
-            t_out = log.tap_out_time
-            if getattr(t_out, 'tzinfo', None) is None:
-                t_out = utc.localize(t_out)
-            dur = int((t_out - t_in).total_seconds())
+        student_info = students.get(log.student_id, {'name': 'Unknown', 'block': 'Unknown'})
         attendance_logs.append({
             'student_id': log.student_id,
-            'tap_in_time': log.tap_in_time,
-            'tap_out_time': log.tap_out_time,
-            'duration_seconds': dur,
+            'student_name': student_info['name'],
+            'student_block': student_info['block'],
+            'timestamp': log.timestamp,
+            'period': log.period,
+            'status': log.status,
             'reason': log.reason
         })
     return render_template(
@@ -1461,10 +2195,9 @@ def admin_attendance_log():
 @app.route('/admin/upload-students', methods=['POST'])
 @admin_required
 def admin_upload_students():
-    import csv, io, os, hashlib, hmac, re
+    import csv, io, os, re
     from datetime import datetime
 
-    pepper = os.getenv('PEPPER_KEY', 'default_pepper').encode()  # Replace with your actual environment config
     file = request.files.get('csv_file')
     if not file:
         flash("No file provided", "admin_error")
@@ -1489,14 +2222,18 @@ def admin_upload_students():
             # Generate last_initial
             last_initial = last_name[0].upper()
 
-            # Check for existing student with the same first_name, last_initial, and block
-            existing_student = Student.query.filter_by(
-                first_name=first_name,
-                last_initial=last_initial,
-                block=block
-            ).first()
+            # Efficiently check for duplicates.
+            # 1. Filter by unencrypted fields (`last_initial`, `block`) to get a small candidate pool.
+            potential_matches = Student.query.filter_by(last_initial=last_initial, block=block).all()
 
-            if existing_student:
+            # 2. Iterate through the small pool and compare the decrypted first name.
+            is_duplicate = False
+            for student in potential_matches:
+                if student.first_name == first_name:
+                    is_duplicate = True
+                    break
+
+            if is_duplicate:
                 app.logger.info(f"Duplicate detected: {first_name} {last_initial} in block {block}, skipping.")
                 duplicated += 1
                 continue  # skip this duplicate
@@ -1511,11 +2248,11 @@ def admin_upload_students():
             dob_sum = mm + dd + yyyy
 
             # Generate salt
-            salt = os.urandom(16)
+            salt = get_random_salt()
 
-            # Compute first_half_hash and second_half_hash using HMAC with pepper
-            first_half_hash = hmac.new(pepper, salt + name_code.encode(), hashlib.sha256).hexdigest()
-            second_half_hash = hmac.new(pepper, salt + str(dob_sum).encode(), hashlib.sha256).hexdigest()
+            # Compute first_half_hash and second_half_hash using HMAC
+            first_half_hash = hash_hmac(name_code.encode(), salt)
+            second_half_hash = hash_hmac(str(dob_sum).encode(), salt)
 
             student = Student(
                 first_name=first_name,
@@ -1558,73 +2295,213 @@ def download_csv_template():
     return send_file(template_path, as_attachment=True, download_name="student_upload_template.csv", mimetype='text/csv')
 
 
+@app.route('/admin/export-students')
+@admin_required
+def export_students():
+    """Export all student data to CSV"""
+    import csv
+    import io
+
+    # Create CSV in memory
+    output = io.StringIO()
+    writer = csv.writer(output)
+
+    # Write header
+    writer.writerow([
+        'First Name', 'Last Initial', 'Block', 'Checking Balance',
+        'Savings Balance', 'Total Earnings', 'Insurance Plan',
+        'Rent Enabled', 'Has Completed Setup'
+    ])
+
+    # Write student data
+    students = Student.query.order_by(Student.first_name, Student.last_initial).all()
+    for student in students:
+        writer.writerow([
+            student.first_name,
+            student.last_initial,
+            student.block,
+            f"{student.checking_balance:.2f}",
+            f"{student.savings_balance:.2f}",
+            f"{student.total_earnings:.2f}",
+            student.insurance_plan if student.insurance_plan != 'none' else 'None',
+            'Yes' if student.is_rent_enabled else 'No',
+            'Yes' if student.has_completed_setup else 'No'
+        ])
+
+    # Prepare response
+    output.seek(0)
+    filename = f"students_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+
+    return Response(
+        output.getvalue(),
+        mimetype='text/csv',
+        headers={'Content-Disposition': f'attachment; filename={filename}'}
+    )
+
+
+# --- Append-only TapEvent API route ---
 @app.route('/api/tap', methods=['POST'])
 def handle_tap():
+    print("🛠️ TAP ROUTE HIT")
     data = request.get_json()
-    student = get_logged_in_student()
-    # Derive valid blocks from the logged-in student if available
-    if student and isinstance(student.block, str):
-        valid_periods = [b.strip().upper() for b in student.block.split(',') if b.strip()]
-    else:
-        valid_periods = []
+    safe_data = {k: ('***' if k == 'pin' else v) for k, v in data.items()}
+    app.logger.info(f"TAP DEBUG: Received data {safe_data}")
 
+    student = get_logged_in_student()
+
+    if not student:
+        app.logger.warning("TAP ERROR: Unauthenticated tap attempt.")
+        return jsonify({"error": "User not logged in or session expired"}), 401
+
+    pin = data.get("pin", "").strip()
+
+
+    if not check_password_hash(student.pin_hash or '', pin):
+        app.logger.warning(f"TAP ERROR: Invalid PIN for student {student.id}")
+        return jsonify({"error": "Invalid PIN"}), 403
+
+
+    valid_periods = [b.strip().upper() for b in student.block.split(',') if b.strip()] if student and isinstance(student.block, str) else []
     period = data.get("period", "").upper()
     action = data.get("action")
 
+    app.logger.info(f"TAP DEBUG: student_id={getattr(student, 'id', None)}, valid_periods={valid_periods}, period={period}, action={action}")
+
     if period not in valid_periods or action not in ["tap_in", "tap_out"]:
+        app.logger.warning(f"TAP ERROR: Invalid period or action: period={period}, valid_periods={valid_periods}, action={action}")
         return jsonify({"error": "Invalid period or action"}), 400
 
-    now = datetime.now(PACIFIC)
+    now = datetime.now(timezone.utc)
 
-    session_entry = TapSession.query.filter_by(
-        student_id=student.id,
-        period=period,
-        is_done=False,
-        tap_out_time=None
-    ).first()
 
-    if action == "tap_in":
-        if not session_entry:
-            session_entry = TapSession(
+    # --- Hall Pass Logic for Tap Out ---
+    if action == 'tap_out':
+        reason = data.get("reason")
+        if not reason:
+            return jsonify({"error": "A reason is required for a hall pass."}), 400
+
+        # Special case for "Done for the day" - this is the old "tap out" behavior
+        if reason.lower() in ['done', 'done for the day']:
+            # Fall through to the standard TapEvent creation logic below
+            pass
+        else:
+            # All other reasons go through the hall pass approval flow
+            if student.hall_passes <= 0:
+                return jsonify({"error": "Insufficient hall passes."}), 400
+
+            # Create a hall pass log entry
+            hall_pass_log = HallPassLog(
                 student_id=student.id,
-                period=period,
-                tap_in_time=now,
-                is_done=False
+                reason=reason,
+                status='pending',
+                request_time=now
             )
-            db.session.add(session_entry)
-    elif action == "tap_out":
-        if session_entry:
-            # Record tap-out time and reason
-            session_entry.tap_out_time = now
-            session_entry.reason = data.get("reason", session_entry.reason)
-            # Only mark session done if reason indicates final exit
-            if session_entry.reason and session_entry.reason.lower() == 'done':
-                session_entry.is_done = True
-            # Calculate the session duration in seconds
-            if session_entry.tap_in_time and session_entry.tap_out_time:
-                # Ensure tap_in_time is timezone-aware in Pacific
-                t_in = session_entry.tap_in_time
-                if getattr(t_in, 'tzinfo', None) is None:
-                    t_in = PACIFIC.localize(t_in)
-                # Ensure tap_out_time is timezone-aware in Pacific (if needed)
-                t_out = session_entry.tap_out_time
-                if getattr(t_out, 'tzinfo', None) is None:
-                    t_out = PACIFIC.localize(t_out)
-                session_entry.duration_seconds = int((t_out - t_in).total_seconds())
+            db.session.add(hall_pass_log)
+            db.session.commit()
 
+            # Since the student is just requesting, they are still 'active'.
+            # We need to return the current state to the UI.
+            is_active = True
+            last_payroll_time = get_last_payroll_time()
+            duration = calculate_unpaid_attendance_seconds(student.id, period, last_payroll_time)
+            RATE_PER_SECOND = 0.25 / 60
+            projected_pay = duration * RATE_PER_SECOND
+
+            return jsonify({
+                "status": "ok",
+                "message": "Hall pass requested.",
+                "active": is_active,
+                "duration": duration,
+                "projected_pay": projected_pay
+            })
+
+    # --- Standard Tap In/Out Logic ---
     try:
-        db.session.commit()
-        app.logger.info(
-            f"TAP success - student {student.id} {period} {action}"
+        status = "active" if action == "tap_in" else "inactive"
+        reason = data.get("reason") if action == "tap_out" else None
+
+        # Prevent duplicate tap-in or tap-out
+        latest_event = (
+            TapEvent.query
+            .filter_by(student_id=student.id, period=period)
+            .order_by(TapEvent.timestamp.desc())
+            .first()
         )
+        if latest_event and latest_event.status == status:
+            app.logger.info(f"Duplicate {action} ignored for student {student.id} in period {period}")
+            last_payroll_time = get_last_payroll_time()
+            duration = calculate_unpaid_attendance_seconds(student.id, period, last_payroll_time)
+            return jsonify({
+                "status": "ok",
+                "active": latest_event.status == "active",
+                "duration": duration
+            })
+
+        event = TapEvent(
+            student_id=student.id,
+            period=period,
+            status=status,
+            timestamp=now,  # UTC-aware
+            reason=reason
+        )
+        db.session.add(event)
+        db.session.commit()
+        app.logger.info(f"TAP success - student {student.id} {period} {action}")
     except SQLAlchemyError as e:
         db.session.rollback()
-        app.logger.error(
-            f"TAP failed for student {student.id}: {e}", exc_info=True
-        )
+        app.logger.error(f"TAP failed for student {student.id}: {e}", exc_info=True)
         return jsonify({"error": "Database error"}), 500
 
-    return jsonify({"status": "ok"})
+    # Fetch latest status and unpaid duration for the tapped period
+    latest_event = (
+        TapEvent.query
+        .filter_by(student_id=student.id, period=period)
+        .order_by(TapEvent.timestamp.desc())
+        .first()
+    )
+    is_active = latest_event.status == "active" if latest_event else False
+    last_payroll_time = get_last_payroll_time()
+    duration = calculate_unpaid_attendance_seconds(student.id, period, last_payroll_time)
+
+    RATE_PER_SECOND = 0.25 / 60
+    projected_pay = duration * RATE_PER_SECOND
+
+    return jsonify({
+        "status": "ok",
+        "active": is_active,
+        "duration": duration,
+        "projected_pay": projected_pay
+    })
+
+
+from attendance import get_all_block_statuses
+
+# --- Live student status API route ---
+@app.route('/api/student-status', methods=['GET'])
+@login_required
+def student_status():
+    student = get_logged_in_student()
+    period_states = get_all_block_statuses(student)
+    return jsonify(period_states)
+
+
+
+@app.route('/api/set-timezone', methods=['POST'])
+@csrf.exempt
+def set_timezone():
+    data = request.get_json()
+    if not data or 'timezone' not in data:
+        return jsonify(status="error", message="Timezone not provided"), 400
+
+    tz_name = data['timezone']
+    if tz_name not in pytz.all_timezones:
+        app.logger.warning(f"Invalid timezone submitted: {tz_name}")
+        return jsonify(status="error", message="Invalid timezone"), 400
+
+    session['timezone'] = tz_name
+    app.logger.info(f"🌐 Timezone set to {tz_name} for session")
+    return jsonify(status="success", message=f"Timezone set to {tz_name}")
+
 
 
 @app.route('/health')
@@ -1691,9 +2568,11 @@ def system_admin_login():
             totp = pyotp.TOTP(admin.totp_secret)
             if totp.verify(totp_code, valid_window=1):
                 session["is_system_admin"] = True
-                session["last_activity"] = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+                session['last_activity'] = datetime.utcnow().isoformat() + "Z"
                 flash("System admin login successful.")
                 next_url = request.args.get("next")
+                if not is_safe_url(next_url):
+                    return redirect(url_for("system_admin_dashboard"))
                 return redirect(next_url or url_for("system_admin_dashboard"))
         flash("Invalid credentials or TOTP.", "error")
         return redirect(url_for("system_admin_login"))

@@ -9,63 +9,21 @@
     </div>
 
     <div class="row mb-4">
-        <div class="col-md-6 mb-2">
-            <div class="card p-3 bg-light h-100">
-                
+        <div class="col-md-12 mb-2">
+            <div class="card p-3 bg-light">
                 <h4 style="margin-bottom:10px">Bulk Student Upload</h4>
-                
-                <p> You can upload a spreadsheet containing multiple students at once to save time. </p>
-                <p>In order for the system to recognize student information, you must use the custom template by clicking the download button below.</p>
-                
-                
-                       
-                
-                
-                    <a href="{{ url_for('download_csv_template') }}" class="btn mb-3" style="background-color: rgb(219, 66, 0); color:white; border-style:outset">
-                        Download Bulk Student Template
+                <p>You can upload a spreadsheet containing multiple students at once to save time. In order for the system to recognize student information, you must use the custom template by clicking the download button below.</p>
+                <div class="d-flex flex-wrap gap-2">
+                    <a href="{{ url_for('download_csv_template') }}" class="btn" style="background-color: rgb(219, 66, 0); color:white; border-style:outset">
+                        <i class="bi bi-download me-1"></i> Download Bulk Student Template
                     </a>
-               
-               
-                    <button class="btn mb-3" style="background-color: green; color:white; border-style:outset"data-bs-toggle="modal" data-bs-target="#uploadModal">
-                        Upload Bulk Student Template
+                    <button class="btn" style="background-color: green; color:white; border-style:outset" data-bs-toggle="modal" data-bs-target="#uploadModal">
+                        <i class="bi bi-upload me-1"></i> Upload Bulk Student Template
                     </button>
-                
-            
-            
-                    
-            </div>
-        </div>
-        <div class="col-md-6 mb-2">
-            <div class="card p-3 bg-light h-100">
-                
-                <h4 style="margin-bottom:10px">Add Students Manually</h4>
-            
-                <form action="{{ url_for('admin_add_student_manual') }}" method="post" enctype="multipart/form-data">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <div class="row">
-            <div class="col-md-6 mb-2">
-                <label for="first_name" class="form-label fw-bold">First Name</label>
-                <input type="text" class="form-control" name="first_name" id="first_name" required>
-            </div>
-            <div class="col-md-6 mb-2">
-                <label for="last_name" class="form-label fw-bold">Last Name</label>
-                <input type="text" class="form-control" name="last_name" id="last_name" required>
-            </div>
-        </div>
-        <div class="row">
-            <div class="col-md-6 mb-2">
-                <label for="dob" class="form-label fw-bold">Date of Birth</label>
-                <input type="date" class="form-control" name="dob" id="dob" required>
-            </div>
-            <div class="col-md-6 mb-2">
-                <label for="block" class="form-label fw-bold">Period/Block</label>
-                <input type="text" class="form-control" name="block" id="block" required>
-            </div>
-        </div>
-        <div class="mt-3 text-end">
-            <button type="submit" class="btn btn-primary">Add Student</button>
-        </div>
-    </form>
+                    <a href="{{ url_for('export_students') }}" class="btn btn-primary">
+                        <i class="bi bi-file-earmark-arrow-down me-1"></i> Export All Student Data
+                    </a>
+                </div>
             </div>
         </div>
     </div>
@@ -105,32 +63,15 @@
 </div>
     
 
-    <div class="mb-4">
-        <label for="block-select">Filter by Block:</label>
-        <select id="block-select" onchange="changeBlock()" class="form-select mb-3" style="width: 200px;" aria-label="Select Block">
-            {% for block in blocks %}
-            <option value="{{ block }}" {% if block == selected_block %}selected{% endif %}>Block {{ block }}</option>
-            {% endfor %}
-        </select>
-    </div>
-
-    <script>
-        function changeBlock() {
-            
-            let block = document.getElementById("block-select").value;
-            window.location.href = "/admin/students?block=" + block;
-        }
-    </script>
-
     <table class="table table-bordered table-striped table-hover mt-4">
         <thead class="table-dark">
             <tr>
                 <th>Name</th>
-                <th>Passes Left</th>
-                <th>Checking Balance</th>
-                <th>Last Tap In</th>
-                <th>Last Tap Out</th>
-                <th>Reason</th>
+                <th>Block</th>
+                <th>Checking</th>
+                <th>Savings</th>
+                <th>Hall Passes</th>
+                <th>Setup Complete</th>
             </tr>
         </thead>
         <tbody>
@@ -138,32 +79,14 @@
             <tr>
                 <td>
                     <a href="{{ url_for('student_detail', student_id=student.id) }}">
-                        {{ student.full_name }}
+                        {{ student.full_name if student else "Unknown" }}
                     </a>
                 </td>
-                <td>{{ student.passes_left if student.passes_left is not none else '—' }}</td>
+                <td>{{ student.block }}</td>
                 <td>${{ "%.2f"|format(student.checking_balance) }}</td>
-                <td>
-                    {% if student.last_tap_in %}
-                        {{ student.last_tap_in|format_datetime }}
-                    {% else %}
-                        —
-                    {% endif %}
-                </td>
-                <td>
-                    {% if student.last_tap_out %}
-                        {{ student.last_tap_out|format_datetime }}
-                    {% else %}
-                        —
-                    {% endif %}
-                </td>
-                <td>
-                  {% if student.last_tap_out_reason %}
-                    {{ student.last_tap_out_reason }}
-                  {% else %}
-                    —
-                  {% endif %}
-                </td>
+                <td>${{ "%.2f"|format(student.savings_balance) }}</td>
+                <td>{{ student.hall_passes }}</td>
+                <td>{{ 'Yes' if student.has_completed_setup else 'No' }}</td>
             </tr>
             {% endfor %}
         </tbody>

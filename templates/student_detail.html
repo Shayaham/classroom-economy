@@ -12,33 +12,38 @@
     <div class="card mb-4">
         <div class="card-header bg-info text-white">Student Information</div>
         <div class="card-body">
-            <p><strong>ID:</strong> {{ student.id }}</p>
-            <p><strong>PIN:</strong> ****</p>
             <p><strong>Checking Balance:</strong> ${{ "%.2f"|format(student.checking_balance) }}</p>
             <p><strong>Savings Balance:</strong> ${{ "%.2f"|format(student.savings_balance) }}</p>
             <hr>
             <h6>⏱️ Recent Attendance</h6>
-            <p><strong>Most Recent Tap In:</strong>
-              {% if student.last_tap_in %}
-                {{ student.last_tap_in|format_datetime }}
-              {% else %}
-                —
-              {% endif %}
-            </p>
-            <p><strong>Most Recent Tap Out:</strong>
-              {% if student.last_tap_out %}
-                {{ student.last_tap_out|format_datetime }}
-              {% else %}
-                —
-              {% endif %}
-            </p>
-            <p><strong>Reason:</strong>
-  {% if student.last_tap_out_reason %}
-    {{ student.last_tap_out_reason }}
-  {% else %}
-    —
-  {% endif %}
-</p>
+            {% if latest_tap_event %}
+              <p><strong>Timestamp:</strong> <span class="local-timestamp" data-timestamp="{{ latest_tap_event.timestamp.isoformat() }}Z"></span></p>
+              <p><strong>Status:</strong> {{ latest_tap_event.status|capitalize }}</p>
+              <p><strong>Period:</strong> {{ latest_tap_event.period|upper }}</p>
+              <p><strong>Reason:</strong> {{ latest_tap_event.reason if latest_tap_event.reason else '—' }}</p>
+            {% else %}
+              <p>—</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Hall Pass Management Section -->
+    <div class="card mb-4">
+        <div class="card-header bg-warning text-dark">Hall Pass Management</div>
+        <div class="card-body">
+            <p><strong>Current Hall Passes:</strong> {{ student.hall_passes }}</p>
+            <form action="{{ url_for('set_hall_passes', student_id=student.id) }}" method="post" class="row g-3 align-items-center">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="col-auto">
+                    <label for="hall_passes" class="form-label">Set New Balance:</label>
+                </div>
+                <div class="col-auto">
+                    <input type="number" class="form-control" name="hall_passes" id="hall_passes" value="{{ student.hall_passes }}" min="0" required>
+                </div>
+                <div class="col-auto">
+                    <button type="submit" class="btn btn-primary">Update</button>
+                </div>
+            </form>
         </div>
     </div>
 
@@ -46,16 +51,16 @@
     <div class="card mb-4">
         <div class="card-header bg-secondary text-white">Residency Information</div>
         <div class="card-body">
-            <p><strong>Homeownership:</strong> {{ 'Yes' if student.owns_property else 'No' }}</p>
-            <p><strong>Renter:</strong> {{ 'Yes' if student.is_renter else 'No' }}</p>
+            <p><strong>Homeownership:</strong> {{ 'Yes' if student.owns_seat else 'No' }}</p>
+            <p><strong>Renter:</strong> {{ 'Yes' if student.is_rent_enabled else 'No' }}</p>
 
-            {% if student.is_renter %}
+            {% if student.is_rent_enabled %}
             <ul>
               <li><strong>Most Recent Rent Payment:</strong>
                 {% if student.rent_last_paid %}
                   {{ student.rent_last_paid|format_datetime('%Y-%m-%d') }}
                 {% else %}
-                  — 
+                  —
                 {% endif %}
               </li>
               <li><strong>Overdue:</strong>
@@ -68,13 +73,13 @@
             </ul>
             {% endif %}
 
-            {% if student.owns_property %}
+            {% if student.owns_seat %}
             <ul>
               <li><strong>Most Recent Property Tax Payment:</strong>
                 {% if student.property_tax_last_paid %}
                   {{ student.property_tax_last_paid|format_datetime('%Y-%m-%d') }}
                 {% else %}
-                  — 
+                  —
                 {% endif %}
               </li>
               <li><strong>Overdue:</strong>
@@ -104,7 +109,7 @@
                     <tr {% if tx.is_void %}class="text-muted text-decoration-line-through"{% endif %}>
                       <td>
                           {% if tx.timestamp %}
-                            {{ tx.timestamp|format_datetime }}
+                            <span class="local-timestamp" data-timestamp="{{ tx.timestamp.isoformat() }}Z"></span>
                           {% else %}
                             —
                           {% endif %}
@@ -134,28 +139,36 @@
             {% endif %}
 
             <hr>
-            <h6>🛒 Store Purchases</h6>
-            {% if purchases %}
+            <h6>🛒 Owned Items</h6>
+            {% if student_items %}
             <table class="table table-sm table-striped">
-                <thead><tr><th>Item</th><th>Date Purchased</th><th>Redeemed?</th></tr></thead>
+                <thead>
+                    <tr>
+                        <th>Item</th>
+                        <th>Status</th>
+                        <th>Purchased On</th>
+                        <th>Details</th>
+                    </tr>
+                </thead>
                 <tbody>
-                  {% for purchase in purchases %}
+                  {% for s_item in student_items %}
                   <tr>
-                    <td>{{ purchase.item_name }}</td>
+                    <td>{{ s_item.store_item.name }}</td>
+                    <td><span class="badge bg-info">{{ s_item.status|title }}</span></td>
                     <td>
-                      {% if purchase.date_purchased %}
-                        {{ purchase.date_purchased|format_datetime('%Y-%m-%d') }}
+                      {% if s_item.purchase_date %}
+                        <span class="local-timestamp" data-timestamp="{{ s_item.purchase_date.isoformat() }}Z"></span>
                       {% else %}
                         —
                       {% endif %}
                     </td>
-                    <td>{{ 'Yes' if purchase.redeemed else 'No' }}</td>
+                    <td>{{ s_item.redemption_details or 'N/A' }}</td>
                   </tr>
                   {% endfor %}
                 </tbody>
             </table>
             {% else %}
-            <p><em>No purchases yet.</em></p>
+            <p><em>This student owns no items.</em></p>
             {% endif %}
         </div>
     </div>
@@ -229,5 +242,26 @@
     });
   });
 </script>
+<script>
+    document.addEventListener("DOMContentLoaded", () => {
+        document.querySelectorAll(".local-timestamp").forEach(el => {
+            const utcString = el.dataset.timestamp;
+            if (utcString) {
+                const date = new Date(utcString);
+                const options = {
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric',
+                    hour: 'numeric',
+                    minute: 'numeric',
+                    hour12: true
+                };
+                el.textContent = date.toLocaleString(undefined, options);
+            } else {
+                el.textContent = '—';
+            }
+        });
+    });
+  </script>
 </body>
 </html>
