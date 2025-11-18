@@ -3104,6 +3104,8 @@ def admin_payroll():
     from sqlalchemy import desc
     from datetime import datetime, timedelta
     import pytz
+    from payroll import calculate_payroll
+    from attendance import calculate_unpaid_attendance_seconds
 
     pacific = pytz.timezone('America/Los_Angeles')
     last_payroll_time = get_last_payroll_time()
@@ -3114,12 +3116,11 @@ def admin_payroll():
     # Get all blocks
     blocks = sorted(set(s.block for s in students if s.block))
 
-    # Next scheduled payroll calculation
+    # Next scheduled payroll calculation (keep in UTC for template)
     if last_payroll_time:
         next_pay_date_utc = last_payroll_time + timedelta(days=14)
     else:
         next_pay_date_utc = datetime.now(timezone.utc)
-    next_pay_date = next_pay_date_utc.astimezone(pacific)
 
     # Recent payroll activity
     recent_payrolls = Transaction.query.filter_by(type='payroll').order_by(Transaction.timestamp.desc()).limit(20).all()
@@ -3131,11 +3132,11 @@ def admin_payroll():
     # Next payroll by block (for now, use same date for all blocks)
     next_payroll_by_block = []
     for block in blocks:
-        block_students = [s for s in students if block in (s.block or '').split(',')]
+        block_students = [s for s in students if block in [b.strip() for b in (s.block or '').split(',')]]
         block_estimate = sum(payroll_summary.get(s.id, 0) for s in block_students)
         next_payroll_by_block.append({
             'block': block,
-            'next_date': next_pay_date,
+            'next_date': next_pay_date_utc,  # Keep in UTC
             'estimate': block_estimate
         })
 
@@ -3192,11 +3193,27 @@ def admin_payroll():
     # Quick stats
     avg_payout = total_payroll_estimate / len(students) if students else 0
 
+    # Payroll history for History tab
+    payroll_history_transactions = Transaction.query.filter_by(type='payroll').order_by(Transaction.timestamp.desc()).limit(100).all()
+    student_lookup = {s.id: s for s in students}
+    payroll_history = []
+    for tx in payroll_history_transactions:
+        student = student_lookup.get(tx.student_id)
+        payroll_history.append({
+            'timestamp': tx.timestamp,
+            'block': student.block if student else 'Unknown',
+            'student_id': tx.student_id,
+            'student': student,
+            'student_name': student.full_name if student else 'Unknown',
+            'amount': tx.amount,
+            'notes': tx.description or ''
+        })
+
     return render_template(
         'admin_payroll.html',
         # Overview tab
         recent_payrolls=recent_payrolls,
-        next_payroll_date=next_pay_date,
+        next_payroll_date=next_pay_date_utc,  # Pass UTC timestamp
         next_payroll_by_block=next_payroll_by_block,
         total_payroll_estimate=total_payroll_estimate,
         total_students=len(students),
@@ -3205,7 +3222,7 @@ def admin_payroll():
         # Settings tab
         settings_form=settings_form,
         block_settings=block_settings,
-        next_global_payroll=next_pay_date,
+        next_global_payroll=next_pay_date_utc,  # Pass UTC timestamp
         # Students tab
         student_stats=student_stats,
         # Rewards & Fines tab
@@ -3216,6 +3233,10 @@ def admin_payroll():
         # Manual Payment tab
         manual_payment_form=manual_payment_form,
         all_students=students,
+        # History tab
+        payroll_history=payroll_history,
+        # General
+        blocks=blocks,
         current_page="payroll"
     )
 
@@ -3378,6 +3399,75 @@ def admin_payroll_delete_fine(fine_id):
         db.session.rollback()
         app.logger.error(f"Error deleting fine: {e}")
         return jsonify({'success': False, 'message': 'Error deleting fine'}), 500
+
+
+# -------------------- APPLY REWARDS & FINES --------------------
+@app.route('/admin/payroll/rewards/<int:reward_id>/apply', methods=['POST'])
+@admin_required
+def admin_payroll_apply_reward(reward_id):
+    """Apply a reward to selected students."""
+    try:
+        reward = PayrollReward.query.get_or_404(reward_id)
+        student_ids = request.form.getlist('student_ids')
+
+        if not student_ids:
+            return jsonify({'success': False, 'message': 'Please select at least one student'}), 400
+
+        count = 0
+        for student_id in student_ids:
+            student = Student.query.get(int(student_id))
+            if student:
+                transaction = Transaction(
+                    student_id=student.id,
+                    amount=reward.amount,
+                    description=f"Reward: {reward.name}",
+                    account_type='checking',
+                    type='reward',
+                    timestamp=datetime.utcnow()
+                )
+                db.session.add(transaction)
+                count += 1
+
+        db.session.commit()
+        return jsonify({'success': True, 'message': f'Reward "{reward.name}" applied to {count} student(s)!'})
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"Error applying reward: {e}")
+        return jsonify({'success': False, 'message': 'Error applying reward'}), 500
+
+
+@app.route('/admin/payroll/fines/<int:fine_id>/apply', methods=['POST'])
+@admin_required
+def admin_payroll_apply_fine(fine_id):
+    """Apply a fine to selected students."""
+    try:
+        fine = PayrollFine.query.get_or_404(fine_id)
+        student_ids = request.form.getlist('student_ids')
+
+        if not student_ids:
+            return jsonify({'success': False, 'message': 'Please select at least one student'}), 400
+
+        count = 0
+        for student_id in student_ids:
+            student = Student.query.get(int(student_id))
+            if student:
+                transaction = Transaction(
+                    student_id=student.id,
+                    amount=-abs(fine.amount),  # Negative for fine
+                    description=f"Fine: {fine.name}",
+                    account_type='checking',
+                    type='fine',
+                    timestamp=datetime.utcnow()
+                )
+                db.session.add(transaction)
+                count += 1
+
+        db.session.commit()
+        return jsonify({'success': True, 'message': f'Fine "{fine.name}" applied to {count} student(s)!'})
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"Error applying fine: {e}")
+        return jsonify({'success': False, 'message': 'Error applying fine'}), 500
 
 
 # -------------------- MANUAL PAYMENTS --------------------
