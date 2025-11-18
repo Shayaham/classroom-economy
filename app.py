@@ -3150,6 +3150,9 @@ def admin_payroll():
     if last_payroll_time and last_payroll_time.tzinfo is None:
         last_payroll_time = last_payroll_time.replace(tzinfo=timezone.utc)
 
+
+    now_utc = datetime.now(timezone.utc)
+
     # Get all students
     students = Student.query.all()
 
@@ -3160,9 +3163,42 @@ def admin_payroll():
     has_settings = PayrollSettings.query.first() is not None
     show_setup_banner = not has_settings
 
+    # Get payroll settings
+    block_settings = PayrollSettings.query.filter_by(is_active=True).all()
+
+    # Get default/global settings for form pre-population
+    default_setting = PayrollSettings.query.filter_by(block=None, is_active=True).first()
+
+    # Organize settings by block for display and lookup
+    settings_by_block = {}
+    for setting in block_settings:
+        if setting.block:
+            settings_by_block[setting.block] = setting
+
+    def _as_utc(dt):
+        if not dt:
+            return None
+        return dt.replace(tzinfo=timezone.utc) if dt.tzinfo is None else dt.astimezone(timezone.utc)
+
+    def _compute_next_pay_date(setting, last_run, now):
+        freq_days = setting.payroll_frequency_days if setting and setting.payroll_frequency_days else 14
+        first_pay = _as_utc(setting.first_pay_date) if setting and setting.first_pay_date else None
+
+        if last_run:
+            candidate = last_run + timedelta(days=freq_days)
+        elif first_pay:
+            candidate = first_pay
+        else:
+            candidate = now + timedelta(days=freq_days)
+
+        while candidate <= now:
+            candidate += timedelta(days=freq_days)
+        return candidate
+
     # Next scheduled payroll calculation (keep in UTC for template)
-    reference_start = last_payroll_time or datetime.now(timezone.utc)
-    next_pay_date_utc = reference_start + timedelta(days=14)
+
+    next_pay_date_utc = _compute_next_pay_date(default_setting, last_payroll_time, now_utc)
+
 
     # Recent payroll activity
     recent_payrolls = Transaction.query.filter_by(type='payroll').order_by(Transaction.timestamp.desc()).limit(20).all()
@@ -3171,15 +3207,19 @@ def admin_payroll():
     payroll_summary = calculate_payroll(students, last_payroll_time)
     total_payroll_estimate = sum(payroll_summary.values())
 
-    # Next payroll by block (for now, use same date for all blocks)
+    # Next payroll by block
     next_payroll_by_block = []
     for block in blocks:
         block_students = [s for s in students if block in [b.strip() for b in (s.block or '').split(',')]]
         block_estimate = sum(payroll_summary.get(s.id, 0) for s in block_students)
+        setting = settings_by_block.get(block, default_setting)
+        block_next_payroll = _compute_next_pay_date(setting, last_payroll_time, now_utc)
         next_payroll_by_block.append({
             'block': block,
-            'next_date': next_pay_date_utc,  # Keep in UTC
-            'next_date_iso': format_utc_iso(next_pay_date_utc),
+
+            'next_date': block_next_payroll,  # Keep in UTC
+            'next_date_iso': format_utc_iso(block_next_payroll),
+
             'estimate': block_estimate
         })
 
@@ -3218,18 +3258,6 @@ def admin_payroll():
             'last_payroll_date': last_payroll.timestamp if last_payroll else None,
             'total_earned': total_earned
         })
-
-    # Get payroll settings
-    block_settings = PayrollSettings.query.filter_by(is_active=True).all()
-
-    # Get default/global settings for form pre-population
-    default_setting = PayrollSettings.query.filter_by(block=None, is_active=True).first()
-
-    # Organize settings by block for display
-    settings_by_block = {}
-    for setting in block_settings:
-        if setting.block:
-            settings_by_block[setting.block] = setting
 
     # Get rewards and fines
     rewards = PayrollReward.query.order_by(PayrollReward.created_at.desc()).all()
