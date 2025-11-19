@@ -141,7 +141,7 @@
         <div class="row">
             <!-- Student Info Card -->
             <div class="col-lg-6 mb-4">
-                <div class="card shadow">
+                <div class="card shadow h-100">
                     <div class="card-header bg-info text-white">
                         <h5 class="mb-0"><i class="bi bi-person me-2"></i>Student Information</h5>
                     </div>
@@ -152,12 +152,13 @@
                                 <td>{{ student.full_name }}</td>
                             </tr>
                             <tr>
-                                <td class="fw-bold">Block:</td>
-                                <td><span class="badge bg-primary">{{ student.block|upper }}</span></td>
-                            </tr>
-                            <tr>
-                                <td class="fw-bold">Student ID:</td>
-                                <td><code>#{{ student.id }}</code></td>
+                                <td class="fw-bold">Block(s):</td>
+                                <td>
+                                    {% set blocks = student.block.split(',') %}
+                                    {% for block in blocks %}
+                                        <span class="badge bg-primary me-1">{{ block.strip()|upper }}</span>
+                                    {% endfor %}
+                                </td>
                             </tr>
                             <tr>
                                 <td class="fw-bold">Setup Status:</td>
@@ -170,71 +171,70 @@
                                 </td>
                             </tr>
                             <tr>
-                                <td class="fw-bold">Insurance Plan:</td>
-                                <td>{{ student.insurance_plan if student.insurance_plan != 'none' else 'None' }}</td>
+                                <td class="fw-bold">Insurance:</td>
+                                <td>
+                                    {% if student.insurance_plan and student.insurance_plan != 'none' %}
+                                        <span class="badge bg-info">{{ student.insurance_plan|title }}</span>
+                                    {% else %}
+                                        <span class="text-muted">None</span>
+                                    {% endif %}
+                                </td>
                             </tr>
+                            {% if student.is_rent_enabled %}
+                            <tr>
+                                <td class="fw-bold">Housing:</td>
+                                <td><span class="badge bg-secondary">Renter</span></td>
+                            </tr>
+                            {% endif %}
+                            {% if student.owns_seat %}
+                            <tr>
+                                <td class="fw-bold">Property:</td>
+                                <td><span class="badge bg-success">Homeowner</span></td>
+                            </tr>
+                            {% endif %}
                         </table>
                     </div>
                 </div>
             </div>
 
-            <!-- Quick Stats Card -->
-            <div class="col-lg-6 mb-4">
-                <div class="card shadow">
-                    <div class="card-header bg-success text-white">
-                        <h5 class="mb-0"><i class="bi bi-graph-up me-2"></i>Quick Stats</h5>
-                    </div>
-                    <div class="card-body">
-                        <div class="row text-center">
-                            <div class="col-6 mb-3">
-                                <h4 class="text-primary">${{ "%.2f"|format(student.checking_balance + student.savings_balance) }}</h4>
-                                <small class="text-muted">Total Balance</small>
-                            </div>
-                            <div class="col-6 mb-3">
-                                <h4 class="text-success">{{ transactions|selectattr('amount', 'gt', 0)|list|length }}</h4>
-                                <small class="text-muted">Total Deposits</small>
-                            </div>
-                            <div class="col-6">
-                                <h4 class="text-info">{{ student_items|length }}</h4>
-                                <small class="text-muted">Items Owned</small>
-                            </div>
-                            <div class="col-6">
-                                <h4 class="text-warning">{{ student.hall_passes }}</h4>
-                                <small class="text-muted">Hall Passes</small>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
             <!-- Recent Activity Card -->
-            <div class="col-lg-12 mb-4">
-                <div class="card shadow">
+            <div class="col-lg-6 mb-4">
+                <div class="card shadow h-100">
                     <div class="card-header bg-secondary text-white">
-                        <h5 class="mb-0"><i class="bi bi-activity me-2"></i>Recent Attendance</h5>
+                        <h5 class="mb-0"><i class="bi bi-clock-history me-2"></i>Recent Attendance</h5>
                     </div>
                     <div class="card-body">
                         {% if latest_tap_event %}
-                            <div class="row">
-                                <div class="col-md-3">
-                                    <strong>Timestamp:</strong><br>
-                                    <span class="local-timestamp" data-timestamp="{{ latest_tap_event.timestamp.isoformat() }}Z"></span>
-                                </div>
-                                <div class="col-md-3">
-                                    <strong>Status:</strong><br>
-                                    <span class="badge {% if latest_tap_event.status == 'active' %}bg-success{% else %}bg-secondary{% endif %}">
-                                        {{ latest_tap_event.status|capitalize }}
-                                    </span>
-                                </div>
-                                <div class="col-md-3">
-                                    <strong>Period:</strong><br>
-                                    {{ latest_tap_event.period|upper }}
-                                </div>
-                                <div class="col-md-3">
-                                    <strong>Reason:</strong><br>
-                                    {{ latest_tap_event.reason if latest_tap_event.reason else 'N/A' }}
-                                </div>
-                            </div>
+                            <table class="table table-borderless mb-0">
+                                <tr>
+                                    <td class="fw-bold">Last Activity:</td>
+                                    <td>
+                                        {% if latest_tap_event.timestamp %}
+                                            <span class="local-timestamp" data-timestamp="{{ latest_tap_event.timestamp.isoformat() }}Z"></span>
+                                        {% else %}
+                                            <span class="text-muted">N/A</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="fw-bold">Status:</td>
+                                    <td>
+                                        <span class="badge {% if latest_tap_event.status == 'active' %}bg-success{% else %}bg-secondary{% endif %}">
+                                            {{ latest_tap_event.status|capitalize }}
+                                        </span>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="fw-bold">Period:</td>
+                                    <td><span class="badge bg-primary">{{ latest_tap_event.period|upper }}</span></td>
+                                </tr>
+                                {% if latest_tap_event.reason %}
+                                <tr>
+                                    <td class="fw-bold">Reason:</td>
+                                    <td>{{ latest_tap_event.reason }}</td>
+                                </tr>
+                                {% endif %}
+                            </table>
                         {% else %}
                             <p class="text-muted mb-0">No attendance records found.</p>
                         {% endif %}
@@ -270,7 +270,11 @@
                                 {% for tx in transactions %}
                                 <tr {% if tx.is_void %}class="table-secondary text-decoration-line-through"{% endif %}>
                                     <td>
-                                        <span class="local-timestamp" data-timestamp="{{ tx.timestamp.isoformat() }}Z"></span>
+                                        {% if tx.timestamp %}
+                                            <span class="local-timestamp" data-timestamp="{{ tx.timestamp.isoformat() }}Z"></span>
+                                        {% else %}
+                                            <span class="text-muted">N/A</span>
+                                        {% endif %}
                                     </td>
                                     <td>
                                         <span class="badge bg-info">{{ tx.type|title if tx.type else 'General' }}</span>
@@ -335,7 +339,11 @@
                                         <strong>{{ s_item.store_item.name }}</strong>
                                     </td>
                                     <td>
-                                        <span class="local-timestamp" data-timestamp="{{ s_item.purchase_date.isoformat() }}Z"></span>
+                                        {% if s_item.purchase_date %}
+                                            <span class="local-timestamp" data-timestamp="{{ s_item.purchase_date.isoformat() }}Z"></span>
+                                        {% else %}
+                                            <span class="text-muted">N/A</span>
+                                        {% endif %}
                                     </td>
                                     <td>
                                         {% if s_item.status == 'purchased' %}
@@ -391,7 +399,11 @@
                                 {% for tap in tap_events[:50] %}
                                 <tr>
                                     <td>
-                                        <span class="local-timestamp" data-timestamp="{{ tap.timestamp.isoformat() }}Z"></span>
+                                        {% if tap.timestamp %}
+                                            <span class="local-timestamp" data-timestamp="{{ tap.timestamp.isoformat() }}Z"></span>
+                                        {% else %}
+                                            <span class="text-muted">N/A</span>
+                                        {% endif %}
                                     </td>
                                     <td><span class="badge bg-primary">{{ tap.period|upper }}</span></td>
                                     <td>
@@ -555,7 +567,11 @@
                                 {% for tx in earnings[:20] %}
                                 <tr>
                                     <td>
-                                        <span class="local-timestamp" data-timestamp="{{ tx.timestamp.isoformat() }}Z"></span>
+                                        {% if tx.timestamp %}
+                                            <span class="local-timestamp" data-timestamp="{{ tx.timestamp.isoformat() }}Z"></span>
+                                        {% else %}
+                                            <span class="text-muted">N/A</span>
+                                        {% endif %}
                                     </td>
                                     <td>
                                         <span class="badge bg-info">{{ tx.type|title if tx.type else 'Deposit' }}</span>
@@ -578,78 +594,30 @@
 
     <!-- SETTINGS TAB -->
     <div class="tab-pane fade" id="settings" role="tabpanel">
-        <div class="row">
+        <div class="row justify-content-center">
             <!-- Hall Passes Card -->
-            <div class="col-lg-6 mb-4">
+            <div class="col-lg-8 mb-4">
                 <div class="card shadow">
                     <div class="card-header bg-warning text-dark">
                         <h5 class="mb-0"><i class="bi bi-ticket-perforated me-2"></i>Hall Pass Management</h5>
                     </div>
                     <div class="card-body">
                         <p><strong>Current Balance:</strong> <span class="badge bg-primary fs-5">{{ student.hall_passes }}</span></p>
-                        <form action="{{ url_for('admin.set_hall_passes', student_id=student.id) }}" method="post" class="row g-3">
+                        <form action="{{ url_for('admin.set_hall_passes', student_id=student.id) }}" method="post" class="row g-3 align-items-end">
                             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                            <div class="col-auto">
-                                <label for="hall_passes" class="form-label fw-bold">Set New Balance:</label>
+                            <div class="col-md-6">
+                                <label for="hall_passes" class="form-label fw-bold">Set New Balance</label>
+                                <input type="number" class="form-control form-control-lg" name="hall_passes" id="hall_passes" value="{{ student.hall_passes }}" min="0" required>
                             </div>
-                            <div class="col-auto">
-                                <input type="number" class="form-control" name="hall_passes" id="hall_passes" value="{{ student.hall_passes }}" min="0" required>
-                            </div>
-                            <div class="col-auto">
-                                <button type="submit" class="btn btn-warning">
-                                    <i class="bi bi-check-circle me-1"></i>Update
+                            <div class="col-md-6">
+                                <button type="submit" class="btn btn-warning btn-lg w-100">
+                                    <i class="bi bi-check-circle me-1"></i>Update Hall Passes
                                 </button>
                             </div>
                         </form>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Account Settings Card -->
-            <div class="col-lg-6 mb-4">
-                <div class="card shadow">
-                    <div class="card-header bg-secondary text-white">
-                        <h5 class="mb-0"><i class="bi bi-gear me-2"></i>Account Settings</h5>
-                    </div>
-                    <div class="card-body">
-                        <table class="table table-borderless mb-0">
-                            <tr>
-                                <td class="fw-bold">Rent Enabled:</td>
-                                <td>
-                                    {% if student.is_rent_enabled %}
-                                        <span class="badge bg-success">Yes</span>
-                                    {% else %}
-                                        <span class="badge bg-secondary">No</span>
-                                    {% endif %}
-                                </td>
-                            </tr>
-                            <tr>
-                                <td class="fw-bold">Homeowner:</td>
-                                <td>
-                                    {% if student.owns_seat %}
-                                        <span class="badge bg-success">Yes</span>
-                                    {% else %}
-                                        <span class="badge bg-secondary">No</span>
-                                    {% endif %}
-                                </td>
-                            </tr>
-                            <tr>
-                                <td class="fw-bold">Insurance Plan:</td>
-                                <td>
-                                    <span class="badge bg-info">{{ student.insurance_plan if student.insurance_plan != 'none' else 'None' }}</span>
-                                </td>
-                            </tr>
-                            <tr>
-                                <td class="fw-bold">Setup Complete:</td>
-                                <td>
-                                    {% if student.has_completed_setup %}
-                                        <span class="badge bg-success">Yes</span>
-                                    {% else %}
-                                        <span class="badge bg-warning text-dark">No</span>
-                                    {% endif %}
-                                </td>
-                            </tr>
-                        </table>
+                        <div class="alert alert-info mt-3 mb-0">
+                            <small><i class="bi bi-info-circle me-2"></i>Other settings can be changed via the "Edit Student" button at the top of the page.</small>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -659,7 +627,7 @@
 
 <!-- Edit Basic Info Modal -->
 <div class="modal fade" id="editBasicInfoModal" tabindex="-1" aria-labelledby="editBasicInfoModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-lg">
         <form action="{{ url_for('admin.edit_student') }}" method="post">
             <div class="modal-content">
                 <div class="modal-header bg-primary text-white">
@@ -672,22 +640,80 @@
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <input type="hidden" name="student_id" value="{{ student.id }}">
 
-                    <div class="mb-3">
-                        <label for="edit_first_name" class="form-label fw-bold">First Name</label>
-                        <input type="text" class="form-control" id="edit_first_name" name="first_name" value="{{ student.first_name }}" required>
+                    <!-- Basic Information -->
+                    <div class="card border-primary mb-3">
+                        <div class="card-header bg-primary bg-opacity-10">
+                            <h6 class="mb-0 text-primary"><i class="bi bi-person me-2"></i>Basic Information</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label for="edit_first_name" class="form-label fw-bold">First Name</label>
+                                    <input type="text" class="form-control" id="edit_first_name" name="first_name" value="{{ student.first_name }}" required>
+                                    <div class="form-text">Used for account claim process</div>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label for="edit_last_name" class="form-label fw-bold">Last Name</label>
+                                    <input type="text" class="form-control" id="edit_last_name" name="last_name" value="{{ student.last_initial }}" required>
+                                    <div class="form-text">First letter will become last initial</div>
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label for="edit_dob_sum" class="form-label fw-bold">DOB Sum (Optional)</label>
+                                <input type="number" class="form-control" id="edit_dob_sum" name="dob_sum" value="{{ student.dob_sum }}">
+                                <div class="form-text">Sum of DOB components (MM + DD + YYYY). Leave blank to keep unchanged.</div>
+                            </div>
+                        </div>
                     </div>
-                    <div class="mb-3">
-                        <label for="edit_last_initial" class="form-label fw-bold">Last Initial</label>
-                        <input type="text" class="form-control" id="edit_last_initial" name="last_initial" value="{{ student.last_initial }}" maxlength="1" required>
+
+                    <!-- Block Assignment -->
+                    <div class="card border-info mb-3">
+                        <div class="card-header bg-info bg-opacity-10">
+                            <h6 class="mb-0 text-info"><i class="bi bi-calendar-week me-2"></i>Block Assignment</h6>
+                        </div>
+                        <div class="card-body">
+                            <p class="text-muted small mb-2">Select all blocks this student attends (can select multiple):</p>
+                            <div class="row">
+                                {% for block in blocks %}
+                                <div class="col-6 col-md-4 mb-2">
+                                    <div class="form-check">
+                                        <input class="form-check-input block-checkbox" type="checkbox" name="blocks" value="{{ block }}" id="edit_block_{{ block }}"
+                                        {% if block.upper() in student.block.upper().split(',') %}checked{% endif %}>
+                                        <label class="form-check-label" for="edit_block_{{ block }}">
+                                            Block {{ block|upper }}
+                                        </label>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            <div class="form-text">At least one block must be selected</div>
+                        </div>
                     </div>
-                    <div class="mb-3">
-                        <label for="edit_block" class="form-label fw-bold">Block</label>
-                        <input type="text" class="form-control" id="edit_block" name="block" value="{{ student.block }}" required>
+
+                    <!-- Login Management -->
+                    <div class="card border-warning mb-3">
+                        <div class="card-header bg-warning bg-opacity-10">
+                            <h6 class="mb-0 text-warning"><i class="bi bi-key me-2"></i>Login Management</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <p class="mb-1 fw-bold">Reset Student Login</p>
+                                    <p class="text-muted small mb-0">Forces student to go through account claim process again. Account data will be preserved.</p>
+                                </div>
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="edit_reset_login" name="reset_login" role="switch">
+                                    <label class="form-check-label" for="edit_reset_login">Reset</label>
+                                </div>
+                            </div>
+                            <div class="alert alert-warning mt-3 mb-0" id="reset_login_warning" style="display:none;">
+                                <small><i class="bi bi-exclamation-triangle me-2"></i>Student will need to re-claim their account using their name and DOB.</small>
+                            </div>
+                        </div>
                     </div>
-                    <div class="mb-3">
-                        <label for="edit_dob_sum" class="form-label fw-bold">DOB Sum</label>
-                        <input type="number" class="form-control" id="edit_dob_sum" name="dob_sum" value="{{ student.dob_sum }}">
-                        <div class="form-text">Leave blank to keep unchanged</div>
+
+                    <div class="alert alert-info mb-0">
+                        <small><i class="bi bi-info-circle me-2"></i><strong>Note:</strong> Changing the name will update what the student needs to enter during the account claim process.</small>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -723,6 +749,15 @@
             }
         });
     });
+
+    // Edit modal - reset login checkbox toggle warning
+    const resetLoginCheckbox = document.getElementById('edit_reset_login');
+    const resetLoginWarning = document.getElementById('reset_login_warning');
+    if (resetLoginCheckbox && resetLoginWarning) {
+        resetLoginCheckbox.addEventListener('change', function() {
+            resetLoginWarning.style.display = this.checked ? 'block' : 'none';
+        });
+    }
 </script>
 
 <!-- Void Transaction AJAX -->
