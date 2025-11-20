@@ -55,10 +55,47 @@ admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
 
 # -------------------- DASHBOARD & QUICK ACTIONS --------------------
 
+def auto_tapout_all_over_limit():
+    """
+    Checks all active students and auto-taps them out if they've exceeded their daily limit.
+    This is called when admin views the dashboard to ensure limits are enforced.
+    """
+    from app.routes.api import check_and_auto_tapout_if_limit_reached
+
+    # Get all students
+    students = Student.query.all()
+    tapped_out_count = 0
+
+    for student in students:
+        try:
+            # Get the student's current active sessions
+            student_blocks = [b.strip().upper() for b in student.block.split(',') if b.strip()]
+            for period in student_blocks:
+                latest_event = (
+                    TapEvent.query
+                    .filter_by(student_id=student.id, period=period)
+                    .order_by(TapEvent.timestamp.desc())
+                    .first()
+                )
+
+                # If student is active, run the auto-tapout check
+                if latest_event and latest_event.status == "active":
+                    check_and_auto_tapout_if_limit_reached(student)
+                    tapped_out_count += 1
+                    break  # Only need to run once per student
+        except Exception as e:
+            current_app.logger.error(f"Error checking auto-tapout for student {student.id}: {e}")
+            continue
+
+    return tapped_out_count
+
 @admin_bp.route('/')
 @admin_required
 def dashboard():
     """Admin dashboard with statistics, pending actions, and recent activity."""
+    # Auto-tapout students who have exceeded their daily limit
+    auto_tapout_all_over_limit()
+
     # Get all students for calculations
     students = Student.query.order_by(Student.first_name).all()
     student_lookup = {s.id: s for s in students}
@@ -1274,84 +1311,9 @@ def process_claim(claim_id):
 @admin_bp.route('/transactions')
 @admin_required
 def transactions():
-    """View and filter all transactions."""
-    # Read filter and pagination parameters
-    student_q = request.args.get('student', '').strip()
-    block_q = request.args.get('block', '')
-    type_q = request.args.get('type', '')
-    start_date = request.args.get('start_date')
-    end_date = request.args.get('end_date')
-    page = int(request.args.get('page', 1))
-    per_page = 20
-
-    # Base query joining Transaction with Student
-    query = db.session.query(
-        Transaction,
-        Student.first_name.label('student_name'),
-        Student.block.label('student_block')
-    ).join(Student, Transaction.student_id == Student.id)
-
-    # Apply filters
-    if student_q:
-        # Since first_name is encrypted, we cannot use `ilike`.
-        # We must fetch students, decrypt names, and filter in Python.
-        matching_student_ids = []
-        # Handle if the query is a student ID
-        if student_q.isdigit():
-            matching_student_ids.append(int(student_q))
-
-        # Handle if the query is a name
-        all_students = Student.query.all()
-        for s in all_students:
-            # The full_name property will decrypt the first_name
-            if student_q.lower() in s.full_name.lower():
-                matching_student_ids.append(s.id)
-
-        # If there are any matches (by ID or name), filter the query
-        if matching_student_ids:
-            query = query.filter(Student.id.in_(matching_student_ids))
-        else:
-            # If no students match, return no results
-            query = query.filter(sa.false())
-
-    if block_q:
-        query = query.filter(Student.block == block_q)
-    if type_q:
-        query = query.filter(Transaction.type == type_q)
-    if start_date:
-        query = query.filter(Transaction.timestamp >= start_date)
-    if end_date:
-        # include entire end_date
-        query = query.filter(Transaction.timestamp < text(f"'{end_date}'::date + interval '1 day'"))
-
-    # Count and paginate
-    total = query.count()
-    total_pages = math.ceil(total / per_page) if total else 1
-
-    raw = query.order_by(Transaction.timestamp.desc()) \
-               .limit(per_page).offset((page - 1) * per_page).all()
-
-    # Build list of dicts for template
-    transactions = []
-    for tx, name, block in raw:
-        transactions.append({
-            'id': tx.id,
-            'timestamp': tx.timestamp,
-            'student_name': name,
-            'student_block': block,
-            'type': tx.type,
-            'amount': tx.amount,
-            'reason': tx.description,
-            'is_void': tx.is_void
-        })
-
-    return render_template(
-        'admin_transactions.html',
-        transactions=transactions,
-        page=page,
-        total_pages=total_pages,
-        current_page="transactions"
-    )
+    """Redirect to banking page - transactions now under banking."""
+    # Preserve query parameters when redirecting
+    return redirect(url_for('admin.banking', **request.args))
 
 
 @admin_bp.route('/void-transaction/<int:transaction_id>', methods=['POST'])
@@ -2349,6 +2311,76 @@ def export_students():
 
 # -------------------- ADMIN TAP OUT --------------------
 
+@admin_bp.route('/enforce-daily-limits', methods=['POST'])
+@admin_required
+def enforce_daily_limits():
+    """
+    Manually trigger auto tap-out for all students who have exceeded their daily limit.
+    Returns a report of students who were auto-tapped out.
+    """
+    from app.routes.api import check_and_auto_tapout_if_limit_reached
+    import pytz
+    from payroll import get_daily_limit_seconds
+
+    students = Student.query.all()
+    tapped_out = []
+    checked = 0
+    errors = []
+
+    pacific = pytz.timezone('America/Los_Angeles')
+    now_utc = datetime.now(timezone.utc)
+
+    for student in students:
+        try:
+            # Get the student's current active sessions
+            student_blocks = [b.strip() for b in student.block.split(',') if b.strip()]
+            for block_original in student_blocks:
+                period_upper = block_original.upper()
+                latest_event = (
+                    TapEvent.query
+                    .filter_by(student_id=student.id, period=period_upper)
+                    .order_by(TapEvent.timestamp.desc())
+                    .first()
+                )
+
+                # If student is active, check their limit
+                if latest_event and latest_event.status == "active":
+                    checked += 1
+                    daily_limit = get_daily_limit_seconds(block_original)
+
+                    if daily_limit:
+                        # Log the check for debugging
+                        current_app.logger.info(
+                            f"Checking student {student.id} ({student.full_name}) in period {period_upper} - limit: {daily_limit/3600:.1f}h"
+                        )
+                        check_and_auto_tapout_if_limit_reached(student)
+
+                        # Check if they were tapped out (latest event changed)
+                        new_latest = (
+                            TapEvent.query
+                            .filter_by(student_id=student.id, period=period_upper)
+                            .order_by(TapEvent.timestamp.desc())
+                            .first()
+                        )
+                        if new_latest and new_latest.status == "inactive" and new_latest.id != latest_event.id:
+                            tapped_out.append(f"{student.full_name} (Period {period_upper})")
+                    break  # Only check once per student
+        except Exception as e:
+            errors.append(f"{student.full_name}: {str(e)}")
+            current_app.logger.error(f"Error enforcing limits for student {student.id}: {e}", exc_info=True)
+            continue
+
+    message = f"Checked {checked} active students. Auto-tapped out {len(tapped_out)} student(s)."
+
+    return jsonify({
+        "status": "success",
+        "message": message,
+        "checked": checked,
+        "tapped_out": tapped_out,
+        "errors": errors
+    })
+
+
 @admin_bp.route('/tap-out-students', methods=['POST'])
 @admin_required
 def tap_out_students():
@@ -2492,13 +2524,63 @@ def banking():
         form.overdraft_fee_progressive_3.data = settings.overdraft_fee_progressive_3
         form.overdraft_fee_progressive_cap.data = settings.overdraft_fee_progressive_cap
 
-    # Get recent transactions (last 50)
+    # Get filter and pagination parameters
+    student_q = request.args.get('student', '').strip()
+    block_q = request.args.get('block', '')
+    account_q = request.args.get('account', '')
+    type_q = request.args.get('type', '')
+    start_date = request.args.get('start_date')
+    end_date = request.args.get('end_date')
+    page = int(request.args.get('page', 1))
+    per_page = 50
+
+    # Base query joining Transaction with Student
+    query = db.session.query(Transaction, Student).join(Student, Transaction.student_id == Student.id)
+
+    # Apply filters
+    if student_q:
+        # Since first_name is encrypted, we cannot use `ilike`.
+        # We must fetch students, decrypt names, and filter in Python.
+        matching_student_ids = []
+        # Handle if the query is a student ID
+        if student_q.isdigit():
+            matching_student_ids.append(int(student_q))
+
+        # Handle if the query is a name
+        all_students = Student.query.all()
+        for s in all_students:
+            # The full_name property will decrypt the first_name
+            if student_q.lower() in s.full_name.lower():
+                matching_student_ids.append(s.id)
+
+        # If there are any matches (by ID or name), filter the query
+        if matching_student_ids:
+            query = query.filter(Student.id.in_(matching_student_ids))
+        else:
+            # If no students match, return no results
+            query = query.filter(sa.false())
+
+    if block_q:
+        query = query.filter(Student.block == block_q)
+    if account_q:
+        query = query.filter(Transaction.account_type == account_q)
+    if type_q:
+        query = query.filter(Transaction.type == type_q)
+    if start_date:
+        query = query.filter(Transaction.timestamp >= start_date)
+    if end_date:
+        # include entire end_date
+        query = query.filter(Transaction.timestamp < text(f"'{end_date}'::date + interval '1 day'"))
+
+    # Count total for pagination
+    total_transactions = query.count()
+    total_pages = math.ceil(total_transactions / per_page) if total_transactions else 1
+
+    # Get paginated results
     recent_transactions = (
-        db.session.query(Transaction, Student)
-        .join(Student, Transaction.student_id == Student.id)
-        .filter(Transaction.is_void == False)
-        .order_by(Transaction.timestamp.desc())
-        .limit(50)
+        query.order_by(Transaction.timestamp.desc())
+        .limit(per_page)
+        .offset((page - 1) * per_page)
         .all()
     )
 
@@ -2529,8 +2611,13 @@ def banking():
     # Count students with savings
     students_with_savings = sum(1 for s in students if s.savings_balance > 0)
 
-    # Get all blocks
+    # Get all blocks for filter
     blocks = sorted(set(s.block for s in students))
+
+    # Get transaction types for filter
+    transaction_types = db.session.query(Transaction.type).distinct().filter(Transaction.type.isnot(None)).all()
+    transaction_types = sorted([t[0] for t in transaction_types if t[0]])
+
 
     return render_template(
         'admin_banking.html',
@@ -2543,6 +2630,10 @@ def banking():
         students_with_savings=students_with_savings,
         total_students=len(students),
         blocks=blocks,
+        transaction_types=transaction_types,
+        page=page,
+        total_pages=total_pages,
+        total_transactions=total_transactions,
         current_page="banking",
         format_utc_iso=format_utc_iso
     )
