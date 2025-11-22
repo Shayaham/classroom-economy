@@ -1,5 +1,5 @@
 from flask_wtf import FlaskForm
-from wtforms import StringField
+from wtforms import StringField, PasswordField
 from wtforms.validators import DataRequired, ValidationError
 from wtforms import HiddenField, TextAreaField, FloatField, SelectField, IntegerField, DateField, BooleanField
 from wtforms.validators import Optional
@@ -39,6 +39,9 @@ class StoreItemForm(FlaskForm):
         ('whole_class', 'Whole Class Must Purchase (1 per person)')
     ], validators=[Optional()])
     collective_goal_target = IntegerField('Target Number of Purchases (for Fixed type)', validators=[Optional()])
+
+    # Redemption settings (for delayed-use items)
+    redemption_prompt = TextAreaField('Redemption Prompt (optional, for delayed-use items)', validators=[Optional()])
 
     submit = SubmitField('Save Item')
 
@@ -103,13 +106,13 @@ class StudentCreateUsernameForm(FlaskForm):
     submit = SubmitField('Generate Username')
 
 class StudentPinPassphraseForm(FlaskForm):
-    pin = StringField('PIN', validators=[DataRequired()])
-    passphrase = StringField('Passphrase', validators=[DataRequired()])
+    pin = PasswordField('PIN', validators=[DataRequired()])
+    passphrase = PasswordField('Passphrase', validators=[DataRequired()])
     submit = SubmitField('Finish Setup')
 
 class StudentLoginForm(FlaskForm):
     username = StringField('Username', validators=[DataRequired()])
-    pin = StringField('PIN', validators=[DataRequired()])
+    pin = PasswordField('PIN', validators=[DataRequired()])
     turnstile_token = HiddenField('cf-turnstile-response')
     submit = SubmitField('Login')
 
