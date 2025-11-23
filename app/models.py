@@ -432,6 +432,8 @@ class RentWaiver(db.Model):
 class InsurancePolicy(db.Model):
     __tablename__ = 'insurance_policies'
     id = db.Column(db.Integer, primary_key=True)
+    policy_code = db.Column(db.String(16), unique=True, nullable=False, index=True)  # Unique code per teacher's policy
+    teacher_id = db.Column(db.Integer, db.ForeignKey('admins.id'), nullable=True)  # Owner teacher
     title = db.Column(db.String(100), nullable=False)
     description = db.Column(db.Text, nullable=True)
     premium = db.Column(db.Float, nullable=False)  # Monthly cost
@@ -441,6 +443,7 @@ class InsurancePolicy(db.Model):
     max_claims_count = db.Column(db.Integer, nullable=True)  # Max claims per period (null = unlimited)
     max_claims_period = db.Column(db.String(20), default='month')  # month, semester, year
     max_claim_amount = db.Column(db.Float, nullable=True)  # Max $ per claim (null = unlimited)
+    max_payout_per_period = db.Column(db.Float, nullable=True)  # Max total $ payout per period (null = unlimited)
 
     # Claim type
     is_monetary = db.Column(db.Boolean, default=True)  # True = monetary claims, False = item/service claims
@@ -462,6 +465,7 @@ class InsurancePolicy(db.Model):
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # Relationships
+    teacher = db.relationship('Admin', foreign_keys=[teacher_id], backref='insurance_policies_owned')
     student_policies = db.relationship('StudentInsurance', backref='policy', lazy='dynamic')
     claims = db.relationship('InsuranceClaim', backref='policy', lazy='dynamic')
 

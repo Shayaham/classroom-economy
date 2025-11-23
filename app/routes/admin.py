@@ -13,6 +13,7 @@ import base64
 import math
 import random
 import string
+import secrets
 import qrcode
 from calendar import monthrange
 from datetime import datetime, timedelta, timezone
@@ -1301,8 +1302,15 @@ def insurance_management():
     form = InsurancePolicyForm()
 
     if request.method == 'POST' and form.validate_on_submit():
+        # Generate unique policy code
+        policy_code = secrets.token_urlsafe(12)[:16]
+        while InsurancePolicy.query.filter_by(policy_code=policy_code).first():
+            policy_code = secrets.token_urlsafe(12)[:16]
+
         # Create new insurance policy
         policy = InsurancePolicy(
+            policy_code=policy_code,
+            teacher_id=session.get('admin_id'),
             title=form.title.data,
             description=form.description.data,
             premium=form.premium.data,
@@ -1312,6 +1320,7 @@ def insurance_management():
             max_claims_count=form.max_claims_count.data,
             max_claims_period=form.max_claims_period.data,
             max_claim_amount=form.max_claim_amount.data,
+            max_payout_per_period=form.max_payout_per_period.data,
             is_monetary=form.is_monetary.data,
             no_repurchase_after_cancel=form.no_repurchase_after_cancel.data,
             repurchase_wait_days=form.repurchase_wait_days.data,
@@ -1325,8 +1334,9 @@ def insurance_management():
         flash(f"Insurance policy '{policy.title}' created successfully!", "success")
         return redirect(url_for('admin.insurance_management'))
 
-    # Get all policies
-    policies = InsurancePolicy.query.all()
+    # Get policies for current teacher only
+    current_teacher_id = session.get('admin_id')
+    policies = InsurancePolicy.query.filter_by(teacher_id=current_teacher_id).all()
 
     # Get all student enrollments
     active_enrollments = (
@@ -1374,6 +1384,11 @@ def insurance_management():
 def edit_insurance_policy(policy_id):
     """Edit existing insurance policy."""
     policy = InsurancePolicy.query.get_or_404(policy_id)
+
+    # Verify this policy belongs to the current teacher
+    if policy.teacher_id != session.get('admin_id'):
+        abort(403)
+
     form = InsurancePolicyForm(obj=policy)
 
     if request.method == 'POST' and form.validate_on_submit():
@@ -1386,6 +1401,7 @@ def edit_insurance_policy(policy_id):
         policy.max_claims_count = form.max_claims_count.data
         policy.max_claims_period = form.max_claims_period.data
         policy.max_claim_amount = form.max_claim_amount.data
+        policy.max_payout_per_period = form.max_payout_per_period.data
         policy.is_monetary = form.is_monetary.data
         policy.no_repurchase_after_cancel = form.no_repurchase_after_cancel.data
         policy.enable_repurchase_cooldown = form.enable_repurchase_cooldown.data
@@ -1415,9 +1431,132 @@ def edit_insurance_policy(policy_id):
 def deactivate_insurance_policy(policy_id):
     """Deactivate an insurance policy."""
     policy = InsurancePolicy.query.get_or_404(policy_id)
+
+    # Verify this policy belongs to the current teacher
+    if policy.teacher_id != session.get('admin_id'):
+        abort(403)
+
     policy.is_active = False
     db.session.commit()
     flash(f"Insurance policy '{policy.title}' has been deactivated.", "success")
+    return redirect(url_for('admin.insurance_management'))
+
+
+@admin_bp.route('/insurance/delete/<int:policy_id>', methods=['POST'])
+@admin_required
+def delete_insurance_policy(policy_id):
+    """Delete an insurance policy and all associated data.
+
+    Since each teacher has their own policy instances (identified by policy_code),
+    this safely deletes only the current teacher's policy data without affecting
+    other teachers.
+    """
+    policy = InsurancePolicy.query.get_or_404(policy_id)
+
+    # Verify this policy belongs to the current teacher
+    if policy.teacher_id != session.get('admin_id'):
+        abort(403)
+
+    force_delete = request.form.get('force_delete') == 'true'
+
+    student_ids_subq = _student_scope_subquery()
+
+    # Check for active enrollments within scope
+    active_enrollments = StudentInsurance.query.filter(
+        StudentInsurance.policy_id == policy_id,
+        StudentInsurance.status == 'active',
+        StudentInsurance.student_id.in_(student_ids_subq),
+    ).count()
+
+    # Check for pending claims within scope
+    pending_claims = InsuranceClaim.query.filter(
+        InsuranceClaim.policy_id == policy_id,
+        InsuranceClaim.status == 'pending',
+        InsuranceClaim.student_id.in_(student_ids_subq),
+    ).count()
+
+    if not force_delete and (active_enrollments > 0 or pending_claims > 0):
+        flash(f"Cannot delete policy '{policy.title}': {active_enrollments} active enrollments and {pending_claims} pending claims. Cancel all enrollments first or use force delete.", "danger")
+        return redirect(url_for('admin.insurance_management'))
+
+    try:
+        # Cancel active enrollments if force delete
+        if force_delete and active_enrollments > 0:
+            cancelled_count = StudentInsurance.query.filter(
+                StudentInsurance.policy_id == policy_id,
+                StudentInsurance.status == 'active',
+                StudentInsurance.student_id.in_(student_ids_subq),
+            ).update({'status': 'cancelled'}, synchronize_session=False)
+            flash(f"Cancelled {cancelled_count} active enrollments.", "info")
+
+        # Delete all claims for this policy
+        claims_deleted = InsuranceClaim.query.filter(
+            InsuranceClaim.policy_id == policy_id,
+            InsuranceClaim.student_id.in_(student_ids_subq),
+        ).delete(synchronize_session=False)
+
+        # Delete all enrollments for this policy
+        enrollments_deleted = StudentInsurance.query.filter(
+            StudentInsurance.policy_id == policy_id,
+            StudentInsurance.student_id.in_(student_ids_subq),
+        ).delete(synchronize_session=False)
+
+        # Delete the policy itself
+        db.session.delete(policy)
+        db.session.commit()
+
+        flash(f"Successfully deleted policy '{policy.title}' ({enrollments_deleted} enrollments and {claims_deleted} claims removed).", "success")
+    except Exception as e:
+        db.session.rollback()
+        flash(f"Error deleting policy: {str(e)}", "danger")
+
+    return redirect(url_for('admin.insurance_management'))
+
+
+@admin_bp.route('/insurance/mass-remove/<int:policy_id>', methods=['POST'])
+@admin_required
+def mass_remove_policy(policy_id):
+    """Cancel insurance policy for multiple or all students."""
+    policy = InsurancePolicy.query.get_or_404(policy_id)
+
+    # Verify this policy belongs to the current teacher
+    if policy.teacher_id != session.get('admin_id'):
+        abort(403)
+
+    # Get list of student IDs to remove (or 'all')
+    student_ids_raw = request.form.get('student_ids', 'all')
+
+    # Get scoped student IDs subquery
+    student_ids_subq = _student_scope_subquery()
+
+    if student_ids_raw == 'all':
+        # Cancel for all active students in scope
+        count = StudentInsurance.query.filter(
+            StudentInsurance.policy_id == policy_id,
+            StudentInsurance.status == 'active',
+            StudentInsurance.student_id.in_(student_ids_subq)
+        ).update({'status': 'cancelled'}, synchronize_session=False)
+    else:
+        # Cancel for specific students
+        try:
+            student_ids = [int(sid.strip()) for sid in student_ids_raw.split(',') if sid.strip()]
+            count = StudentInsurance.query.filter(
+                StudentInsurance.policy_id == policy_id,
+                StudentInsurance.student_id.in_(student_ids),
+                StudentInsurance.student_id.in_(student_ids_subq),
+                StudentInsurance.status == 'active'
+            ).update({'status': 'cancelled'}, synchronize_session=False)
+        except ValueError:
+            flash("Invalid student IDs provided.", "danger")
+            return redirect(url_for('admin.insurance_management'))
+
+    db.session.commit()
+
+    if student_ids_raw == 'all':
+        flash(f"Cancelled policy '{policy.title}' for {count} students.", "success")
+    else:
+        flash(f"Cancelled policy '{policy.title}' for {count} selected students.", "success")
+
     return redirect(url_for('admin.insurance_management'))
 
 
@@ -1488,6 +1627,43 @@ def process_claim(claim_id):
         if approved_claims >= claim.policy.max_claims_count:
             validation_errors.append(f"Maximum claims limit reached ({claim.policy.max_claims_count} per {claim.policy.max_claims_period})")
 
+    # Check max payout per period
+    if claim.policy.max_payout_per_period:
+        # Calculate period boundaries
+        now = datetime.utcnow()
+        if claim.policy.max_claims_period == 'month':
+            period_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+            next_month = period_start.replace(day=28) + timedelta(days=4)
+            period_end = next_month.replace(day=1) - timedelta(seconds=1)
+        elif claim.policy.max_claims_period == 'year':
+            period_start = now.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
+            period_end = now.replace(month=12, day=31, hour=23, minute=59, second=59)
+        elif claim.policy.max_claims_period == 'semester':
+            # Simplified: Jan-Jun or Jul-Dec
+            if now.month <= 6:
+                period_start = now.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
+                period_end = now.replace(month=6, day=30, hour=23, minute=59, second=59)
+            else:
+                period_start = now.replace(month=7, day=1, hour=0, minute=0, second=0, microsecond=0)
+                period_end = now.replace(month=12, day=31, hour=23, minute=59, second=59)
+        else:
+            period_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+            period_end = now
+
+        # Sum approved payouts in current period
+        period_payouts = db.session.query(func.sum(InsuranceClaim.approved_amount)).filter(
+            InsuranceClaim.student_insurance_id == enrollment.id,
+            InsuranceClaim.status.in_(['approved', 'paid']),
+            InsuranceClaim.processed_date >= period_start,
+            InsuranceClaim.processed_date <= period_end,
+            InsuranceClaim.approved_amount.isnot(None)
+        ).scalar() or 0.0
+
+        # Check if new claim would exceed limit
+        requested_amount = claim.claim_amount or 0.0
+        if period_payouts + requested_amount > claim.policy.max_payout_per_period:
+            validation_errors.append(f"Maximum payout limit would be exceeded (${period_payouts:.2f} paid + ${requested_amount:.2f} requested > ${claim.policy.max_payout_per_period:.2f} limit per {claim.policy.max_claims_period})")
+
     # Get claims statistics
     claims_stats = {
         'pending': InsuranceClaim.query.filter_by(student_insurance_id=enrollment.id, status='pending').count(),
@@ -1511,6 +1687,43 @@ def process_claim(claim_id):
             # Use approved amount or requested amount
             deposit_amount = form.approved_amount.data if form.approved_amount.data else claim.claim_amount
             claim.approved_amount = deposit_amount
+
+            # Final check: Verify max payout per period won't be exceeded
+            if claim.policy.max_payout_per_period:
+                # Recalculate period boundaries (same logic as above)
+                now = datetime.utcnow()
+                if claim.policy.max_claims_period == 'month':
+                    period_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+                    next_month = period_start.replace(day=28) + timedelta(days=4)
+                    period_end = next_month.replace(day=1) - timedelta(seconds=1)
+                elif claim.policy.max_claims_period == 'year':
+                    period_start = now.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
+                    period_end = now.replace(month=12, day=31, hour=23, minute=59, second=59)
+                elif claim.policy.max_claims_period == 'semester':
+                    if now.month <= 6:
+                        period_start = now.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
+                        period_end = now.replace(month=6, day=30, hour=23, minute=59, second=59)
+                    else:
+                        period_start = now.replace(month=7, day=1, hour=0, minute=0, second=0, microsecond=0)
+                        period_end = now.replace(month=12, day=31, hour=23, minute=59, second=59)
+                else:
+                    period_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+                    period_end = now
+
+                # Sum approved payouts in current period (excluding this claim)
+                period_payouts = db.session.query(func.sum(InsuranceClaim.approved_amount)).filter(
+                    InsuranceClaim.student_insurance_id == enrollment.id,
+                    InsuranceClaim.status.in_(['approved', 'paid']),
+                    InsuranceClaim.processed_date >= period_start,
+                    InsuranceClaim.processed_date <= period_end,
+                    InsuranceClaim.approved_amount.isnot(None),
+                    InsuranceClaim.id != claim.id  # Exclude current claim
+                ).scalar() or 0.0
+
+                if period_payouts + deposit_amount > claim.policy.max_payout_per_period:
+                    flash(f"Cannot approve claim: Would exceed maximum payout limit of ${claim.policy.max_payout_per_period:.2f} per {claim.policy.max_claims_period} (${period_payouts:.2f} already paid)", "danger")
+                    db.session.rollback()
+                    return redirect(url_for('admin.process_claim', claim_id=claim_id))
 
             # Auto-deposit to student's checking account via transaction
             student = claim.student
