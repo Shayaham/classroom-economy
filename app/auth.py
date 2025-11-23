@@ -31,11 +31,100 @@ def login_required(f):
     def decorated_function(*args, **kwargs):
         # Allow access if admin is viewing as student
         if is_viewing_as_student():
+            # Enforce 10-minute timeout for demo sessions even in admin view
+            if session.get('is_demo'):
+                login_time_str = session.get('login_time')
+
+                if not login_time_str:
+                    session.pop('student_id', None)
+                    session.pop('login_time', None)
+                    session.pop('last_activity', None)
+                    session['view_as_student'] = False
+                    session.pop('is_demo', None)
+                    session.pop('demo_session_id', None)
+                    flash("Demo session is invalid. Please start a new demo session.")
+                    return redirect(url_for('admin.dashboard'))
+
+                login_time = datetime.fromisoformat(login_time_str)
+                if (datetime.now(timezone.utc) - login_time) > timedelta(minutes=SESSION_TIMEOUT_MINUTES):
+                    demo_session_id = session.get('demo_session_id')
+
+                    try:
+                        if demo_session_id:
+                            from app.extensions import db
+                            from app.models import DemoStudent
+                            from app.utils.demo_sessions import cleanup_demo_student_data
+
+                            demo_session = DemoStudent.query.filter_by(session_id=demo_session_id).first()
+                            if demo_session:
+                                cleanup_demo_student_data(demo_session)
+                                db.session.commit()
+                            else:
+                                db.session.rollback()
+                    except Exception:
+                        current_app.logger.exception(
+                            "Failed to clean up expired demo session %s during auth check",
+                            demo_session_id,
+                        )
+
+                    session.pop('student_id', None)
+                    session.pop('login_time', None)
+                    session.pop('last_activity', None)
+                    session.pop('is_demo', None)
+                    session.pop('demo_session_id', None)
+                    session['view_as_student'] = False
+                    flash("Demo session expired. Please start a new demo session.")
+                    return redirect(url_for('admin.dashboard'))
+
             # Admins must also have a student context when bypassing login_required
             if 'student_id' not in session:
                 session['view_as_student'] = False
                 flash("Select a student before viewing the student experience.")
                 return redirect(url_for('admin.dashboard'))
+
+            # Enforce demo session expiry for admins viewing as demo students
+            if session.get('is_demo'):
+                demo_session_id = session.get('demo_session_id')
+                if not demo_session_id:
+                    session['view_as_student'] = False
+                    flash("Demo session expired. Start a new demo to continue.")
+                    return redirect(url_for('admin.dashboard'))
+
+                from app.models import DemoStudent  # Imported lazily to avoid circular import
+                demo_session = DemoStudent.query.filter_by(session_id=demo_session_id).first()
+                now = datetime.now(timezone.utc)
+
+                if not demo_session or not demo_session.is_active or now > demo_session.expires_at:
+                    try:
+                        if demo_session:
+                            from app.extensions import db  # Imported lazily to avoid circular import
+                            from app.utils.demo_sessions import cleanup_demo_student_data
+
+                            cleanup_demo_student_data(demo_session)
+                            db.session.commit()
+
+                        session.pop('student_id', None)
+                        session.pop('login_time', None)
+                        session.pop('last_activity', None)
+                        session.pop('is_demo', None)
+                        session.pop('demo_session_id', None)
+                        session['view_as_student'] = False
+
+                        flash("Demo session expired. Start a new demo to continue.")
+                        return redirect(url_for('admin.dashboard'))
+                    except Exception:
+                        current_app.logger.exception(
+                            "Failed to clean up expired demo session %s during auth check",
+                            demo_session_id,
+                        )
+                        session.pop('student_id', None)
+                        session.pop('login_time', None)
+                        session.pop('last_activity', None)
+                        session.pop('is_demo', None)
+                        session.pop('demo_session_id', None)
+                        session['view_as_student'] = False
+                        flash("Demo session expired. Start a new demo to continue.")
+                        return redirect(url_for('admin.dashboard'))
 
             # Update admin's last activity
             session['last_activity'] = datetime.now(timezone.utc).isoformat()
