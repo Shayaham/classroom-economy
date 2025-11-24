@@ -182,6 +182,60 @@ def create_app():
 
         return render_template("maintenance.html", **maintenance_context()), 503
 
+    @app.before_request
+    def set_rls_tenant_context():
+        """
+        Set PostgreSQL Row-Level Security tenant context for multi-tenancy isolation.
+
+        This sets the app.current_teacher_id session variable that RLS policies use
+        to filter database queries. This ensures teachers can only see/modify their
+        own data at the database level, even if application code has bugs.
+
+        This follows industry best practices from AWS, Azure, and major SaaS providers.
+        """
+        # Skip for static files, health checks, and public routes
+        if request.path.startswith("/static/"):
+            return None
+        if request.endpoint in {"main.health_check"}:
+            return None
+
+        # Set tenant context for both admin and student sessions
+        teacher_id = None
+        
+        # Check if admin is logged in
+        admin_id = session.get('admin_id')
+        if admin_id:
+            teacher_id = admin_id
+        else:
+            # Check if student is logged in and has a current teacher
+            # Students query teacher-scoped tables (StoreItem, RentSettings, etc.)
+            # so we need to set RLS context for them too
+            student_id = session.get('student_id')
+            if student_id:
+                # Get the student's current teacher context
+                # This uses the multi-period support system
+                current_teacher_id = session.get('current_teacher_id')
+                if current_teacher_id:
+                    teacher_id = current_teacher_id
+        
+        if teacher_id:
+            try:
+                from sqlalchemy import text
+                from app.extensions import db
+
+                # SET LOCAL only affects the current transaction
+                # This is automatically reset after each request
+                db.session.execute(
+                    text("SET LOCAL app.current_teacher_id = :teacher_id"),
+                    {"teacher_id": teacher_id}
+                )
+                app.logger.debug(f"RLS context set for teacher_id={teacher_id}")
+            except Exception as e:
+                # Log but don't fail the request - RLS will just filter to empty results
+                app.logger.error(f"Failed to set RLS tenant context: {str(e)}")
+
+        return None
+
     # -------------------- CONTEXT PROCESSORS --------------------
     @app.context_processor
     def inject_global_settings():
@@ -192,10 +246,10 @@ def create_app():
                 'turnstile_site_key': app.config.get('TURNSTILE_SITE_KEY')
             }
 
-        from app.models import RentSettings
-        rent_settings = RentSettings.query.first()
+        # Note: Rent settings are now per-teacher, so there's no global rent enabled flag
+        # Templates should check rent settings for the specific teacher context
         return {
-            'global_rent_enabled': rent_settings.is_enabled if rent_settings else False,
+            'global_rent_enabled': False,  # Deprecated: rent is now per-teacher
             'turnstile_site_key': app.config.get('TURNSTILE_SITE_KEY')
         }
 

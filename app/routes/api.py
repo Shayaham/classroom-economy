@@ -22,6 +22,7 @@ from app.models import (
     HallPassLog, HallPassSettings, InsuranceClaim, BankingSettings
 )
 from app.auth import login_required, admin_required, get_logged_in_student
+from app.routes.student import get_current_teacher_id
 
 # Import external modules
 from attendance import (
@@ -121,7 +122,12 @@ def purchase_item():
     if not check_password_hash(student.passphrase_hash or '', passphrase):
         return jsonify({"status": "error", "message": "Incorrect passphrase."}), 403
 
-    item = StoreItem.query.get(item_id)
+    # Get current teacher context (students use multi-period support)
+    teacher_id = get_current_teacher_id()
+    if not teacher_id:
+        return jsonify({"status": "error", "message": "No teacher context available."}), 400
+    
+    item = StoreItem.query.filter_by(id=item_id, teacher_id=teacher_id).first()
 
     # 2. Validate item and purchase conditions
     if not item or not item.is_active:
@@ -138,8 +144,8 @@ def purchase_item():
 
     total_price = unit_price * quantity
 
-    # Get banking settings for overdraft handling
-    banking_settings = BankingSettings.query.first()
+    # Get banking settings for overdraft handling (reuse teacher_id from above)
+    banking_settings = BankingSettings.query.filter_by(teacher_id=teacher_id).first()
 
     # Check if student has sufficient funds
     if student.checking_balance < total_price:
