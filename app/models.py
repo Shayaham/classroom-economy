@@ -6,9 +6,15 @@ Times are stored as UTC in the database.
 """
 
 from datetime import datetime, timedelta, timezone
+import enum
 
 from app.extensions import db
 from app.utils.encryption import PIIEncryptedType
+
+
+def _utc_now():
+    """Helper function for timezone-aware datetime defaults in SQLAlchemy models."""
+    return datetime.now(timezone.utc)
 
 
 # -------------------- MODELS --------------------
@@ -231,6 +237,59 @@ class StudentTeacher(db.Model):
         db.Index('ix_student_teachers_student_id', 'student_id'),
         db.Index('ix_student_teachers_admin_id', 'admin_id'),
     )
+
+
+class DeletionRequestType(enum.Enum):
+    """Enum for deletion request types."""
+    PERIOD = 'period'
+    ACCOUNT = 'account'
+    
+    @classmethod
+    def from_string(cls, value):
+        """Convert string to enum, raising ValueError if invalid."""
+        if isinstance(value, cls):
+            return value
+        for member in cls:
+            if member.value == value:
+                return member
+        raise ValueError(f"Invalid DeletionRequestType: {value}")
+
+
+class DeletionRequestStatus(enum.Enum):
+    """Enum for deletion request statuses."""
+    PENDING = 'pending'
+    APPROVED = 'approved'
+    REJECTED = 'rejected'
+
+
+class DeletionRequest(db.Model):
+    """
+    Tracks teacher requests for period/block or account deletion.
+    System admins can only approve deletions that have been requested by teachers
+    or for accounts that have been inactive beyond the threshold.
+    """
+    __tablename__ = 'deletion_requests'
+    id = db.Column(db.Integer, primary_key=True)
+    admin_id = db.Column(db.Integer, db.ForeignKey('admins.id', ondelete='CASCADE'), nullable=False)
+    request_type = db.Column(db.Enum(DeletionRequestType), nullable=False)
+    period = db.Column(db.String(10), nullable=True)  # Specified for period deletions only
+    reason = db.Column(db.Text, nullable=True)  # Optional reason from teacher
+    status = db.Column(db.Enum(DeletionRequestStatus), default=DeletionRequestStatus.PENDING, nullable=False)
+    requested_at = db.Column(db.DateTime, default=_utc_now, nullable=False)
+    resolved_at = db.Column(db.DateTime, nullable=True)
+    resolved_by = db.Column(db.Integer, db.ForeignKey('system_admins.id'), nullable=True)
+
+    # Relationships
+    admin = db.relationship('Admin', backref=db.backref('deletion_requests', lazy='dynamic'))
+    resolver = db.relationship('SystemAdmin', backref=db.backref('resolved_deletion_requests', lazy='dynamic'))
+
+    __table_args__ = (
+        db.Index('ix_deletion_requests_admin_id', 'admin_id'),
+        db.Index('ix_deletion_requests_status', 'status'),
+    )
+
+    def __repr__(self):
+        return f'<DeletionRequest {self.request_type} for Admin {self.admin_id} - {self.status}>'
 
 
 # -------------------- SYSTEM ADMIN MODEL --------------------

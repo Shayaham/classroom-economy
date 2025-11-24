@@ -33,7 +33,8 @@ from app.extensions import db
 from app.models import (
     Student, Admin, AdminInviteCode, StudentTeacher, Transaction, TapEvent, StoreItem, StudentItem,
     RentSettings, RentPayment, RentWaiver, InsurancePolicy, StudentInsurance, InsuranceClaim,
-    HallPassLog, PayrollSettings, PayrollReward, PayrollFine, BankingSettings, TeacherBlock
+    HallPassLog, PayrollSettings, PayrollReward, PayrollFine, BankingSettings, TeacherBlock,
+    DeletionRequest, DeletionRequestType, DeletionRequestStatus
 )
 from app.auth import admin_required, get_admin_student_query, get_student_for_admin
 from forms import (
@@ -3418,3 +3419,118 @@ def banking_settings_update():
                 flash(f'{field}: {error}', 'error')
 
     return redirect(url_for('admin.banking'))
+
+
+# -------------------- DELETION REQUESTS --------------------
+
+@admin_bp.route('/deletion-requests', methods=['GET', 'POST'])
+@admin_required
+def deletion_requests():
+    """
+    View and create deletion requests for periods/blocks or account.
+
+    Teachers can request:
+    1. Deletion of a specific period/block
+    2. Deletion of their entire account
+
+    System admins approve these requests to perform deletions.
+    """
+    admin_id = session.get('admin_id')
+
+    if request.method == 'POST':
+        request_type = request.form.get('request_type')  # 'period' or 'account'
+        period = request.form.get('period') if request_type == 'period' else None
+        reason = request.form.get('reason', '').strip()
+
+        # Validate
+        if request_type not in ['period', 'account']:
+            flash('Invalid request type.', 'error')
+            return redirect(url_for('admin.deletion_requests'))
+
+        if request_type == 'period':
+            if not period:
+                flash('Period/block is required for period deletion requests.', 'error')
+                return redirect(url_for('admin.deletion_requests'))
+            # Validate period format and length
+            # Allow spaces, hyphens, underscores since periods may be named like "Period 1A" or "Block-2"
+            if not re.match(r'^[a-zA-Z0-9\s\-_]+$', period) or len(period) > 10:
+                flash('Invalid period format. Use alphanumeric characters, spaces, hyphens, and underscores only. Max 10 characters.', 'error')
+                return redirect(url_for('admin.deletion_requests'))
+
+        # Check for duplicate pending requests
+        # Convert string to enum (will raise ValueError if invalid)
+        request_type_enum = DeletionRequestType.from_string(request_type)
+        existing = DeletionRequest.query.filter_by(
+            admin_id=admin_id,
+            request_type=request_type_enum,
+            period=period,
+            status=DeletionRequestStatus.PENDING
+        ).first()
+
+        if existing:
+            flash(
+                f'You already have a pending {request_type} deletion request'
+                + (f' for period {period}.' if period else '.'),
+                'warning'
+            )
+            return redirect(url_for('admin.deletion_requests'))
+
+        # Create the deletion request
+        deletion_request = DeletionRequest(
+            admin_id=admin_id,
+            request_type=request_type_enum,
+            period=period,
+            reason=reason
+        )
+        db.session.add(deletion_request)
+
+        try:
+            db.session.commit()
+            flash(
+                f'✅ Deletion request submitted successfully. '
+                f'A system administrator will review your {request_type} deletion request.',
+                'success'
+            )
+            current_app.logger.info(
+                f"Admin {admin_id} submitted {request_type} deletion request"
+                + (f" for period {period}" if period else "")
+            )
+        except Exception as e:
+            db.session.rollback()
+            current_app.logger.exception(f"Error creating deletion request: {e}")
+            flash('Error submitting deletion request.', 'error')
+
+        return redirect(url_for('admin.deletion_requests'))
+
+    # GET: Display existing deletion requests
+    pending_requests = DeletionRequest.query.filter_by(
+        admin_id=admin_id,
+        status=DeletionRequestStatus.PENDING
+    ).order_by(DeletionRequest.requested_at.desc()).all()
+
+    resolved_requests = DeletionRequest.query.filter_by(
+        admin_id=admin_id
+    ).filter(
+        DeletionRequest.status.in_([DeletionRequestStatus.APPROVED, DeletionRequestStatus.REJECTED])
+    ).order_by(DeletionRequest.resolved_at.desc()).limit(10).all()
+
+    # Get teacher's periods for the dropdown (from both student_teachers and legacy teacher_id)
+    periods_via_link = db.session.query(Student.block).join(
+        StudentTeacher, Student.id == StudentTeacher.student_id
+    ).filter(StudentTeacher.admin_id == admin_id).distinct()
+
+    # Get periods from legacy teacher_id
+    periods_via_legacy = db.session.query(Student.block).filter(
+        Student.teacher_id == admin_id
+    ).distinct()
+
+    # Union both queries
+    periods = periods_via_link.union(periods_via_legacy).all()
+    periods = [p[0] for p in periods]
+
+    return render_template(
+        'admin_deletion_requests.html',
+        pending_requests=pending_requests,
+        resolved_requests=resolved_requests,
+        periods=periods
+    )
