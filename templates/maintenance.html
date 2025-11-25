@@ -109,6 +109,30 @@
             font-size: 0.95rem;
             color: var(--text-secondary);
         }
+
+        .badge-container {
+            margin-bottom: 1rem;
+            border-radius: 5px;
+            padding: 1rem;
+            border-style: solid;
+            border-width: 0 0 0 8px;
+            color: #000000;
+        }
+
+        .badge-label {
+            font-weight: 400;
+            font-size: 12pt;
+            color: #ffffff;
+            padding: 3px 8px 3px 8px;
+            width: fit-content;
+            border-radius: 40px;
+            text-align: center;
+        }
+
+        .badge-icon {
+            font-size: 24px;
+            vertical-align: middle;
+        }
     </style>
 </head>
 <body>
@@ -119,23 +143,23 @@
                     <span class="material-symbols-outlined" style="color: #1f306e; font-size:40px;vertical-align:-10%" aria-hidden="true">computer_cancel</span>
                     <span style="color: #1f306e;font-size:25pt;vertical-align:middle">Classrooom Token Hub <span style="font-weight:300">is currently unavailable</span></span>
                 </div>
-                <div style="border-radius: 5px;padding:1rem; background-color:#fac0c0;  border-style:solid;border-color:#a30303;border-width:0 0 0 8px;margin-top:1rem; color:#000000;">
-                    <div style="font-weight:400; font-size:12pt;color:#ffffff;background-color:#a30303; padding:3px 8px 3px 8px; width:fit-content;border-radius:40px; text-align:center;">
-                        <span class="material-symbols-outlined" style="font-size:24px;vertical-align:-25%;" aria-hidden="true">error</span > IMPORTANT 
+                <div style="border-radius: 5px; padding: 1rem; background-color: #fac0c0; border-style: solid; border-color: #a30303; border-width: 0 0 0 8px; margin-top: 1rem; color: #000000;">
+                    <div style="font-weight: 400; font-size: 12pt; color: #ffffff; background-color: #a30303; padding: 3px 8px 3px 8px; width: fit-content; border-radius: 40px; text-align: center;">
+                        <span class="material-symbols-outlined" style="font-size: 24px; vertical-align: -25%;" aria-hidden="true">error</span> IMPORTANT
                     </div>
-                    <div style="margin-top:0.5rem;margin-bottom:0;">
+                    <div style="margin-top: 0.5rem; margin-bottom: 0;">
                         Classroom Token Hub is an actively developing project. As such, this application may become temporarily unavailable when we detect an issue that could either degrade your experiences or compromise the integrity of our platform. <strong>Unfortunately, these events are often unpredictable and sudden.</strong><br><br>
-                        We understand that having a reliable classroom economy application you can depend on is critical to your routines and we sincerly apologize for this inconvenience. We woud like to thank you for your patience and continued support during this time.</div>          
+                        We understand that having a reliable classroom economy application you can depend on is critical to your routines and we sincerely apologize for this inconvenience. We would like to thank you for your patience and continued support during this time.</div>          
                     </div>
             </div>
         </div>
 
-        <div class="card-body" >
-            <div style="margin-bottom:1rem;border-radius: 5px;padding:1rem; background-color:#ccdbff;  border-style:solid;border-color:#011c5c;border-width:0 0 0 8px; color:#000000;">
-            <div style="font-weight:400; font-size:12pt;color:#ffffff;background-color:#011c5c; padding:3px 8px 3px 8px; width:fit-content;border-radius:40px; text-align:center;">
-                <span class="material-symbols-outlined" style="font-size:24px; vertical-align: middle" aria-hidden="true">apps_outage</span> ABOUT THIS OUTAGE
-            </div>
-                <div style="margin-top:0.5rem;margin-bottom:0;">{{ message or "We're applying updates and running database checks. Thank you for your patience!" }}</div>
+        <div class="card-body">
+            <div id="badge-container" class="badge-container">
+                <div id="badge-label" class="badge-label">
+                    <span id="badge-icon" class="material-symbols-outlined badge-icon" aria-hidden="true">apps_outage</span> <span id="badge-text">ABOUT THIS OUTAGE</span>
+                </div>
+                <div style="margin-top: 0.5rem; margin-bottom: 0;">{{ message or "We're applying updates and running database checks. Thank you for your patience!" }}</div>
             </div>
             <div class="row g-3 mb-4">
                 <div class="col-md-6">
@@ -182,6 +206,76 @@
                 countdownEl.textContent = seconds;
             }
         }, 1000);
+
+        // Badge configuration
+        const badgeConfig = {
+            maintenance: {
+                icon: 'construction',
+                text: 'SCHEDULED MAINTENANCE',
+                bgColor: '#ccdbff',
+                borderColor: '#011c5c',
+                labelBg: '#011c5c'
+            },
+            bug: {
+                icon: 'bug_report',
+                text: 'BUG FIX IN PROGRESS',
+                bgColor: '#fff3cd',
+                borderColor: '#856404',
+                labelBg: '#856404'
+            },
+            security: {
+                icon: 'shield',
+                text: 'SECURITY PATCH',
+                bgColor: '#f8d7da',
+                borderColor: '#721c24',
+                labelBg: '#721c24'
+            },
+            update: {
+                icon: 'system_update',
+                text: 'SYSTEM UPDATE',
+                bgColor: '#d1ecf1',
+                borderColor: '#0c5460',
+                labelBg: '#0c5460'
+            },
+            feature: {
+                icon: 'new_releases',
+                text: 'NEW FEATURE DEPLOYMENT',
+                bgColor: '#d4edda',
+                borderColor: '#155724',
+                labelBg: '#155724'
+            },
+            unavailable: {
+                icon: 'cloud_off',
+                text: 'SERVER UNAVAILABLE',
+                bgColor: '#f8d7da',
+                borderColor: '#721c24',
+                labelBg: '#721c24'
+            },
+            error: {
+                icon: 'error',
+                text: 'UNEXPECTED ERROR',
+                bgColor: '#f8d7da',
+                borderColor: '#721c24',
+                labelBg: '#721c24'
+            }
+        };
+
+        // Apply badge styling
+        const badgeType = {{ badge_type|default("maintenance")|tojson }};
+        const config = badgeConfig[badgeType] || badgeConfig.maintenance;
+        
+        const badgeContainer = document.getElementById('badge-container');
+        const badgeLabel = document.getElementById('badge-label');
+        const badgeIcon = document.getElementById('badge-icon');
+        const badgeText = document.getElementById('badge-text');
+        
+        if (badgeContainer && badgeLabel && badgeIcon && badgeText) {
+            badgeContainer.style.backgroundColor = config.bgColor;
+            badgeContainer.style.borderColor = config.borderColor;
+            badgeLabel.style.backgroundColor = config.labelBg;
+            badgeIcon.textContent = config.icon;
+            badgeText.textContent = config.text;
+        }
     </script>
 </body>
 </html>
