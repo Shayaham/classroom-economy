@@ -45,9 +45,11 @@ from forms import (
 
 # Import utility functions
 from app.utils.helpers import is_safe_url, format_utc_iso, generate_anonymous_code
+from app.utils.join_code import generate_join_code
 from hash_utils import get_random_salt, hash_hmac, hash_username, hash_username_lookup
 from payroll import calculate_payroll
 from attendance import get_last_payroll_time, calculate_unpaid_attendance_seconds
+import time
 
 # Timezone
 PACIFIC = pytz.timezone('America/Los_Angeles')
@@ -554,6 +556,60 @@ def students():
             if not tb.is_claimed:
                 unclaimed_seats_list_by_block[block_name].append(tb)
                 unclaimed_seats_by_block[block_name] += 1
+
+    # Ensure all blocks with students have join codes (for legacy teachers with pre-c3aa3a0 classes)
+    # If a block has students but no TeacherBlock records, look up or generate a join code
+    # Fetch all claimed TeacherBlock records for current admin upfront
+    claimed_tb_by_block = {tb.block: tb for tb in teacher_blocks if tb.block and tb.is_claimed}
+    for block in blocks:
+        if block != "Unassigned" and block not in join_codes_by_block:
+            # This block has students but no TeacherBlock records yet
+            # Check if there are any claimed TeacherBlock records for this teacher-block combination
+            existing_tb = claimed_tb_by_block.get(block)
+            
+            if existing_tb and existing_tb.join_code:
+                # Use existing join code from claimed seat
+                join_codes_by_block[block] = existing_tb.join_code
+            else:
+                # No join code exists for this block yet - generate a new unique one
+                # Try up to 10 times to generate a unique code to prevent infinite loops
+                new_code = None
+                for _ in range(MAX_JOIN_CODE_RETRIES):
+                    new_code = generate_join_code()
+                    # Ensure uniqueness across all teachers
+                    if not TeacherBlock.query.filter_by(join_code=new_code).first():
+                        join_codes_by_block[block] = new_code
+                        # Persist the new join code to the database to prevent race conditions
+                        new_teacher_block = TeacherBlock(
+                            teacher_id=current_admin,
+                            block=block,
+                            join_code=new_code,
+                            is_claimed=False
+                        )
+                        db.session.add(new_teacher_block)
+                        try:
+                            db.session.commit()
+                        except Exception as e:
+                            current_app.logger.error(f"Failed to persist TeacherBlock for block {block} with join code {new_code}: {e}")
+                            db.session.rollback()
+                        break
+                else:
+                    # If we couldn't generate a unique code after max_retries, use a timestamp-based fallback
+                    # Format: B + block_initial + timestamp_suffix (e.g., "BA0123" for block "A")
+                    # This produces a 6-character code: B(1) + block_initial(1) + timestamp(4) = 6 total
+                    block_initial = block[:FALLBACK_BLOCK_PREFIX_LENGTH].ljust(FALLBACK_BLOCK_PREFIX_LENGTH, 'X')
+                    timestamp_suffix = int(time.time()) % FALLBACK_CODE_MODULO
+                    new_code = f"B{block_initial}{timestamp_suffix:04d}"
+                    join_codes_by_block[block] = new_code
+                    current_app.logger.warning(
+                        f"Failed to generate unique join code after {MAX_JOIN_CODE_RETRIES} attempts. "
+                        f"Using fallback code {new_code} for block {block}"
+                    )
+            
+            # Initialize unclaimed seats counter for this block
+            if block not in unclaimed_seats_by_block:
+                unclaimed_seats_by_block[block] = 0
+                unclaimed_seats_list_by_block[block] = []
 
     return render_template('admin_students.html',
                          students=all_students,
