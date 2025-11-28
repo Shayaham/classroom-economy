@@ -84,6 +84,15 @@ def _scoped_students(include_unassigned=True):
     return get_admin_student_query(include_unassigned=include_unassigned)
 
 
+def _get_teacher_blocks():
+    """Get sorted list of blocks from teacher's students."""
+    students_blocks = _scoped_students().with_entities(Student.block).all()
+    return sorted(set(
+        b.strip().upper() for s_blocks, in students_blocks if s_blocks
+        for b in s_blocks.split(',') if b.strip()
+    ))
+
+
 def _student_scope_subquery(include_unassigned=True):
     """Return a subquery of student IDs the current admin can access."""
     return (
@@ -1522,11 +1531,7 @@ def store_management():
     form = StoreItemForm()
 
     # Populate blocks choices from teacher's students
-    students_blocks = _scoped_students().with_entities(Student.block).all()
-    blocks = sorted(set(
-        b.strip().upper() for s_blocks, in students_blocks if s_blocks
-        for b in s_blocks.split(',') if b.strip()
-    ))
+    blocks = _get_teacher_blocks()
     form.blocks.choices = [(block, f"Period {block}") for block in blocks]
 
     if form.validate_on_submit():
@@ -1585,11 +1590,7 @@ def edit_store_item(item_id):
     form = StoreItemForm(obj=item)
 
     # Populate blocks choices from teacher's students
-    students_blocks = _scoped_students().with_entities(Student.block).all()
-    blocks = sorted(set(
-        b.strip().upper() for s_blocks, in students_blocks if s_blocks
-        for b in s_blocks.split(',') if b.strip()
-    ))
+    blocks = _get_teacher_blocks()
     form.blocks.choices = [(block, f"Period {block}") for block in blocks]
 
     # Pre-populate selected blocks on GET request (using many-to-many relationship)
@@ -1895,11 +1896,7 @@ def insurance_management():
     form = InsurancePolicyForm()
 
     # Populate blocks choices from teacher's students
-    students = _scoped_students().all()
-    blocks = sorted(set(
-        b.strip().upper() for s in students
-        for b in (s.block or '').split(',') if b.strip()
-    ))
+    blocks = _get_teacher_blocks()
     form.blocks.choices = [(block, f"Period {block}") for block in blocks]
 
     current_teacher_id = session.get('admin_id')
@@ -2032,11 +2029,7 @@ def edit_insurance_policy(policy_id):
     form = InsurancePolicyForm(obj=policy)
 
     # Populate blocks choices from teacher's students
-    students = _scoped_students().all()
-    blocks = sorted(set(
-        b.strip().upper() for s in students
-        for b in (s.block or '').split(',') if b.strip()
-    ))
+    blocks = _get_teacher_blocks()
     form.blocks.choices = [(block, f"Period {block}") for block in blocks]
 
     # Pre-populate selected blocks on GET request (using many-to-many relationship)
