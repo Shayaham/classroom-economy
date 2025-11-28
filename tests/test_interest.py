@@ -4,6 +4,8 @@ from app import Transaction, apply_savings_interest, db
 
 
 def test_apply_savings_interest_with_naive_datetimes(client, test_student):
+    from unittest.mock import patch
+
     past_date = datetime.utcnow() - timedelta(days=31)
     savings_tx = Transaction(
         student_id=test_student.id,
@@ -16,8 +18,8 @@ def test_apply_savings_interest_with_naive_datetimes(client, test_student):
     db.session.add(savings_tx)
     db.session.commit()
 
-    with client.application.test_request_context('/'):
-        session['student_id'] = test_student.id
+    # Mock get_current_teacher_id to return None (uses default banking settings)
+    with patch('app.routes.student.get_current_teacher_id', return_value=None):
         apply_savings_interest(test_student)
 
     interest_tx = (
