@@ -1522,10 +1522,10 @@ def store_management():
     form = StoreItemForm()
 
     # Populate blocks choices from teacher's students
-    students = _scoped_students().all()
+    students_blocks = _scoped_students().with_entities(Student.block).all()
     blocks = sorted(set(
-        b.strip().upper() for s in students
-        for b in (s.block or '').split(',') if b.strip()
+        b.strip().upper() for s_blocks, in students_blocks if s_blocks
+        for b in s_blocks.split(',') if b.strip()
     ))
     form.blocks.choices = [(block, f"Period {block}") for block in blocks]
 
