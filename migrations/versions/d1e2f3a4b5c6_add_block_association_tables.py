@@ -19,6 +19,13 @@ Changes:
 Note: The old blocks string columns in store_items and insurance_policies
 tables remain but are no longer used. A future migration can drop them
 after verifying the data migration is complete.
+
+Limitations:
+- This migration only updates the data structure and admin interface.
+- Student-facing queries in app/routes/student.py (e.g., student shop and insurance marketplace)
+  still need to be updated to use the new association tables for filtering by block visibility.
+  Currently, all students can see all items/policies regardless of their block assignment.
+- Application logic for block-based filtering will be updated in a future migration.
 """
 from alembic import op
 import sqlalchemy as sa
@@ -35,7 +42,7 @@ def upgrade():
     # Create store_item_blocks association table
     op.create_table(
         'store_item_blocks',
-        sa.Column('store_item_id', sa.Integer(), sa.ForeignKey('store_items.id'), nullable=False),
+        sa.Column('store_item_id', sa.Integer(), sa.ForeignKey('store_items.id', ondelete='CASCADE'), nullable=False),
         sa.Column('block', sa.String(length=10), nullable=False),
         sa.PrimaryKeyConstraint('store_item_id', 'block')
     )
@@ -45,7 +52,7 @@ def upgrade():
     # Create insurance_policy_blocks association table
     op.create_table(
         'insurance_policy_blocks',
-        sa.Column('policy_id', sa.Integer(), sa.ForeignKey('insurance_policies.id'), nullable=False),
+        sa.Column('policy_id', sa.Integer(), sa.ForeignKey('insurance_policies.id', ondelete='CASCADE'), nullable=False),
         sa.Column('block', sa.String(length=10), nullable=False),
         sa.PrimaryKeyConstraint('policy_id', 'block')
     )

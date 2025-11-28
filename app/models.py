@@ -425,15 +425,16 @@ class StoreItem(db.Model):
         StoreItemBlock.query.filter_by(store_item_id=self.id).delete()
         # Add new blocks
         if block_list:
-            for block in block_list:
-                block_entry = StoreItemBlock(store_item_id=self.id, block=block.strip().upper())
-                db.session.add(block_entry)
+            db.session.add_all([
+                StoreItemBlock(store_item_id=self.id, block=block.strip().upper())
+                for block in block_list
+            ])
 
 
 class StoreItemBlock(db.Model):
     """Association model for store item block visibility."""
     __tablename__ = 'store_item_blocks'
-    store_item_id = db.Column(db.Integer, db.ForeignKey('store_items.id'), primary_key=True)
+    store_item_id = db.Column(db.Integer, db.ForeignKey('store_items.id', ondelete='CASCADE'), primary_key=True)
     block = db.Column(db.String(10), primary_key=True)
 
     __table_args__ = (
@@ -609,9 +610,10 @@ class InsurancePolicy(db.Model):
         InsurancePolicyBlock.query.filter_by(policy_id=self.id).delete()
         # Add new blocks
         if block_list:
-            for block in block_list:
-                block_entry = InsurancePolicyBlock(policy_id=self.id, block=block.strip().upper())
-                db.session.add(block_entry)
+            db.session.add_all([
+                InsurancePolicyBlock(policy_id=self.id, block=block.strip().upper())
+                for block in block_list
+            ])
 
     @property
     def is_monetary_claim(self):
@@ -621,7 +623,7 @@ class InsurancePolicy(db.Model):
 class InsurancePolicyBlock(db.Model):
     """Association model for insurance policy block visibility."""
     __tablename__ = 'insurance_policy_blocks'
-    policy_id = db.Column(db.Integer, db.ForeignKey('insurance_policies.id'), primary_key=True)
+    policy_id = db.Column(db.Integer, db.ForeignKey('insurance_policies.id', ondelete='CASCADE'), primary_key=True)
     block = db.Column(db.String(10), primary_key=True)
 
     __table_args__ = (
