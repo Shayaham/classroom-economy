@@ -28,6 +28,16 @@ Adds only UptimeRobot monitoring IPs to an existing firewall. Use this if you al
 ./scripts/add-uptimerobot-to-firewall.sh <firewall-id>
 ```
 
+#### `create-github-actions-firewall.py`
+Creates a **separate firewall** for GitHub Actions SSH access. This is the recommended approach since GitHub has ~70 IP ranges, which would exceed DigitalOcean's 50-rule limit per firewall.
+
+**Usage:**
+```bash
+python3 scripts/create-github-actions-firewall.py <droplet-id>
+```
+
+**Note:** Multiple firewalls can be applied to one droplet. This creates a dedicated firewall for GitHub Actions, keeping your main firewall clean.
+
 #### `firewall-ips.json`
 Reference file containing all Cloudflare and UptimeRobot IP ranges in JSON format. Use for manual setup or custom automation.
 
