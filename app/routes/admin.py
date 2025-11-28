@@ -32,10 +32,10 @@ import pytz
 from app.extensions import db, limiter
 from app.models import (
     Student, Admin, AdminInviteCode, StudentTeacher, Transaction, TapEvent, StoreItem, StudentItem,
-    RentSettings, RentPayment, RentWaiver, InsurancePolicy, StudentInsurance, InsuranceClaim,
-    HallPassLog, PayrollSettings, PayrollReward, PayrollFine, BankingSettings, TeacherBlock,
-    DeletionRequest, DeletionRequestType, DeletionRequestStatus, UserReport,
-    FeatureSettings, TeacherOnboarding
+    StoreItemBlock, RentSettings, RentPayment, RentWaiver, InsurancePolicy, InsurancePolicyBlock,
+    StudentInsurance, InsuranceClaim, HallPassLog, PayrollSettings, PayrollReward, PayrollFine,
+    BankingSettings, TeacherBlock, DeletionRequest, DeletionRequestType, DeletionRequestStatus,
+    UserReport, FeatureSettings, TeacherOnboarding
 )
 from app.auth import admin_required, get_admin_student_query, get_student_for_admin
 from forms import (
@@ -1530,9 +1530,6 @@ def store_management():
     form.blocks.choices = [(block, f"Period {block}") for block in blocks]
 
     if form.validate_on_submit():
-        # Convert blocks list to comma-separated string
-        blocks_str = ','.join(form.blocks.data) if form.blocks.data else None
-
         new_item = StoreItem(
             teacher_id=admin_id,
             name=form.name.data,
@@ -1544,7 +1541,6 @@ def store_management():
             auto_delist_date=form.auto_delist_date.data,
             auto_expiry_days=form.auto_expiry_days.data,
             is_active=form.is_active.data,
-            blocks=blocks_str,
             # Bundle settings
             is_bundle=form.is_bundle.data,
             bundle_quantity=form.bundle_quantity.data if form.is_bundle.data else None,
@@ -1554,6 +1550,10 @@ def store_management():
             bulk_discount_percentage=form.bulk_discount_percentage.data if form.bulk_discount_enabled.data else None
         )
         db.session.add(new_item)
+        db.session.flush()  # Get the ID for the item before adding blocks
+        # Set blocks using many-to-many relationship
+        if form.blocks.data:
+            new_item.set_blocks(form.blocks.data)
         db.session.commit()
         flash(f"'{new_item.name}' has been added to the store.", "success")
         return redirect(url_for('admin.store_management'))
@@ -1592,17 +1592,15 @@ def edit_store_item(item_id):
     ))
     form.blocks.choices = [(block, f"Period {block}") for block in blocks]
 
-    # Pre-populate selected blocks on GET request
-    if request.method == 'GET' and item.blocks:
-        form.blocks.data = item.blocks.split(',')
+    # Pre-populate selected blocks on GET request (using many-to-many relationship)
+    if request.method == 'GET':
+        form.blocks.data = item.blocks_list
 
     if form.validate_on_submit():
-        # Convert blocks list to comma-separated string
-        blocks_str = ','.join(form.blocks.data) if form.blocks.data else None
-        item.blocks = blocks_str
-
-        # Populate other fields
+        # Populate other fields first
         form.populate_obj(item)
+        # Set blocks using many-to-many relationship
+        item.set_blocks(form.blocks.data if form.blocks.data else [])
         db.session.commit()
         flash(f"'{item.name}' has been updated.", "success")
         return redirect(url_for('admin.store_management'))
@@ -1938,9 +1936,6 @@ def insurance_management():
         elif form.tier_name.data or form.tier_color.data:
             tier_category_id = next_tier_category_id
 
-        # Convert blocks list to comma-separated string
-        blocks_str = ','.join(form.blocks.data) if form.blocks.data else None
-
         # Create new insurance policy
         policy = InsurancePolicy(
             policy_code=policy_code,
@@ -1967,10 +1962,13 @@ def insurance_management():
             tier_name=form.tier_name.data if form.tier_name.data else None,
             tier_color=form.tier_color.data if form.tier_color.data else None,
             settings_mode=request.form.get('settings_mode', 'advanced'),
-            is_active=form.is_active.data,
-            blocks=blocks_str
+            is_active=form.is_active.data
         )
         db.session.add(policy)
+        db.session.flush()  # Get the ID for the policy before adding blocks
+        # Set blocks using many-to-many relationship
+        if form.blocks.data:
+            policy.set_blocks(form.blocks.data)
         db.session.commit()
         flash(f"Insurance policy '{policy.title}' created successfully!", "success")
         return redirect(url_for('admin.insurance_management'))
@@ -2041,9 +2039,9 @@ def edit_insurance_policy(policy_id):
     ))
     form.blocks.choices = [(block, f"Period {block}") for block in blocks]
 
-    # Pre-populate selected blocks on GET request
-    if request.method == 'GET' and policy.blocks:
-        form.blocks.data = policy.blocks.split(',')
+    # Pre-populate selected blocks on GET request (using many-to-many relationship)
+    if request.method == 'GET':
+        form.blocks.data = policy.blocks_list
 
     teacher_policies = InsurancePolicy.query.filter_by(teacher_id=session.get('admin_id')).all()
     tier_groups_map = {}
@@ -2065,9 +2063,6 @@ def edit_insurance_policy(policy_id):
     next_tier_category_id = _next_tenant_scoped_tier_id(tier_namespace_seed, existing_tier_ids)
 
     if request.method == 'POST' and form.validate_on_submit():
-        # Convert blocks list to comma-separated string
-        blocks_str = ','.join(form.blocks.data) if form.blocks.data else None
-
         policy.title = form.title.data
         policy.description = form.description.data
         policy.premium = form.premium.data
@@ -2089,7 +2084,8 @@ def edit_insurance_policy(policy_id):
         policy.bundle_discount_percent = form.bundle_discount_percent.data
         policy.bundle_discount_amount = form.bundle_discount_amount.data
         policy.marketing_badge = form.marketing_badge.data if form.marketing_badge.data else None
-        policy.blocks = blocks_str
+        # Set blocks using many-to-many relationship
+        policy.set_blocks(form.blocks.data if form.blocks.data else [])
         if form.tier_category_id.data:
             policy.tier_category_id = form.tier_category_id.data
         elif form.tier_name.data or form.tier_color.data:
