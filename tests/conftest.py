@@ -12,6 +12,7 @@ os.environ["FLASK_ENV"] = "testing"
 os.environ["PEPPER_KEY"] = "test-primary-pepper"
 os.environ["PEPPER_LEGACY_KEYS"] = "legacy-pepper"
 os.environ.setdefault("PEPPER", "legacy-pepper")
+os.environ.setdefault("RATELIMIT_STORAGE_URI", "memory://")
 
 # Ensure ENCRYPTION_KEY and PEPPER_KEY are set for tests, if not already in .env
 # Use valid Fernet keys (32 url-safe base64-encoded bytes)
@@ -32,6 +33,7 @@ def client():
         WTF_CSRF_ENABLED=False,
         SQLALCHEMY_DATABASE_URI="sqlite:///:memory:",
         ENV="testing",
+        SESSION_COOKIE_SECURE=False,
     )
     ctx = app.app_context()
     ctx.push()
