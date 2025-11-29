@@ -540,16 +540,36 @@ def add_class():
 def dashboard():
     """Student dashboard with balance, attendance, transactions, and quick actions."""
     student = get_logged_in_student()
+    teacher_id = get_current_teacher_id()
+
+    # CRITICAL FIX: Scope all queries by current teacher_id to prevent multi-tenancy leaks
+    if not teacher_id:
+        flash("No class selected. Please select a class to continue.", "error")
+        return redirect(url_for('student.login'))
+
     apply_savings_interest(student)  # Apply savings interest if not already applied
-    transactions = Transaction.query.filter_by(student_id=student.id).order_by(Transaction.timestamp.desc()).all()
-    student_items = student.items.filter(
-        StudentItem.status.in_(['purchased', 'pending', 'processing', 'redeemed', 'completed', 'expired'])
+
+    # FIX: Filter transactions by teacher_id to show only current class economy
+    transactions = Transaction.query.filter_by(
+        student_id=student.id,
+        teacher_id=teacher_id
+    ).order_by(Transaction.timestamp.desc()).all()
+
+    # FIX: Filter student items by current teacher's store
+    student_items = student.items.join(
+        StoreItem, StudentItem.store_item_id == StoreItem.id
+    ).filter(
+        StudentItem.status.in_(['purchased', 'pending', 'processing', 'redeemed', 'completed', 'expired']),
+        StoreItem.teacher_id == teacher_id
     ).order_by(StudentItem.purchase_date.desc()).all()
 
     checking_transactions = [tx for tx in transactions if tx.account_type == 'checking']
     savings_transactions = [tx for tx in transactions if tx.account_type == 'savings']
 
-    forecast_interest = round(student.savings_balance * (0.045 / 12), 2)
+    # FIX: Use scoped balance method instead of unscoped property
+    checking_balance = student.get_checking_balance(teacher_id)
+    savings_balance = student.get_savings_balance(teacher_id)
+    forecast_interest = round(savings_balance * (0.045 / 12), 2)
 
     period_states = get_all_block_statuses(student)
     student_blocks = list(period_states.keys())
@@ -700,6 +720,9 @@ def dashboard():
         student_name=student_name,
         total_unpaid_elapsed=total_unpaid_elapsed,
         feature_settings=feature_settings,
+        # FIX: Pass scoped balances to template instead of using unscoped properties
+        checking_balance=checking_balance,
+        savings_balance=savings_balance,
     )
 
 
@@ -752,6 +775,12 @@ def payroll():
 def transfer():
     """Transfer funds between checking and savings accounts."""
     student = get_logged_in_student()
+    teacher_id = get_current_teacher_id()
+
+    # CRITICAL FIX: Ensure teacher context exists
+    if not teacher_id:
+        flash("No class selected. Please select a class to continue.", "error")
+        return redirect(url_for('student.dashboard'))
 
     if request.method == 'POST':
         is_json = request.is_json or request.headers.get("X-Requested-With") == "XMLHttpRequest"
@@ -766,6 +795,10 @@ def transfer():
         to_account = request.form.get('to_account')
         amount = float(request.form.get('amount'))
 
+        # FIX: Use scoped balance checks
+        checking_balance = student.get_checking_balance(teacher_id)
+        savings_balance = student.get_savings_balance(teacher_id)
+
         if from_account == to_account:
             if is_json:
                 return jsonify(status="error", message="Cannot transfer to the same account."), 400
@@ -776,20 +809,22 @@ def transfer():
                 return jsonify(status="error", message="Amount must be greater than 0."), 400
             flash("Amount must be greater than 0.", "transfer_error")
             return redirect(url_for("student.transfer"))
-        elif from_account == 'checking' and amount > student.checking_balance:
+        elif from_account == 'checking' and amount > checking_balance:
             if is_json:
                 return jsonify(status="error", message="Insufficient checking funds."), 400
             flash("Insufficient checking funds.", "transfer_error")
             return redirect(url_for("student.transfer"))
-        elif from_account == 'savings' and amount > student.savings_balance:
+        elif from_account == 'savings' and amount > savings_balance:
             if is_json:
                 return jsonify(status="error", message="Insufficient savings funds."), 400
             flash("Insufficient savings funds.", "transfer_error")
             return redirect(url_for("student.transfer"))
         else:
+            # CRITICAL FIX: Add teacher_id to all transactions for proper class scoping
             # Record the withdrawal side of the transfer
             db.session.add(Transaction(
                 student_id=student.id,
+                teacher_id=teacher_id,  # FIX: Add teacher_id
                 amount=-amount,
                 account_type=from_account,
                 type='Withdrawal',
@@ -798,6 +833,7 @@ def transfer():
             # Record the deposit side of the transfer
             db.session.add(Transaction(
                 student_id=student.id,
+                teacher_id=teacher_id,  # FIX: Add teacher_id
                 amount=amount,
                 account_type=to_account,
                 type='Deposit',
@@ -822,31 +858,37 @@ def transfer():
             flash("Transfer completed successfully!", "transfer_success")
             return redirect(url_for('student.dashboard'))
 
-    # Get transactions for display
-    transactions = Transaction.query.filter_by(student_id=student.id, is_void=False).order_by(Transaction.timestamp.desc()).all()
+    # FIX: Get transactions for display - scope by teacher_id
+    transactions = Transaction.query.filter_by(
+        student_id=student.id,
+        teacher_id=teacher_id,
+        is_void=False
+    ).order_by(Transaction.timestamp.desc()).all()
     checking_transactions = [t for t in transactions if t.account_type == 'checking']
     savings_transactions = [t for t in transactions if t.account_type == 'savings']
 
     # Get banking settings for interest rate display
     from app.models import BankingSettings
-    teacher_id = get_current_teacher_id()
     settings = BankingSettings.query.filter_by(teacher_id=teacher_id).first() if teacher_id else None
     annual_rate = settings.savings_apy / 100 if settings else 0.045
     calculation_type = settings.interest_calculation_type if settings else 'simple'
     compound_frequency = settings.compound_frequency if settings else 'monthly'
 
     # Calculate forecast interest based on settings
+    # FIX: Use scoped balance for interest calculations
+    savings_balance = student.get_savings_balance(teacher_id)
+
     if calculation_type == 'compound':
         if compound_frequency == 'daily':
             periods_per_month = 30
             rate_per_period = annual_rate / 365
-            forecast_interest = student.savings_balance * ((1 + rate_per_period) ** periods_per_month - 1)
+            forecast_interest = savings_balance * ((1 + rate_per_period) ** periods_per_month - 1)
         elif compound_frequency == 'weekly':
             periods_per_month = 4.33
             rate_per_period = annual_rate / 52
-            forecast_interest = student.savings_balance * ((1 + rate_per_period) ** periods_per_month - 1)
+            forecast_interest = savings_balance * ((1 + rate_per_period) ** periods_per_month - 1)
         else:  # monthly
-            forecast_interest = student.savings_balance * (annual_rate / 12)
+            forecast_interest = savings_balance * (annual_rate / 12)
     else:
         # Simple interest: calculate only on principal (excluding interest earnings)
         principal = sum(tx.amount for tx in savings_transactions if tx.type != 'Interest' and 'Interest' not in (tx.description or ''))
@@ -952,8 +994,10 @@ def apply_savings_interest(student, annual_rate=0.045):
         interest = round((eligible_balance or 0.0) * monthly_rate, 2)
 
     if interest > 0:
+        # FIX: Add teacher_id to interest transactions
         interest_tx = Transaction(
             student_id=student.id,
+            teacher_id=teacher_id,  # FIX: Add teacher_id for proper scoping
             amount=interest,
             account_type='savings',
             type='Interest',
@@ -975,21 +1019,27 @@ def insurance_marketplace():
         return redirect(url_for('student.dashboard'))
 
     student = get_logged_in_student()
+    teacher_id = get_current_teacher_id()
 
-    # Get student's active policies
-    my_policies = StudentInsurance.query.filter_by(
-        student_id=student.id,
-        status='active'
+    # CRITICAL FIX: Ensure teacher context exists
+    if not teacher_id:
+        flash("No class selected. Please select a class to continue.", "error")
+        return redirect(url_for('student.dashboard'))
+
+    # FIX: Get student's active policies scoped to current class only
+    my_policies = StudentInsurance.query.join(
+        InsurancePolicy, StudentInsurance.policy_id == InsurancePolicy.id
+    ).filter(
+        StudentInsurance.student_id == student.id,
+        StudentInsurance.status == 'active',
+        InsurancePolicy.teacher_id == teacher_id  # FIX: Only show current class policies
     ).all()
 
-    # Get teacher IDs associated with this student
-    teacher_ids = [teacher.id for teacher in student.teachers]
-
-    # Get available policies (only from student's teachers)
+    # FIX: Get available policies (only from current teacher)
     available_policies = InsurancePolicy.query.filter(
         InsurancePolicy.is_active == True,
-        InsurancePolicy.teacher_id.in_(teacher_ids)
-    ).all() if teacher_ids else []
+        InsurancePolicy.teacher_id == teacher_id  # FIX: Only current class
+    ).all()
 
     # Check which policies can be purchased
     can_purchase = {}
@@ -1024,8 +1074,13 @@ def insurance_marketplace():
 
         can_purchase[policy.id] = True
 
-    # Get claims for my policies
-    my_claims = InsuranceClaim.query.filter_by(student_id=student.id).all()
+    # FIX: Get claims for my policies (scoped to current teacher)
+    my_claims = InsuranceClaim.query.join(
+        InsurancePolicy, InsuranceClaim.policy_id == InsurancePolicy.id
+    ).filter(
+        InsuranceClaim.student_id == student.id,
+        InsurancePolicy.teacher_id == teacher_id  # FIX: Only current class claims
+    ).all()
 
     # Group policies by tier for display
     tier_groups = {}
@@ -1065,12 +1120,18 @@ def insurance_marketplace():
 def purchase_insurance(policy_id):
     """Purchase insurance policy."""
     student = get_logged_in_student()
+    teacher_id = get_current_teacher_id()
+
+    # CRITICAL FIX: Ensure teacher context exists
+    if not teacher_id:
+        flash("No class selected.", "danger")
+        return redirect(url_for('student.dashboard'))
+
     policy = InsurancePolicy.query.get_or_404(policy_id)
 
-    # Verify policy belongs to one of student's teachers
-    teacher_ids = [teacher.id for teacher in student.teachers]
-    if policy.teacher_id not in teacher_ids:
-        flash("This insurance policy is not available to you.", "danger")
+    # FIX: Verify policy belongs to CURRENT teacher only
+    if policy.teacher_id != teacher_id:
+        flash("This insurance policy is not available in your current class.", "danger")
         return redirect(url_for('student.student_insurance'))
 
     # Check if already enrolled
@@ -1118,8 +1179,9 @@ def purchase_insurance(policy_id):
             flash(f"You already have a policy from the '{policy.tier_name or 'this'}' tier. You can only have one policy per tier.", "warning")
             return redirect(url_for('student.student_insurance'))
 
-    # Check sufficient funds
-    if student.checking_balance < policy.premium:
+    # FIX: Check sufficient funds using scoped balance
+    checking_balance = student.get_checking_balance(teacher_id)
+    if checking_balance < policy.premium:
         flash("Insufficient funds to purchase this insurance policy.", "danger")
         return redirect(url_for('student.student_insurance'))
 
@@ -1136,9 +1198,10 @@ def purchase_insurance(policy_id):
     )
     db.session.add(enrollment)
 
-    # Create transaction to charge premium
+    # FIX: Create transaction to charge premium with teacher_id
     transaction = Transaction(
         student_id=student.id,
+        teacher_id=teacher_id,  # FIX: Add teacher_id
         amount=-policy.premium,
         account_type='checking',
         type='insurance_premium',
@@ -1431,16 +1494,25 @@ def shop():
     student = get_logged_in_student()
     # Fetch active items that haven't passed their auto-delist date
     teacher_id = get_current_teacher_id()
+
+    # CRITICAL FIX: Ensure teacher context exists
+    if not teacher_id:
+        flash("No class selected. Please select a class to continue.", "error")
+        return redirect(url_for('student.dashboard'))
+
     now = datetime.now(timezone.utc)
     items = StoreItem.query.filter(
         StoreItem.teacher_id == teacher_id,
         StoreItem.is_active == True,
         or_(StoreItem.auto_delist_date == None, StoreItem.auto_delist_date > now)
-    ).order_by(StoreItem.name).all() if teacher_id else []
+    ).order_by(StoreItem.name).all()
 
-    # Fetch student's purchased items
-    student_items = student.items.filter(
-        StudentItem.status.in_(['purchased', 'pending', 'processing', 'redeemed', 'completed', 'expired'])
+    # FIX: Fetch student's purchased items scoped to current teacher's store
+    student_items = student.items.join(
+        StoreItem, StudentItem.store_item_id == StoreItem.id
+    ).filter(
+        StudentItem.status.in_(['purchased', 'pending', 'processing', 'redeemed', 'completed', 'expired']),
+        StoreItem.teacher_id == teacher_id  # FIX: Only current class items
     ).order_by(StudentItem.purchase_date.desc()).all()
 
     return render_template('student_shop.html', student=student, items=items, student_items=student_items)
@@ -1801,7 +1873,7 @@ def rent_pay(period):
             flash(f"Insufficient funds. You need ${payment_amount:.2f} but only have ${student.checking_balance:.2f}.", "error")
             return redirect(url_for('student.rent'))
 
-    # Process payment
+    # FIX: Process payment with teacher_id
     # Deduct from checking account
     is_partial = payment_amount < remaining_amount
     payment_description = f'Rent for Period {period} - {now.strftime("%B %Y")}'
@@ -1812,6 +1884,7 @@ def rent_pay(period):
 
     transaction = Transaction(
         student_id=student.id,
+        teacher_id=teacher_id,  # FIX: Add teacher_id for proper scoping
         amount=-payment_amount,
         account_type='checking',
         type='Rent Payment',
@@ -1847,9 +1920,10 @@ def rent_pay(period):
     if banking_settings and banking_settings.overdraft_protection_enabled and student.checking_balance < 0:
         shortfall = abs(student.checking_balance)
         if student.savings_balance >= shortfall:
-            # Transfer from savings to checking
+            # FIX: Transfer from savings to checking with teacher_id
             transfer_tx_withdraw = Transaction(
                 student_id=student.id,
+                teacher_id=teacher_id,  # FIX: Add teacher_id
                 amount=-shortfall,
                 account_type='savings',
                 type='Withdrawal',
@@ -1857,6 +1931,7 @@ def rent_pay(period):
             )
             transfer_tx_deposit = Transaction(
                 student_id=student.id,
+                teacher_id=teacher_id,  # FIX: Add teacher_id
                 amount=shortfall,
                 account_type='checking',
                 type='Deposit',

@@ -204,8 +204,10 @@ def purchase_item():
         if item.bulk_discount_enabled and quantity >= item.bulk_discount_quantity:
             purchase_description += f" [{item.bulk_discount_percentage}% bulk discount]"
 
+        # FIX: Add teacher_id to purchase transaction
         purchase_tx = Transaction(
             student_id=student.id,
+            teacher_id=teacher_id,  # FIX: Add teacher_id for proper scoping
             amount=-total_price,
             account_type='checking',
             type='purchase',
@@ -226,9 +228,10 @@ def purchase_item():
             if banking_settings and banking_settings.overdraft_protection_enabled and student.checking_balance < 0:
                 shortfall = abs(student.checking_balance)
                 if student.savings_balance >= shortfall:
-                    # Transfer from savings to checking
+                    # FIX: Transfer from savings to checking with teacher_id
                     transfer_tx_withdraw = Transaction(
                         student_id=student.id,
+                        teacher_id=teacher_id,  # FIX: Add teacher_id
                         amount=-shortfall,
                         account_type='savings',
                         type='Withdrawal',
@@ -236,6 +239,7 @@ def purchase_item():
                     )
                     transfer_tx_deposit = Transaction(
                         student_id=student.id,
+                        teacher_id=teacher_id,  # FIX: Add teacher_id
                         amount=shortfall,
                         account_type='checking',
                         type='Deposit',
@@ -314,9 +318,10 @@ def purchase_item():
         if banking_settings and banking_settings.overdraft_protection_enabled and student.checking_balance < 0:
             shortfall = abs(student.checking_balance)
             if student.savings_balance >= shortfall:
-                # Transfer from savings to checking
+                # FIX: Transfer from savings to checking with teacher_id
                 transfer_tx_withdraw = Transaction(
                     student_id=student.id,
+                    teacher_id=teacher_id,  # FIX: Add teacher_id
                     amount=-shortfall,
                     account_type='savings',
                     type='Withdrawal',
@@ -324,6 +329,7 @@ def purchase_item():
                 )
                 transfer_tx_deposit = Transaction(
                     student_id=student.id,
+                    teacher_id=teacher_id,  # FIX: Add teacher_id
                     amount=shortfall,
                     account_type='checking',
                     type='Deposit',
@@ -439,10 +445,14 @@ def use_item():
             student_item.redemption_date = datetime.now(timezone.utc)
             student_item.redemption_details = details
 
-        # Create a redemption transaction (deduct the value from savings or checking)
+        # FIX: Create a redemption transaction with teacher_id
         # This is a $0 transaction to log the redemption event
+        # Get teacher context from store item
+        teacher_id = student_item.store_item.teacher_id
+
         redemption_tx = Transaction(
             student_id=student.id,
+            teacher_id=teacher_id,  # FIX: Add teacher_id
             amount=0.0,
             account_type='checking',
             type='redemption',
