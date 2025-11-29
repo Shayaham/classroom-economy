@@ -1,11 +1,12 @@
 import pytest
 import os
-import json
-from app import create_app, db
-from app.models import Admin, TeacherOnboarding
 
 # Set env before importing app or running tests
 os.environ["FLASK_ENV"] = "testing"
+
+import json
+from app import create_app, db
+from app.models import Admin, TeacherOnboarding
 
 @pytest.fixture
 def client():
