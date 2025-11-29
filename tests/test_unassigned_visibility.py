@@ -1,3 +1,4 @@
+import pytest
 from app import db
 from app.models import Admin, Student, StudentTeacher
 from hash_utils import get_random_salt
