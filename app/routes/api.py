@@ -126,7 +126,7 @@ def purchase_item():
     teacher_id = get_current_teacher_id()
     if not teacher_id:
         return jsonify({"status": "error", "message": "No teacher context available."}), 400
-    
+
     item = StoreItem.query.filter_by(id=item_id, teacher_id=teacher_id).first()
 
     # 2. Validate item and purchase conditions
