@@ -18,11 +18,13 @@ depends_on = None
 
 def _get_columns(table_name: str):
     """Return column names for the given table."""
+    from sqlalchemy.exc import NoSuchTableError
     connection = op.get_bind()
     inspector = sa.inspect(connection)
-    return [col['name'] for col in inspector.get_columns(table_name)]
-
-
+    try:
+        return [col['name'] for col in inspector.get_columns(table_name)]
+    except NoSuchTableError:
+        return []
 def upgrade():
     columns = _get_columns('banking_settings')
     if 'block' not in columns:
