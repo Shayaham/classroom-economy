@@ -25,4 +25,8 @@ def upgrade():
 
 
 def downgrade():
-    op.drop_column('rent_settings', 'block')
+    connection = op.get_bind()
+    inspector = sa.inspect(connection)
+    columns = [col['name'] for col in inspector.get_columns('rent_settings')]
+    if 'block' in columns:
+        op.drop_column('rent_settings', 'block')
