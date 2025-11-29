@@ -63,9 +63,22 @@ def upgrade():
     # Get connection for data migration
     connection = op.get_bind()
 
+    # Helper function to check if a column exists in a table
+    # Uses SQLAlchemy's inspector for cross-database compatibility
+    def column_exists(table_name, column_name):
+        """Check if a column exists in a table using SQLAlchemy's inspector."""
+        from sqlalchemy.exc import NoSuchTableError
+        inspector = sa.inspect(connection)
+        try:
+            columns = inspector.get_columns(table_name)
+            return any(col['name'] == column_name for col in columns)
+        except NoSuchTableError:
+            # Table doesn't exist
+            return False
+
     # Migrate store_item blocks
-    # Check if the blocks column exists in store_items
-    try:
+    # Check if the blocks column exists in store_items before querying
+    if column_exists('store_items', 'blocks'):
         result = connection.execute(sa.text(
             "SELECT id, blocks FROM store_items WHERE blocks IS NOT NULL AND blocks != ''"
         ))
@@ -84,12 +97,10 @@ def upgrade():
                             connection.execute(sa.text(
                                 "INSERT INTO store_item_blocks (store_item_id, block) VALUES (:item_id, :block)"
                             ), {'item_id': item_id, 'block': block})
-    except Exception:
-        # Column may not exist if this is a fresh database
-        pass
 
     # Migrate insurance_policy blocks
-    try:
+    # Check if the blocks column exists in insurance_policies before querying
+    if column_exists('insurance_policies', 'blocks'):
         result = connection.execute(sa.text(
             "SELECT id, blocks FROM insurance_policies WHERE blocks IS NOT NULL AND blocks != ''"
         ))
@@ -108,9 +119,6 @@ def upgrade():
                             connection.execute(sa.text(
                                 "INSERT INTO insurance_policy_blocks (policy_id, block) VALUES (:policy_id, :block)"
                             ), {'policy_id': policy_id, 'block': block})
-    except Exception:
-        # Column may not exist if this is a fresh database
-        pass
 
 
 def downgrade():
