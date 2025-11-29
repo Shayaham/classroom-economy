@@ -106,6 +106,8 @@ def _charge_overdraft_fee_if_needed(student, banking_settings):
 @api_bp.route('/purchase-item', methods=['POST'])
 @login_required
 def purchase_item():
+    from app.routes.student import get_current_class_context
+
     student = get_logged_in_student()
     data = request.get_json()
     item_id = data.get('item_id')
@@ -122,10 +124,13 @@ def purchase_item():
     if not check_password_hash(student.passphrase_hash or '', passphrase):
         return jsonify({"status": "error", "message": "Incorrect passphrase."}), 403
 
-    # Get current teacher context (students use multi-period support)
-    teacher_id = get_current_teacher_id()
-    if not teacher_id:
-        return jsonify({"status": "error", "message": "No teacher context available."}), 400
+    # CRITICAL FIX v2: Get full class context (join_code is source of truth)
+    context = get_current_class_context()
+    if not context:
+        return jsonify({"status": "error", "message": "No class context available."}), 400
+
+    join_code = context['join_code']
+    teacher_id = context['teacher_id']
 
     item = StoreItem.query.filter_by(id=item_id, teacher_id=teacher_id).first()
 
@@ -204,10 +209,11 @@ def purchase_item():
         if item.bulk_discount_enabled and quantity >= item.bulk_discount_quantity:
             purchase_description += f" [{item.bulk_discount_percentage}% bulk discount]"
 
-        # FIX: Add teacher_id to purchase transaction
+        # CRITICAL FIX v2: Add join_code to purchase transaction
         purchase_tx = Transaction(
             student_id=student.id,
-            teacher_id=teacher_id,  # FIX: Add teacher_id for proper scoping
+            teacher_id=teacher_id,
+            join_code=join_code,  # CRITICAL: Add join_code for period isolation
             amount=-total_price,
             account_type='checking',
             type='purchase',
@@ -228,10 +234,11 @@ def purchase_item():
             if banking_settings and banking_settings.overdraft_protection_enabled and student.checking_balance < 0:
                 shortfall = abs(student.checking_balance)
                 if student.savings_balance >= shortfall:
-                    # FIX: Transfer from savings to checking with teacher_id
+                    # CRITICAL FIX v2: Transfer from savings to checking with join_code
                     transfer_tx_withdraw = Transaction(
                         student_id=student.id,
-                        teacher_id=teacher_id,  # FIX: Add teacher_id
+                        teacher_id=teacher_id,
+                        join_code=join_code,  # CRITICAL: Add join_code for period isolation
                         amount=-shortfall,
                         account_type='savings',
                         type='Withdrawal',
@@ -239,7 +246,8 @@ def purchase_item():
                     )
                     transfer_tx_deposit = Transaction(
                         student_id=student.id,
-                        teacher_id=teacher_id,  # FIX: Add teacher_id
+                        teacher_id=teacher_id,
+                        join_code=join_code,  # CRITICAL: Add join_code for period isolation
                         amount=shortfall,
                         account_type='checking',
                         type='Deposit',
@@ -318,10 +326,11 @@ def purchase_item():
         if banking_settings and banking_settings.overdraft_protection_enabled and student.checking_balance < 0:
             shortfall = abs(student.checking_balance)
             if student.savings_balance >= shortfall:
-                # FIX: Transfer from savings to checking with teacher_id
+                # CRITICAL FIX v2: Transfer from savings to checking with join_code
                 transfer_tx_withdraw = Transaction(
                     student_id=student.id,
-                    teacher_id=teacher_id,  # FIX: Add teacher_id
+                    teacher_id=teacher_id,
+                    join_code=join_code,  # CRITICAL: Add join_code for period isolation
                     amount=-shortfall,
                     account_type='savings',
                     type='Withdrawal',
@@ -329,7 +338,8 @@ def purchase_item():
                 )
                 transfer_tx_deposit = Transaction(
                     student_id=student.id,
-                    teacher_id=teacher_id,  # FIX: Add teacher_id
+                    teacher_id=teacher_id,
+                    join_code=join_code,  # CRITICAL: Add join_code for period isolation
                     amount=shortfall,
                     account_type='checking',
                     type='Deposit',
@@ -445,20 +455,23 @@ def use_item():
             student_item.redemption_date = datetime.now(timezone.utc)
             student_item.redemption_details = details
 
-        # FIX: Create a redemption transaction with teacher_id
+        # CRITICAL FIX v2: Create a redemption transaction with join_code
         # This is a $0 transaction to log the redemption event
-        # Get teacher context from store item
-        teacher_id = student_item.store_item.teacher_id
+        # Get context from current session
+        from app.routes.student import get_current_class_context
+        context = get_current_class_context()
 
-        redemption_tx = Transaction(
-            student_id=student.id,
-            teacher_id=teacher_id,  # FIX: Add teacher_id
-            amount=0.0,
-            account_type='checking',
-            type='redemption',
-            description=f"Used: {student_item.store_item.name}" + (f" (bundle: {student_item.bundle_remaining} remaining)" if student_item.is_from_bundle else "")
-        )
-        db.session.add(redemption_tx)
+        if context:
+            redemption_tx = Transaction(
+                student_id=student.id,
+                teacher_id=context['teacher_id'],
+                join_code=context['join_code'],  # CRITICAL: Add join_code for period isolation
+                amount=0.0,
+                account_type='checking',
+                type='redemption',
+                description=f"Used: {student_item.store_item.name}" + (f" (bundle: {student_item.bundle_remaining} remaining)" if student_item.is_from_bundle else "")
+            )
+            db.session.add(redemption_tx)
         db.session.commit()
 
         if student_item.is_from_bundle:

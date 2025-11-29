@@ -45,38 +45,80 @@ student_bp = Blueprint('student', __name__, url_prefix='/student')
 
 # -------------------- PERIOD SELECTION HELPERS --------------------
 
-def get_current_teacher_id():
-    """Get the currently selected teacher ID from session.
+def get_current_class_context():
+    """Get the currently selected class context (join_code, teacher_id, block).
 
-    Returns the teacher_id for the period/class the student is currently viewing.
-    If no period is selected, defaults to the student's primary teacher.
+    CRITICAL: This function enforces proper multi-tenancy isolation by using
+    join_code as the source of truth. Each join code represents a distinct
+    class economy, even if they share the same teacher.
+
+    Returns:
+        dict with keys: join_code, teacher_id, block, seat_id
+        None if no context available
     """
+    from app.models import TeacherBlock
+
     student = get_logged_in_student()
     if not student:
         return None
 
-    # Check if a period is already selected in session
-    current_teacher_id = session.get('current_teacher_id')
+    # Check if a join code is already selected in session
+    current_join_code = session.get('current_join_code')
 
-    # Get all linked teachers
-    all_teachers = student.get_all_teachers()
-    if not all_teachers:
+    # Get all claimed seats for this student
+    claimed_seats = TeacherBlock.query.filter_by(
+        student_id=student.id,
+        is_claimed=True
+    ).all()
+
+    if not claimed_seats:
         return None
 
-    # If no period selected, default to first linked teacher
-    if not current_teacher_id:
-        current_teacher_id = all_teachers[0].id
+    # If no join code selected, default to first claimed seat
+    if not current_join_code:
+        first_seat = claimed_seats[0]
+        current_join_code = first_seat.join_code
         # Store in session for future requests
-        session['current_teacher_id'] = current_teacher_id
+        session['current_join_code'] = current_join_code
 
-    # Verify student still has access to this teacher
-    teacher_ids = [t.id for t in all_teachers]
-    if current_teacher_id not in teacher_ids:
-        # Teacher no longer accessible, reset to first available
-        current_teacher_id = all_teachers[0].id
-        session['current_teacher_id'] = current_teacher_id
+    # Find the seat matching current join code
+    current_seat = next(
+        (seat for seat in claimed_seats if seat.join_code == current_join_code),
+        None
+    )
 
-    return current_teacher_id
+    # If join code not found in student's seats, reset to first seat
+    if not current_seat:
+        current_seat = claimed_seats[0]
+        session['current_join_code'] = current_seat.join_code
+
+    # Return full class context
+    return {
+        'join_code': current_seat.join_code,
+        'teacher_id': current_seat.teacher_id,
+        'block': current_seat.block,
+        'seat_id': current_seat.id
+    }
+
+
+def get_current_teacher_id():
+    """DEPRECATED: Get teacher_id from current class context.
+
+    This function is maintained for backward compatibility but should be
+    replaced with get_current_class_context() for proper multi-tenancy.
+    """
+    context = get_current_class_context()
+    return context['teacher_id'] if context else None
+
+
+def get_current_join_code():
+    """Get the currently selected join code from class context.
+
+    Join code is the absolute source of truth for class association.
+    Returns None if no class context is available.
+    """
+    context = get_current_class_context()
+    return context['join_code'] if context else None
 
 
 def get_feature_settings_for_student():
@@ -540,19 +582,24 @@ def add_class():
 def dashboard():
     """Student dashboard with balance, attendance, transactions, and quick actions."""
     student = get_logged_in_student()
-    teacher_id = get_current_teacher_id()
 
-    # CRITICAL FIX: Scope all queries by current teacher_id to prevent multi-tenancy leaks
-    if not teacher_id:
+    # CRITICAL FIX v2: Use join_code as source of truth (not just teacher_id)
+    # This properly isolates same-teacher, different-period classes
+    context = get_current_class_context()
+    if not context:
         flash("No class selected. Please select a class to continue.", "error")
         return redirect(url_for('student.login'))
 
+    join_code = context['join_code']
+    teacher_id = context['teacher_id']
+
     apply_savings_interest(student)  # Apply savings interest if not already applied
 
-    # FIX: Filter transactions by teacher_id to show only current class economy
+    # CRITICAL FIX: Filter transactions by join_code (not just teacher_id)
+    # This ensures Period A and Period B with same teacher are isolated
     transactions = Transaction.query.filter_by(
         student_id=student.id,
-        teacher_id=teacher_id
+        join_code=join_code  # FIX: Use join_code for proper isolation
     ).order_by(Transaction.timestamp.desc()).all()
 
     # FIX: Filter student items by current teacher's store
@@ -566,9 +613,16 @@ def dashboard():
     checking_transactions = [tx for tx in transactions if tx.account_type == 'checking']
     savings_transactions = [tx for tx in transactions if tx.account_type == 'savings']
 
-    # FIX: Use scoped balance method instead of unscoped property
-    checking_balance = student.get_checking_balance(teacher_id)
-    savings_balance = student.get_savings_balance(teacher_id)
+    # CRITICAL FIX: Calculate balances using join_code scoping
+    # Sum only transactions for THIS specific class (join_code)
+    checking_balance = round(sum(
+        tx.amount for tx in student.transactions
+        if tx.account_type == 'checking' and not tx.is_void and tx.join_code == join_code
+    ), 2)
+    savings_balance = round(sum(
+        tx.amount for tx in student.transactions
+        if tx.account_type == 'savings' and not tx.is_void and tx.join_code == join_code
+    ), 2)
     forecast_interest = round(savings_balance * (0.045 / 12), 2)
 
     period_states = get_all_block_statuses(student)
@@ -775,12 +829,15 @@ def payroll():
 def transfer():
     """Transfer funds between checking and savings accounts."""
     student = get_logged_in_student()
-    teacher_id = get_current_teacher_id()
 
-    # CRITICAL FIX: Ensure teacher context exists
-    if not teacher_id:
+    # CRITICAL FIX v2: Get full class context (join_code, teacher_id, block)
+    context = get_current_class_context()
+    if not context:
         flash("No class selected. Please select a class to continue.", "error")
         return redirect(url_for('student.dashboard'))
+
+    join_code = context['join_code']
+    teacher_id = context['teacher_id']
 
     if request.method == 'POST':
         is_json = request.is_json or request.headers.get("X-Requested-With") == "XMLHttpRequest"
@@ -795,9 +852,15 @@ def transfer():
         to_account = request.form.get('to_account')
         amount = float(request.form.get('amount'))
 
-        # FIX: Use scoped balance checks
-        checking_balance = student.get_checking_balance(teacher_id)
-        savings_balance = student.get_savings_balance(teacher_id)
+        # CRITICAL FIX: Calculate balances using join_code scoping
+        checking_balance = round(sum(
+            tx.amount for tx in student.transactions
+            if tx.account_type == 'checking' and not tx.is_void and tx.join_code == join_code
+        ), 2)
+        savings_balance = round(sum(
+            tx.amount for tx in student.transactions
+            if tx.account_type == 'savings' and not tx.is_void and tx.join_code == join_code
+        ), 2)
 
         if from_account == to_account:
             if is_json:
@@ -820,11 +883,12 @@ def transfer():
             flash("Insufficient savings funds.", "transfer_error")
             return redirect(url_for("student.transfer"))
         else:
-            # CRITICAL FIX: Add teacher_id to all transactions for proper class scoping
+            # CRITICAL FIX v2: Add BOTH teacher_id AND join_code for proper isolation
             # Record the withdrawal side of the transfer
             db.session.add(Transaction(
                 student_id=student.id,
-                teacher_id=teacher_id,  # FIX: Add teacher_id
+                teacher_id=teacher_id,
+                join_code=join_code,  # CRITICAL: Add join_code for period isolation
                 amount=-amount,
                 account_type=from_account,
                 type='Withdrawal',
@@ -833,7 +897,8 @@ def transfer():
             # Record the deposit side of the transfer
             db.session.add(Transaction(
                 student_id=student.id,
-                teacher_id=teacher_id,  # FIX: Add teacher_id
+                teacher_id=teacher_id,
+                join_code=join_code,  # CRITICAL: Add join_code for period isolation
                 amount=amount,
                 account_type=to_account,
                 type='Deposit',
@@ -858,10 +923,10 @@ def transfer():
             flash("Transfer completed successfully!", "transfer_success")
             return redirect(url_for('student.dashboard'))
 
-    # FIX: Get transactions for display - scope by teacher_id
+    # CRITICAL FIX v2: Get transactions for display - scope by join_code
     transactions = Transaction.query.filter_by(
         student_id=student.id,
-        teacher_id=teacher_id,
+        join_code=join_code,  # FIX: Use join_code (class code) as it's guaranteed unique
         is_void=False
     ).order_by(Transaction.timestamp.desc()).all()
     checking_transactions = [t for t in transactions if t.account_type == 'checking']
@@ -875,8 +940,11 @@ def transfer():
     compound_frequency = settings.compound_frequency if settings else 'monthly'
 
     # Calculate forecast interest based on settings
-    # FIX: Use scoped balance for interest calculations
-    savings_balance = student.get_savings_balance(teacher_id)
+    # CRITICAL FIX v2: Calculate savings balance using join_code scoping
+    savings_balance = round(sum(
+        tx.amount for tx in student.transactions
+        if tx.account_type == 'savings' and not tx.is_void and tx.join_code == join_code
+    ), 2)
 
     if calculation_type == 'compound':
         if compound_frequency == 'daily':
@@ -994,17 +1062,21 @@ def apply_savings_interest(student, annual_rate=0.045):
         interest = round((eligible_balance or 0.0) * monthly_rate, 2)
 
     if interest > 0:
-        # FIX: Add teacher_id to interest transactions
-        interest_tx = Transaction(
-            student_id=student.id,
-            teacher_id=teacher_id,  # FIX: Add teacher_id for proper scoping
-            amount=interest,
-            account_type='savings',
-            type='Interest',
-            description="Monthly Savings Interest"
-        )
-        db.session.add(interest_tx)
-        db.session.commit()
+        # CRITICAL FIX v2: Add join_code to interest transactions
+        # Interest must be scoped to specific class, not just teacher
+        context = get_current_class_context()
+        if context:
+            interest_tx = Transaction(
+                student_id=student.id,
+                teacher_id=teacher_id,
+                join_code=context['join_code'],  # CRITICAL: Add join_code for period isolation
+                amount=interest,
+                account_type='savings',
+                type='Interest',
+                description="Monthly Savings Interest"
+            )
+            db.session.add(interest_tx)
+            db.session.commit()
 
 
 # -------------------- INSURANCE --------------------
@@ -1019,12 +1091,14 @@ def insurance_marketplace():
         return redirect(url_for('student.dashboard'))
 
     student = get_logged_in_student()
-    teacher_id = get_current_teacher_id()
 
-    # CRITICAL FIX: Ensure teacher context exists
-    if not teacher_id:
+    # CRITICAL FIX v2: Get full class context (join_code is source of truth)
+    context = get_current_class_context()
+    if not context:
         flash("No class selected. Please select a class to continue.", "error")
         return redirect(url_for('student.dashboard'))
+
+    teacher_id = context['teacher_id']
 
     # FIX: Get student's active policies scoped to current class only
     my_policies = StudentInsurance.query.join(
@@ -1120,12 +1194,15 @@ def insurance_marketplace():
 def purchase_insurance(policy_id):
     """Purchase insurance policy."""
     student = get_logged_in_student()
-    teacher_id = get_current_teacher_id()
 
-    # CRITICAL FIX: Ensure teacher context exists
-    if not teacher_id:
+    # CRITICAL FIX v2: Get full class context
+    context = get_current_class_context()
+    if not context:
         flash("No class selected.", "danger")
         return redirect(url_for('student.dashboard'))
+
+    join_code = context['join_code']
+    teacher_id = context['teacher_id']
 
     policy = InsurancePolicy.query.get_or_404(policy_id)
 
@@ -1179,8 +1256,11 @@ def purchase_insurance(policy_id):
             flash(f"You already have a policy from the '{policy.tier_name or 'this'}' tier. You can only have one policy per tier.", "warning")
             return redirect(url_for('student.student_insurance'))
 
-    # FIX: Check sufficient funds using scoped balance
-    checking_balance = student.get_checking_balance(teacher_id)
+    # CRITICAL FIX v2: Check sufficient funds using join_code scoped balance
+    checking_balance = round(sum(
+        tx.amount for tx in student.transactions
+        if tx.account_type == 'checking' and not tx.is_void and tx.join_code == join_code
+    ), 2)
     if checking_balance < policy.premium:
         flash("Insufficient funds to purchase this insurance policy.", "danger")
         return redirect(url_for('student.student_insurance'))
@@ -1198,10 +1278,11 @@ def purchase_insurance(policy_id):
     )
     db.session.add(enrollment)
 
-    # FIX: Create transaction to charge premium with teacher_id
+    # CRITICAL FIX v2: Create transaction with join_code
     transaction = Transaction(
         student_id=student.id,
-        teacher_id=teacher_id,  # FIX: Add teacher_id
+        teacher_id=teacher_id,
+        join_code=join_code,  # CRITICAL: Add join_code for period isolation
         amount=-policy.premium,
         account_type='checking',
         type='insurance_premium',
@@ -1492,13 +1573,14 @@ def shop():
         return redirect(url_for('student.dashboard'))
 
     student = get_logged_in_student()
-    # Fetch active items that haven't passed their auto-delist date
-    teacher_id = get_current_teacher_id()
 
-    # CRITICAL FIX: Ensure teacher context exists
-    if not teacher_id:
+    # CRITICAL FIX v2: Get full class context
+    context = get_current_class_context()
+    if not context:
         flash("No class selected. Please select a class to continue.", "error")
         return redirect(url_for('student.dashboard'))
+
+    teacher_id = context['teacher_id']
 
     now = datetime.now(timezone.utc)
     items = StoreItem.query.filter(
@@ -1882,9 +1964,14 @@ def rent_pay(period):
     elif late_fee > 0:
         payment_description += f' (includes ${late_fee:.2f} late fee)'
 
+    # CRITICAL FIX v2: Add join_code to rent payment transaction
+    context = get_current_class_context()
+    join_code = context['join_code'] if context else None
+
     transaction = Transaction(
         student_id=student.id,
-        teacher_id=teacher_id,  # FIX: Add teacher_id for proper scoping
+        teacher_id=teacher_id,
+        join_code=join_code,  # CRITICAL: Add join_code for period isolation
         amount=-payment_amount,
         account_type='checking',
         type='Rent Payment',
@@ -1920,10 +2007,11 @@ def rent_pay(period):
     if banking_settings and banking_settings.overdraft_protection_enabled and student.checking_balance < 0:
         shortfall = abs(student.checking_balance)
         if student.savings_balance >= shortfall:
-            # FIX: Transfer from savings to checking with teacher_id
+            # CRITICAL FIX v2: Transfer from savings to checking with join_code
             transfer_tx_withdraw = Transaction(
                 student_id=student.id,
-                teacher_id=teacher_id,  # FIX: Add teacher_id
+                teacher_id=teacher_id,
+                join_code=join_code,  # CRITICAL: Add join_code for period isolation
                 amount=-shortfall,
                 account_type='savings',
                 type='Withdrawal',
@@ -1931,7 +2019,8 @@ def rent_pay(period):
             )
             transfer_tx_deposit = Transaction(
                 student_id=student.id,
-                teacher_id=teacher_id,  # FIX: Add teacher_id
+                teacher_id=teacher_id,
+                join_code=join_code,  # CRITICAL: Add join_code for period isolation
                 amount=shortfall,
                 account_type='checking',
                 type='Deposit',
