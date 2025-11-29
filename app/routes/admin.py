@@ -1728,7 +1728,7 @@ def rent_settings():
             "Rent settings applied to all periods successfully!" if apply_to_all_blocks else "Rent settings updated successfully!",
             "success"
         )
-        return redirect(url_for('admin.rent_settings', block=target_block))
+        return redirect(url_for('admin.rent_settings', settings_block=target_block))
 
     # Get statistics
     scoped_students = _scoped_students().filter_by(is_rent_enabled=True).all()
