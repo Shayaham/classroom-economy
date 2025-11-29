@@ -17,7 +17,11 @@ depends_on = None
 
 
 def upgrade():
-    op.add_column('rent_settings', sa.Column('block', sa.String(length=10), nullable=True))
+    connection = op.get_bind()
+    inspector = sa.inspect(connection)
+    columns = [col['name'] for col in inspector.get_columns('rent_settings')]
+    if 'block' not in columns:
+        op.add_column('rent_settings', sa.Column('block', sa.String(length=10), nullable=True))
 
 
 def downgrade():
