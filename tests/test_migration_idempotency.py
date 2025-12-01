@@ -176,9 +176,9 @@ def test_migration_00212c18b0ac_idempotency(test_db):
         try:
             conn.execute(text('CREATE INDEX IF NOT EXISTS ix_transaction_join_code ON "transaction" (join_code)'))
             conn.execute(text('CREATE INDEX IF NOT EXISTS ix_transaction_student_join_code ON "transaction" (student_id, join_code)'))
-        except Exception:
-            # SQLite might handle this differently
-            pass
+        except Exception as e:
+            # SQLite might handle this differently, log for visibility
+            print(f"Ignoring exception during index creation in test: {e}")
         
         conn.commit()
     
