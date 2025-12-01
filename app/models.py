@@ -361,7 +361,7 @@ class HallPassLog(db.Model):
 class HallPassSettings(db.Model):
     __tablename__ = 'hall_pass_settings'
     id = db.Column(db.Integer, primary_key=True)
-    teacher_id = db.Column(db.Integer, db.ForeignKey('admins.id'), nullable=False)
+    teacher_id = db.Column(db.Integer, db.ForeignKey('admins.id'), nullable=False, index=True)
     block = db.Column(db.String(10), nullable=True)  # NULL = global default, otherwise period/block identifier
 
     # Queue system toggle
@@ -475,7 +475,7 @@ class StudentItem(db.Model):
 class RentSettings(db.Model):
     __tablename__ = 'rent_settings'
     id = db.Column(db.Integer, primary_key=True)
-    teacher_id = db.Column(db.Integer, db.ForeignKey('admins.id'), nullable=False)
+    teacher_id = db.Column(db.Integer, db.ForeignKey('admins.id'), nullable=False, index=True)
     block = db.Column(db.String(10), nullable=True)  # NULL = global default, otherwise period/block identifier
 
     # Main toggle
@@ -767,7 +767,7 @@ class Admin(db.Model):
 class PayrollSettings(db.Model):
     __tablename__ = 'payroll_settings'
     id = db.Column(db.Integer, primary_key=True)
-    teacher_id = db.Column(db.Integer, db.ForeignKey('admins.id'), nullable=False)
+    teacher_id = db.Column(db.Integer, db.ForeignKey('admins.id'), nullable=False, index=True)
     block = db.Column(db.String(10), nullable=True)  # NULL = global/default settings
     pay_rate = db.Column(db.Float, nullable=False, default=0.25)  # $ per minute
     payroll_frequency_days = db.Column(db.Integer, nullable=False, default=14)
@@ -847,7 +847,7 @@ class PayrollFine(db.Model):
 class BankingSettings(db.Model):
     __tablename__ = 'banking_settings'
     id = db.Column(db.Integer, primary_key=True)
-    teacher_id = db.Column(db.Integer, db.ForeignKey('admins.id'), nullable=False)
+    teacher_id = db.Column(db.Integer, db.ForeignKey('admins.id'), nullable=False, index=True)
     block = db.Column(db.String(10), nullable=True)  # NULL = global default, otherwise period/block identifier
 
     # Interest settings for savings

@@ -2073,12 +2073,22 @@ def login():
 
         username = form.username.data.strip()
         pin = form.pin.data.strip()
+        
+        # ADD DEBUG LOGGING HERE (Part 1 - Before lookup)
+        current_app.logger.info(f"🔍 LOGIN ATTEMPT - Username: {username}, PIN length: {len(pin)}")
+        
         lookup_hash = hash_username_lookup(username)
         student = Student.query.filter_by(username_lookup_hash=lookup_hash).first()
+
+        # ADD DEBUG LOGGING HERE (Part 2 - After lookup)
+        current_app.logger.info(f"🔍 Lookup hash: {lookup_hash[:16]}... | Student found: {student is not None}")
+        if student:
+            current_app.logger.info(f"🔍 Student ID: {student.id} | Has PIN hash: {student.pin_hash is not None}")
 
         try:
             # Fallback for legacy accounts without deterministic lookup hashes
             if not student:
+                current_app.logger.info(f"🔍 No student found via lookup_hash, trying legacy fallback...")
                 legacy_students_missing_lookup_hash = Student.query.filter(
                     Student.username_lookup_hash.is_(None),
                     Student.username_hash.isnot(None),
@@ -2090,9 +2100,17 @@ def login():
                         candidate_hash = hash_username(username, s.salt)
                         if candidate_hash == s.username_hash:
                             student = s
+                            current_app.logger.info(f"🔍 Found via legacy lookup! Student ID: {s.id}")
                             break
 
+            # ADD DEBUG LOGGING HERE (Part 3 - Before PIN check)
+            if student:
+                pin_valid = check_password_hash(student.pin_hash or '', pin)
+                current_app.logger.info(f"🔍 PIN check result: {pin_valid}")
+            
             if not student or not check_password_hash(student.pin_hash or '', pin):
+                # ADD DEBUG LOGGING HERE (Part 4 - Login failed)
+                current_app.logger.warning(f"❌ LOGIN FAILED - Student found: {student is not None}, PIN valid: {check_password_hash(student.pin_hash or '', pin) if student else 'N/A'}")
                 if is_json:
                     return jsonify(status="error", message="Invalid credentials"), 401
                 flash("Invalid credentials", "error")
@@ -2101,6 +2119,8 @@ def login():
             if not student.username_lookup_hash:
                 student.username_lookup_hash = lookup_hash
                 db.session.commit()
+                current_app.logger.info(f"✅ Updated username_lookup_hash for student {student.id}")
+                
         except Exception as e:
             db.session.rollback()
             current_app.logger.error(f"Error during student login authentication: {str(e)}")
@@ -2108,6 +2128,10 @@ def login():
                 return jsonify(status="error", message="An error occurred during login. Please try again."), 500
             flash("An error occurred during login. Please try again.", "error")
             return redirect(url_for('student.login'))
+
+        # ADD DEBUG LOGGING HERE (Part 5 - Login successful)
+        current_app.logger.info(f"✅ LOGIN SUCCESS - Student {student.id} ({username})")
+        
 
         # --- Set session timeout ---
         # Clear old student-specific session keys without wiping the CSRF token
