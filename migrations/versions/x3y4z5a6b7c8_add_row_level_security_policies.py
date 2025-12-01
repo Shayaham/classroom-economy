@@ -63,6 +63,9 @@ def upgrade():
             USING (
                 teacher_id = NULLIF(current_setting('app.current_teacher_id', TRUE), '')::integer
             )
+            WITH CHECK (
+                teacher_id = NULLIF(current_setting('app.current_teacher_id', TRUE), '')::integer
+            )
         '''))
         
         # Create DELETE policy

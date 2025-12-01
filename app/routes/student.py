@@ -2074,13 +2074,11 @@ def login():
         username = form.username.data.strip()
         pin = form.pin.data.strip()
         
-        # ADD DEBUG LOGGING HERE (Part 1 - Before lookup)
         current_app.logger.info(f"🔍 LOGIN ATTEMPT - Username: {username}, PIN length: {len(pin)}")
         
         lookup_hash = hash_username_lookup(username)
         student = Student.query.filter_by(username_lookup_hash=lookup_hash).first()
 
-        # ADD DEBUG LOGGING HERE (Part 2 - After lookup)
         current_app.logger.info(f"🔍 Lookup hash: {lookup_hash[:16]}... | Student found: {student is not None}")
         if student:
             current_app.logger.info(f"🔍 Student ID: {student.id} | Has PIN hash: {student.pin_hash is not None}")
@@ -2103,14 +2101,14 @@ def login():
                             current_app.logger.info(f"🔍 Found via legacy lookup! Student ID: {s.id}")
                             break
 
-            # ADD DEBUG LOGGING HERE (Part 3 - Before PIN check)
+            # Validate PIN
+            pin_valid = False
             if student:
                 pin_valid = check_password_hash(student.pin_hash or '', pin)
                 current_app.logger.info(f"🔍 PIN check result: {pin_valid}")
             
-            if not student or not check_password_hash(student.pin_hash or '', pin):
-                # ADD DEBUG LOGGING HERE (Part 4 - Login failed)
-                current_app.logger.warning(f"❌ LOGIN FAILED - Student found: {student is not None}, PIN valid: {check_password_hash(student.pin_hash or '', pin) if student else 'N/A'}")
+            if not student or not pin_valid:
+                current_app.logger.warning(f"❌ LOGIN FAILED - Student found: {student is not None}, PIN valid: {pin_valid if student else 'N/A'}")
                 if is_json:
                     return jsonify(status="error", message="Invalid credentials"), 401
                 flash("Invalid credentials", "error")
@@ -2129,9 +2127,7 @@ def login():
             flash("An error occurred during login. Please try again.", "error")
             return redirect(url_for('student.login'))
 
-        # ADD DEBUG LOGGING HERE (Part 5 - Login successful)
         current_app.logger.info(f"✅ LOGIN SUCCESS - Student {student.id} ({username})")
-        
 
         # --- Set session timeout ---
         # Clear old student-specific session keys without wiping the CSRF token

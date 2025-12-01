@@ -40,7 +40,7 @@ def upgrade():
     first_admin_id = result.scalar()
     
     if first_admin_id:
-        conn.execute(sa.text(f"UPDATE store_items SET teacher_id = {first_admin_id} WHERE teacher_id IS NULL"))
+        conn.execute(sa.text("UPDATE store_items SET teacher_id = :admin_id WHERE teacher_id IS NULL"), {"admin_id": first_admin_id})
         
         # Make it NOT NULL
         with op.batch_alter_table('store_items', schema=None) as batch_op:
