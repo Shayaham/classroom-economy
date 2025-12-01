@@ -99,7 +99,7 @@ def downgrade():
     if foreign_key_exists('store_items', 'fk_store_items_teacher'):
         with op.batch_alter_table('store_items', schema=None) as batch_op:
             batch_op.drop_constraint('fk_store_items_teacher', type_='foreignkey')
-        print("✅ Dropped foreign key constraint fk_store_items_teacher")
+        print("❌ Dropped foreign key constraint fk_store_items_teacher")
     else:
         print("⚠️  Foreign key 'fk_store_items_teacher' does not exist, skipping...")
     
@@ -107,7 +107,7 @@ def downgrade():
     if column_exists('store_items', 'teacher_id'):
         with op.batch_alter_table('store_items', schema=None) as batch_op:
             batch_op.drop_column('teacher_id')
-        print("✅ Dropped teacher_id column from store_items")
+        print("❌ Dropped teacher_id column from store_items")
     else:
         print("⚠️  Column 'teacher_id' does not exist on 'store_items', skipping...")
     
