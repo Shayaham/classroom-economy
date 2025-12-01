@@ -1,9 +1,9 @@
 from app import create_app, db
 from app.models import Student
-import hashlib
+from hash_utils import hash_username_lookup
 
 def validate_hash(username):
-    lookup_hash = hashlib.sha256(username.encode()).hexdigest()
+    lookup_hash = hash_username_lookup(username)
     student = Student.query.filter_by(username_lookup_hash=lookup_hash).first()
     
     if student:
