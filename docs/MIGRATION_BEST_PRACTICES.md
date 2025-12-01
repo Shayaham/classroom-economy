@@ -110,7 +110,7 @@ def downgrade():
     if foreign_key_exists('table_name', 'fk_constraint_name'):
         with op.batch_alter_table('table_name', schema=None) as batch_op:
             batch_op.drop_constraint('fk_constraint_name', type_='foreignkey')
-        print("✅ Dropped foreign key constraint fk_constraint_name")
+        print("❌ Dropped foreign key constraint fk_constraint_name")
     else:
         print("⚠️  Foreign key 'fk_constraint_name' does not exist, skipping...")
     
@@ -118,10 +118,9 @@ def downgrade():
     if column_exists('table_name', 'column_name'):
         with op.batch_alter_table('table_name', schema=None) as batch_op:
             batch_op.drop_column('column_name')
-        print("✅ Dropped column_name from table_name")
+        print("❌ Dropped column_name from table_name")
     else:
         print("⚠️  Column 'column_name' does not exist, skipping...")
-```
 
 ## Logging Best Practices
 
