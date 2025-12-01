@@ -7,7 +7,7 @@ This script creates realistic test data to validate join_code isolation between:
 2. Same teacher with multiple periods
 3. Students enrolled in various combinations
 
-Outputs credentials file for easy testing.
+Outputs credentials to console (not to file, to avoid security issues).
 """
 
 import os
@@ -15,27 +15,26 @@ import sys
 import random
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent))
-
-# Set required environment variables if not already set
-if not os.environ.get('PEPPER_KEY'):
-    os.environ['PEPPER_KEY'] = 'test_pepper_key_for_seeding_12345'
-if not os.environ.get('ENCRYPTION_KEY'):
-    os.environ['ENCRYPTION_KEY'] = 'test_encryption_key_32bytes_long'
 
 from app import create_app
 from app.extensions import db
 from app.models import (
     Admin, Student, TeacherBlock, StudentTeacher, Transaction,
-    StoreItem, StudentItem, InsurancePolicy, StudentInsurance, InsuranceClaim,
-    PayrollSettings, RentSettings, StoreItemBlock, InsurancePolicyBlock
+    StoreItem, InsurancePolicy, StudentInsurance, InsuranceClaim,
+    PayrollSettings, RentSettings
 )
 from app.utils.join_code import generate_join_code
-from hash_utils import get_random_salt, hash_hmac, hash_username, hash_username_lookup
+from hash_utils import get_random_salt, hash_username, hash_username_lookup
 from app.utils.claim_credentials import compute_primary_claim_hash
-from app.utils.name_utils import compute_last_name_hash_by_part
+from app.utils.name_utils import hash_last_name_parts
+from werkzeug.security import generate_password_hash
 import pyotp
 
 
@@ -203,7 +202,10 @@ def create_student_with_seat(first_name, last_name, dob_sum, teacher, block, joi
     first_half_hash = compute_primary_claim_hash(first_name[0].upper(), dob_sum, salt)
     username_hash = hash_username(username, salt)
     username_lookup_hash = hash_username_lookup(username)
-    last_name_hash = compute_last_name_hash_by_part(last_name, salt)
+    last_name_hash = hash_last_name_parts(last_name, salt)
+
+    # Password credential is first_initial + dob_sum
+    password_credential = f"{first_name[0].upper()}{dob_sum}"
 
     # Create student
     student = Student(
@@ -218,7 +220,8 @@ def create_student_with_seat(first_name, last_name, dob_sum, teacher, block, joi
         dob_sum=dob_sum,
         hall_passes=3,
         has_completed_setup=True,
-        teacher_id=teacher.id  # Legacy field
+        teacher_id=teacher.id,  # Primary owner
+        pin_hash=generate_password_hash(password_credential),  # Set PIN for login
     )
     db.session.add(student)
     db.session.flush()
@@ -249,9 +252,6 @@ def create_student_with_seat(first_name, last_name, dob_sum, teacher, block, joi
     db.session.add(student_teacher)
 
     db.session.flush()
-
-    # Password credential is first_initial + dob_sum
-    password_credential = f"{first_name[0].upper()}{dob_sum}"
 
     return student, teacher_block, username, password_credential
 
@@ -520,11 +520,6 @@ def seed_database():
     print("🌱 Starting database seeding...")
     print("=" * 60)
 
-    # Clear existing data (optional - be careful!)
-    # print("⚠️  Clearing existing data...")
-    # db.drop_all()
-    # db.create_all()
-
     credentials = {
         'teachers': [],
         'students': [],
@@ -702,90 +697,78 @@ def seed_database():
     db.session.commit()
     print(f"\n✅ Created {len(STUDENTS)} students with varied enrollments")
 
-    # ===== OUTPUT CREDENTIALS =====
-    print("\n📝 Writing credentials to file...")
-    output_file = 'TEST_CREDENTIALS.txt'
+    # ===== OUTPUT CREDENTIALS TO CONSOLE =====
+    print("\n" + "=" * 80)
+    print("📝 TEST CREDENTIALS (dynamically generated)")
+    print("=" * 80)
 
-    with open(output_file, 'w') as f:
-        f.write("=" * 80 + "\n")
-        f.write("CLASSROOM ECONOMY - MULTI-TENANCY TEST CREDENTIALS\n")
-        f.write("=" * 80 + "\n")
-        f.write(f"\nGenerated: {datetime.now()}\n")
-        f.write("\nThis file contains all login credentials for testing multi-tenancy isolation.\n")
-        f.write("\n" + "=" * 80 + "\n")
+    # Teachers
+    print("\n" + "-" * 80)
+    print("TEACHER ACCOUNTS")
+    print("-" * 80)
+    for teacher_cred in credentials['teachers']:
+        print(f"\nUsername: {teacher_cred['username']}")
+        print(f"TOTP Secret: {teacher_cred['totp_secret']}")
+        print(f"TOTP Setup URL: {teacher_cred['totp_url']}")
 
-        # Teachers
-        f.write("\n" + "=" * 80 + "\n")
-        f.write("TEACHER ACCOUNTS\n")
-        f.write("=" * 80 + "\n")
-        for teacher_cred in credentials['teachers']:
-            f.write(f"\nUsername: {teacher_cred['username']}\n")
-            f.write(f"TOTP Secret: {teacher_cred['totp_secret']}\n")
-            f.write(f"TOTP Setup URL: {teacher_cred['totp_url']}\n")
-            f.write("-" * 80 + "\n")
+    # Class periods
+    print("\n" + "-" * 80)
+    print("CLASS PERIODS & JOIN CODES")
+    print("-" * 80)
+    for class_info in credentials['class_info']:
+        print(f"\n{class_info['teacher']} - Period {class_info['period']}: {class_info['name']}")
+        print(f"  Join Code: {class_info['join_code']}")
 
-        # Class periods
-        f.write("\n" + "=" * 80 + "\n")
-        f.write("CLASS PERIODS & JOIN CODES\n")
-        f.write("=" * 80 + "\n")
-        for class_info in credentials['class_info']:
-            f.write(f"\n{class_info['teacher']} - Period {class_info['period']}: {class_info['name']}\n")
-            f.write(f"  Join Code: {class_info['join_code']}\n")
+    # Students
+    print("\n" + "-" * 80)
+    print("STUDENT ACCOUNTS")
+    print("-" * 80)
+    print("\nStudent Login Format: Username + Password (PIN)")
 
-        # Students
-        f.write("\n" + "=" * 80 + "\n")
-        f.write("STUDENT ACCOUNTS\n")
-        f.write("=" * 80 + "\n")
-        f.write("\nStudent Login Format: Username + Password (credential)\n\n")
+    for student_cred in credentials['students']:
+        print(f"\n{student_cred['name']}")
+        print(f"  Username: {student_cred['username']}")
+        print(f"  Password: {student_cred['password']}")
+        print(f"  Enrollments:")
+        for enrollment in student_cred['enrollments']:
+            print(f"    • {enrollment['class_name']} ({enrollment['teacher']}, Period {enrollment['period']})")
+            print(f"      Join Code: {enrollment['join_code']}")
+            if enrollment.get('insurance'):
+                print(f"      Insurance: {enrollment['insurance']} ✓")
 
-        for student_cred in credentials['students']:
-            f.write(f"\n{student_cred['name']}\n")
-            f.write(f"  Username: {student_cred['username']}\n")
-            f.write(f"  Password: {student_cred['password']}\n")
-            f.write(f"  Enrollments:\n")
-            for enrollment in student_cred['enrollments']:
-                f.write(f"    • {enrollment['class_name']} ({enrollment['teacher']}, Period {enrollment['period']})\n")
-                f.write(f"      Join Code: {enrollment['join_code']}\n")
-                if enrollment.get('insurance'):
-                    f.write(f"      Insurance: {enrollment['insurance']} ✓\n")
-            f.write("-" * 80 + "\n")
+    # Test scenarios
+    print("\n" + "=" * 80)
+    print("CRITICAL TEST SCENARIOS")
+    print("=" * 80)
 
-        # Test scenarios
-        f.write("\n" + "=" * 80 + "\n")
-        f.write("CRITICAL TEST SCENARIOS\n")
-        f.write("=" * 80 + "\n")
+    print("\n1. SAME TEACHER, DIFFERENT PERIODS (Critical!):")
+    print("   Emma Evans: Enrolled in ms_johnson Periods A & B")
+    print("   Frank Fisher: Enrolled in ms_johnson Periods B & C")
+    print("   Grace Garcia: Enrolled in mr_smith Periods A & D")
+    print("   → Test: Balances and transactions should be ISOLATED per period")
 
-        f.write("\n1. SAME TEACHER, DIFFERENT PERIODS (Critical!):\n")
-        f.write("   Emma Evans: Enrolled in ms_johnson Periods A & B\n")
-        f.write("   Frank Fisher: Enrolled in ms_johnson Periods B & C\n")
-        f.write("   Grace Garcia: Enrolled in mr_smith Periods A & D\n")
-        f.write("   → Test: Balances and transactions should be ISOLATED per period\n")
+    print("\n2. DIFFERENT TEACHERS, SAME STUDENT:")
+    print("   Carol Chen: ms_johnson + mr_smith")
+    print("   Henry Harris: ms_johnson + mr_smith + mrs_davis")
+    print("   → Test: Each teacher's class should show separate data")
 
-        f.write("\n2. DIFFERENT TEACHERS, SAME STUDENT:\n")
-        f.write("   Carol Chen: ms_johnson + mr_smith\n")
-        f.write("   Henry Harris: ms_johnson + mr_smith + mrs_davis\n")
-        f.write("   → Test: Each teacher's class should show separate data\n")
+    print("\n3. SINGLE ENROLLMENT (Control):")
+    print("   Alice Anderson: ms_johnson Period A only")
+    print("   Bob Baker: mr_smith Period A only")
+    print("   → Test: Simple baseline - should see only their own data")
 
-        f.write("\n3. SINGLE ENROLLMENT (Control):\n")
-        f.write("   Alice Anderson: ms_johnson Period A only\n")
-        f.write("   Bob Baker: mr_smith Period A only\n")
-        f.write("   → Test: Simple baseline - should see only their own data\n")
-
-        f.write("\n" + "=" * 80 + "\n")
-        f.write("VALIDATION CHECKLIST\n")
-        f.write("=" * 80 + "\n")
-        f.write("\n□ Students in same teacher's different periods see isolated balances\n")
-        f.write("□ Transactions filtered correctly by join_code\n")
-        f.write("□ Store items respect block visibility settings\n")
-        f.write("□ Insurance policies respect block visibility\n")
-        f.write("□ Switching between classes changes visible data\n")
-        f.write("□ No cross-period data leaks for same teacher\n")
-        f.write("□ No cross-teacher data leaks\n")
-        f.write("□ All transactions have join_code populated\n")
-        f.write("□ Database queries filter by join_code, not just teacher_id\n")
-        f.write("\n" + "=" * 80 + "\n")
-
-    print(f"✅ Credentials written to: {output_file}")
+    print("\n" + "=" * 80)
+    print("VALIDATION CHECKLIST")
+    print("=" * 80)
+    print("\n□ Students in same teacher's different periods see isolated balances")
+    print("□ Transactions filtered correctly by join_code")
+    print("□ Store items respect block visibility settings")
+    print("□ Insurance policies respect block visibility")
+    print("□ Switching between classes changes visible data")
+    print("□ No cross-period data leaks for same teacher")
+    print("□ No cross-teacher data leaks")
+    print("□ All transactions have join_code populated")
+    print("□ Database queries filter by join_code, not just teacher_id")
 
     # Summary statistics
     print("\n" + "=" * 60)
@@ -806,7 +789,7 @@ def seed_database():
     print("=" * 60)
 
     print("\n✨ Seeding complete!")
-    print(f"\n📖 See {output_file} for all login credentials and test scenarios.")
+    print("\n⚠️  Note: Credentials are displayed above (not saved to file for security)")
 
 
 if __name__ == '__main__':
