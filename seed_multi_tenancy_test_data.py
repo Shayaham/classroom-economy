@@ -15,6 +15,11 @@ import sys
 import random
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
+
 
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent))
@@ -35,7 +40,7 @@ from app.models import (
 from app.utils.join_code import generate_join_code
 from hash_utils import get_random_salt, hash_hmac, hash_username, hash_username_lookup
 from app.utils.claim_credentials import compute_primary_claim_hash
-from app.utils.name_utils import compute_last_name_hash_by_part
+from app.utils.name_utils import hash_last_name_parts
 import pyotp
 
 
@@ -203,7 +208,7 @@ def create_student_with_seat(first_name, last_name, dob_sum, teacher, block, joi
     first_half_hash = compute_primary_claim_hash(first_name[0].upper(), dob_sum, salt)
     username_hash = hash_username(username, salt)
     username_lookup_hash = hash_username_lookup(username)
-    last_name_hash = compute_last_name_hash_by_part(last_name, salt)
+    last_name_hash = hash_last_name_parts(last_name, salt)
 
     # Create student
     student = Student(

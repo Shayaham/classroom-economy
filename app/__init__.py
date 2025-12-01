@@ -18,6 +18,7 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
+
 # Validate required environment variables
 required_env_vars = ["SECRET_KEY", "DATABASE_URL", "FLASK_ENV", "ENCRYPTION_KEY", "PEPPER_KEY"]
 missing_vars = [var for var in required_env_vars if not os.getenv(var)]
