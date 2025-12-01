@@ -23,27 +23,6 @@ from app import app
 from app.models import DeletionRequestType
 
 
-@pytest.fixture
-def test_db():
-    """Create a test database with all necessary tables."""
-    app.config.update(
-        TESTING=True,
-        SQLALCHEMY_DATABASE_URI="sqlite:///:memory:",
-        ENV="testing",
-        SESSION_COOKIE_SECURE=False,
-    )
-    ctx = app.app_context()
-    ctx.push()
-    
-    # Create all tables
-    db.create_all()
-    
-    yield db
-    
-    db.drop_all()
-    ctx.pop()
-
-
 def test_deletion_request_type_enum_values():
     """Verify DeletionRequestType enum has the correct values."""
     # The enum should have exactly these two values
