@@ -204,11 +204,20 @@ def check_legacy_profile():
         'student.demo_login', 'student.setup_complete'
     ]
     
+    # Skip if endpoint is None or not in student blueprint
+    if not request.endpoint or not request.endpoint.startswith('student.'):
+        return
+    
     if request.endpoint in excluded_endpoints:
         return
     
     # Only check for logged-in students
-    student = get_logged_in_student()
+    try:
+        student = get_logged_in_student()
+    except RuntimeError:
+        # Working outside of request context (e.g., in tests)
+        return
+    
     if not student:
         return
     
