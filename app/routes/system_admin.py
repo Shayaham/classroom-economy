@@ -865,27 +865,10 @@ def delete_teacher(admin_id):
                 )
                 student.teacher_id = fallback.admin_id if fallback else None
 
-        # Mark any pending deletion requests for this teacher as approved
-        if pending_request:
-            pending_request.status = DeletionRequestStatus.APPROVED
-            pending_request.resolved_at = datetime.now(timezone.utc)
-            pending_request.resolved_by = session.get('sysadmin_id')
-
-        # Also resolve all other pending deletion requests for this teacher
-        # Since the account is being deleted, all pending requests become moot
-        other_pending_requests = (
-            DeletionRequest.query
-            .filter(
-                DeletionRequest.admin_id == admin.id,
-                DeletionRequest.status == DeletionRequestStatus.PENDING,
-                DeletionRequest.id != (pending_request.id if pending_request else None)
-            )
-            .all()
-        )
-        for req in other_pending_requests:
-            req.status = DeletionRequestStatus.APPROVED
-            req.resolved_at = datetime.now(timezone.utc)
-            req.resolved_by = session.get('sysadmin_id')
+        # Delete all deletion requests for this teacher
+        # Since the account is being deleted, all pending/approved requests become moot
+        # and will be cascade deleted anyway. Explicitly delete them to avoid FK conflicts.
+        DeletionRequest.query.filter_by(admin_id=admin.id).delete()
 
         # Delete all TeacherBlock entries for this teacher
         # This cleans up roster seats associated with the teacher
