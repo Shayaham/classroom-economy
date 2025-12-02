@@ -329,6 +329,7 @@ class StudentAddClassForm(FlaskForm):
     first_initial = StringField('First Initial (e.g., J)', validators=[DataRequired(), Length(min=1, max=1)])
     last_name = StringField('Last Name', validators=[DataRequired()])
     dob_sum = StringField('DOB Sum (MM + DD + YYYY)', validators=[DataRequired()])
+    submit = SubmitField('Add Class')
 
 
 class StudentCompleteProfileForm(FlaskForm):

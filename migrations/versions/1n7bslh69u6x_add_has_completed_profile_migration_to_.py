@@ -22,14 +22,14 @@ def upgrade():
     op.add_column('students', sa.Column('has_completed_profile_migration', sa.Boolean(), nullable=True))
     
     # Set default to False for all existing students
-    op.execute('UPDATE students SET has_completed_profile_migration = 0 WHERE has_completed_profile_migration IS NULL')
+    op.execute('UPDATE students SET has_completed_profile_migration = FALSE WHERE has_completed_profile_migration IS NULL')
     
     # Make column non-nullable after setting defaults
     with op.batch_alter_table('students', schema=None) as batch_op:
         batch_op.alter_column('has_completed_profile_migration',
                               existing_type=sa.Boolean(),
                               nullable=False,
-                              server_default='0')
+                              server_default=sa.false())
 
 
 def downgrade():

@@ -931,10 +931,12 @@ def user_reports():
     # Get all reports ordered by newest first
     reports = query.order_by(UserReport.submitted_at.desc()).all()
     
-    # Count by status
-    new_count = UserReport.query.filter_by(status='new').count()
-    reviewed_count = UserReport.query.filter_by(status='reviewed').count()
-    rewarded_count = UserReport.query.filter_by(status='rewarded').count()
+    # Count by status - optimized to use single query
+    from sqlalchemy import func
+    status_counts = dict(db.session.query(UserReport.status, func.count(UserReport.id)).group_by(UserReport.status).all())
+    new_count = status_counts.get('new', 0)
+    reviewed_count = status_counts.get('reviewed', 0)
+    rewarded_count = status_counts.get('rewarded', 0)
     
     return render_template(
         'sysadmin_user_reports.html',
@@ -1008,7 +1010,7 @@ def send_reward_to_reporter(report_id):
         return redirect(url_for('sysadmin.view_user_report', report_id=report_id))
     
     # Check if reward already sent
-    if report.reward_amount and report.reward_amount > 0:
+    if report.reward_sent_at is not None:
         flash("A reward has already been sent for this report.", "error")
         return redirect(url_for('sysadmin.view_user_report', report_id=report_id))
     

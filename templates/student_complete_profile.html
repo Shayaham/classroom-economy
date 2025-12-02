@@ -156,12 +156,20 @@
             return false;
         }
         
-        // Check for valid day in month (simplified - allows Feb 29 in all years)
-        // More sophisticated leap year validation would require additional logic
-        const daysInMonth = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
-        if (day > daysInMonth[month - 1]) {
+        // Check for valid day in month, including leap year validation for February
+        function isLeapYear(y) {
+            return (y % 4 === 0 && (y % 100 !== 0 || y % 400 === 0));
+        }
+        let maxDay;
+        if (month === 2) {
+            maxDay = isLeapYear(year) ? 29 : 28;
+        } else {
+            const daysInMonth = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+            maxDay = daysInMonth[month - 1];
+        }
+        if (day > maxDay) {
             e.preventDefault();
-            alert(`Invalid day for the selected month. Maximum day is ${daysInMonth[month - 1]}.`);
+            alert(`Invalid day for the selected month. Maximum day is ${maxDay}.`);
             return false;
         }
     });

@@ -201,7 +201,7 @@ def check_legacy_profile():
     excluded_endpoints = [
         'student.login', 'student.logout', 'student.complete_profile',
         'student.claim_account', 'student.create_username', 'student.setup_pin_passphrase',
-        'student.demo_login', 'student.setup_complete'
+        'student.demo_login', 'student.setup_complete', 'student.add_class'
     ]
     
     # Skip if endpoint is None or not in student blueprint
@@ -212,11 +212,7 @@ def check_legacy_profile():
         return
     
     # Only check for logged-in students
-    try:
-        student = get_logged_in_student()
-    except RuntimeError:
-        # Working outside of request context (e.g., in tests)
-        return
+    student = get_logged_in_student()
     
     if not student:
         return
@@ -257,19 +253,23 @@ def complete_profile():
     form = StudentCompleteProfileForm()
     
     # Handle form submission
-    if request.method == 'POST':
+    if form.validate_on_submit():
         step = request.form.get('step', 'confirm')
         
-        # Get form data
-        first_name = request.form.get('first_name', '').strip()
-        last_name = request.form.get('last_name', '').strip()
-        dob_month = request.form.get('dob_month', '').strip()
-        dob_day = request.form.get('dob_day', '').strip()
-        dob_year = request.form.get('dob_year', '').strip()
+        # Get form data from WTForms
+        first_name = form.first_name.data.strip()
+        last_name = form.last_name.data.strip()
+        dob_month = form.dob_month.data
+        dob_day = form.dob_day.data.strip()
+        dob_year = form.dob_year.data.strip()
         
         # Validation
         if not all([first_name, last_name, dob_month, dob_day, dob_year]):
             flash("All fields are required.", "error")
+            return redirect(url_for('student.complete_profile'))
+        
+        if not last_name:
+            flash("Last name is required.", "error")
             return redirect(url_for('student.complete_profile'))
         
         try:
@@ -288,6 +288,13 @@ def complete_profile():
             # Students should be born between 1900 and (current year - 5) for elementary/middle school
             if not (1900 <= year <= current_year - 5):
                 flash(f"Invalid year. Students should be born between 1900 and {current_year - 5}.", "error")
+                return redirect(url_for('student.complete_profile'))
+            
+            # Validate that the date is real
+            try:
+                datetime(year, month, day)
+            except ValueError:
+                flash("Invalid date. Please check the month and day.", "error")
                 return redirect(url_for('student.complete_profile'))
             
             # Calculate DOB sum
@@ -326,10 +333,17 @@ def complete_profile():
         elif step == 'submit':
             # Final submission - update student record
             try:
+                # Recalculate dob_sum for submit step (needed since it's only calculated in confirm step's try block)
+                # This prevents NameError when submitting the form
+                month = int(dob_month)
+                day = int(dob_day)
+                year = int(dob_year)
+                dob_sum = month + day + year
+                
                 # Update first name (encrypted)
                 student.first_name = first_name
                 
-                # Update last initial from last name
+                # Update last initial from last name (already validated to not be empty)
                 student.last_initial = last_name[0].upper()
                 
                 # Calculate and store DOB sum
@@ -339,8 +353,8 @@ def complete_profile():
                 student.last_name_hash_by_part = hash_last_name_parts(last_name, student.salt)
                 
                 # Regenerate first_half_hash using first initial + dob_sum
-                first_initial = first_name[0].upper() if first_name else ''
-                student.first_half_hash = compute_primary_claim_hash(first_initial, dob_sum, student.salt)
+                first_initial_char = first_name[0].upper() if first_name else ''
+                student.first_half_hash = compute_primary_claim_hash(first_initial_char, dob_sum, student.salt)
                 
                 # Regenerate second_half_hash using just dob_sum
                 dob_sum_str = str(dob_sum)
