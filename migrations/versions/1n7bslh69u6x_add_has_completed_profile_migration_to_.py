@@ -1,10 +1,13 @@
 """add has_completed_profile_migration to students
 
 Revision ID: 1n7bslh69u6x
-Revises: z2a3b4c5d6e7, 5esz32blgjej
+Revises: z2a3b4c5d6e7, fa40lzegx5tq
 Create Date: 2025-12-02 06:00:00.000000
 
-This migration merges two migration branches and adds has_completed_profile_migration field.
+This migration merges three migration branches and adds has_completed_profile_migration field.
+Merges:
+- z2a3b4c5d6e7 (feature settings and onboarding)
+- fa40lzegx5tq (DeletionRequestStatus enum fix) which comes after 5esz32blgjej (enum lowercase)
 """
 from alembic import op
 import sqlalchemy as sa
@@ -12,7 +15,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = '1n7bslh69u6x'
-down_revision = ('z2a3b4c5d6e7', '5esz32blgjej')
+down_revision = ('z2a3b4c5d6e7', 'fa40lzegx5tq')
 branch_labels = None
 depends_on = None
 
