@@ -282,6 +282,7 @@ class DeletionRequest(db.Model):
     resolved_by = db.Column(db.Integer, db.ForeignKey('system_admins.id'), nullable=True)
 
     # Relationships
+    # No ORM cascade needed - explicit deletion in system_admin.py:871 + DB CASCADE
     admin = db.relationship('Admin', backref=db.backref('deletion_requests', lazy='dynamic'))
     resolver = db.relationship('SystemAdmin', backref=db.backref('resolved_deletion_requests', lazy='dynamic'))
 
