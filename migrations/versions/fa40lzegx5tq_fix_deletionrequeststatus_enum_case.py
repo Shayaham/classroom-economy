@@ -102,8 +102,12 @@ def upgrade():
             print(f"  ⚠️  Enum has unexpected values: {current_values}")
             print(f"  Expected: {expected_values}")
             raise ValueError(
-                f"deletionrequeststatus enum has unexpected values. "
-                f"Please manually fix the enum before running this migration."
+                f"deletionrequeststatus enum has unexpected values: {current_values}. "
+                f"Expected: {expected_values}. "
+                f"To fix this, you can recreate the enum manually:\n"
+                f"  DROP TYPE deletionrequeststatus CASCADE;\n"
+                f"  CREATE TYPE deletionrequeststatus AS ENUM ('pending', 'approved', 'rejected');\n"
+                f"  ALTER TABLE deletion_requests ALTER COLUMN status TYPE deletionrequeststatus USING status::text::deletionrequeststatus;"
             )
     
     # Step 5: Check the current column type

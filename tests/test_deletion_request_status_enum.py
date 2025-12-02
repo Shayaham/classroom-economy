@@ -92,11 +92,6 @@ def test_deletion_request_status_can_be_stored_and_retrieved():
         assert updated.status == DeletionRequestStatus.APPROVED, (
             f"Status update failed. Expected APPROVED, got {updated.status}"
         )
-        
-        # Clean up
-        db.session.delete(deletion_request)
-        db.session.delete(admin)
-        db.session.commit()
 
 
 def test_deletion_request_status_enum_comparison():
