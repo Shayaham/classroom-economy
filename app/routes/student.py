@@ -26,7 +26,7 @@ from app.models import (
 from app.auth import admin_required, login_required, get_logged_in_student, SESSION_TIMEOUT_MINUTES
 from forms import (
     StudentClaimAccountForm, StudentCreateUsernameForm, StudentPinPassphraseForm,
-    StudentLoginForm, InsuranceClaimForm
+    StudentLoginForm, InsuranceClaimForm, StudentCompleteProfileForm
 )
 
 # Import utility functions
@@ -36,6 +36,7 @@ from app.utils.turnstile import verify_turnstile_token
 from app.utils.demo_sessions import cleanup_demo_student_data
 from app.utils.ip_handler import get_real_ip
 from app.utils.claim_credentials import compute_primary_claim_hash, match_claim_hash
+from app.utils.name_utils import hash_last_name_parts
 from hash_utils import hash_hmac, hash_username, hash_username_lookup
 from attendance import get_all_block_statuses
 
@@ -182,6 +183,218 @@ def is_feature_enabled(feature_name):
     settings = get_feature_settings_for_student()
     feature_key = f"{feature_name}_enabled"
     return settings.get(feature_key, True)  # Default to enabled
+
+
+# -------------------- LEGACY PROFILE MIGRATION --------------------
+
+@student_bp.before_request
+def check_legacy_profile():
+    """
+    Check if logged-in student needs to complete legacy profile migration.
+    
+    Legacy students are those who:
+    - have completed setup (has_completed_setup=True)
+    - but are missing last_name_hash_by_part or dob_sum
+    - and have not completed the migration (has_completed_profile_migration=False)
+    """
+    # Skip for non-student routes, login, logout, and profile completion itself
+    excluded_endpoints = [
+        'student.login', 'student.logout', 'student.complete_profile',
+        'student.claim_account', 'student.create_username', 'student.setup_pin_passphrase',
+        'student.demo_login', 'student.setup_complete', 'student.add_class'
+    ]
+    
+    # Skip if endpoint is None or not in student blueprint
+    if not request.endpoint or not request.endpoint.startswith('student.'):
+        return
+    
+    if request.endpoint in excluded_endpoints:
+        return
+    
+    # Only check for logged-in students
+    student = get_logged_in_student()
+    
+    if not student:
+        return
+    
+    # Check if this is a legacy student needing migration
+    needs_migration = (
+        student.has_completed_setup and
+        not student.has_completed_profile_migration and
+        (not student.last_name_hash_by_part or student.dob_sum is None)
+    )
+    
+    if needs_migration:
+        return redirect(url_for('student.complete_profile'))
+
+
+@student_bp.route('/complete-profile', methods=['GET', 'POST'])
+@login_required
+def complete_profile():
+    """
+    One-time profile completion for legacy students missing last name and DOB.
+    
+    This route collects:
+    - First name (editable, from existing)
+    - Last name (new, required)
+    - Date of birth (new, required)
+    
+    Then updates the student record with hashed values and regenerates credential hashes.
+    """
+    student = get_logged_in_student()
+    if not student:
+        return redirect(url_for('student.login'))
+    
+    # Check if already completed migration
+    if student.has_completed_profile_migration:
+        flash("You have already completed your profile.", "info")
+        return redirect(url_for('student.dashboard'))
+    
+    form = StudentCompleteProfileForm()
+    
+    # Handle form submission
+    if form.validate_on_submit():
+        step = request.form.get('step', 'confirm')
+        
+        # Get form data from WTForms
+        first_name = form.first_name.data.strip()
+        last_name = form.last_name.data.strip()
+        dob_month = form.dob_month.data
+        dob_day = form.dob_day.data.strip()
+        dob_year = form.dob_year.data.strip()
+        
+        # Validation
+        if not all([first_name, last_name, dob_month, dob_day, dob_year]):
+            flash("All fields are required.", "error")
+            return redirect(url_for('student.complete_profile'))
+        
+        if not last_name:
+            flash("Last name is required.", "error")
+            return redirect(url_for('student.complete_profile'))
+        
+        try:
+            month = int(dob_month)
+            day = int(dob_day)
+            year = int(dob_year)
+            
+            # Validate ranges
+            current_year = datetime.now().year
+            if not (1 <= month <= 12):
+                flash("Invalid month.", "error")
+                return redirect(url_for('student.complete_profile'))
+            if not (1 <= day <= 31):
+                flash("Invalid day.", "error")
+                return redirect(url_for('student.complete_profile'))
+            # Students should be born between 1900 and (current year - 5) for elementary/middle school
+            if not (1900 <= year <= current_year - 5):
+                flash(f"Invalid year. Students should be born between 1900 and {current_year - 5}.", "error")
+                return redirect(url_for('student.complete_profile'))
+            
+            # Validate that the date is real
+            try:
+                datetime(year, month, day)
+            except ValueError:
+                flash("Invalid date. Please check the month and day.", "error")
+                return redirect(url_for('student.complete_profile'))
+            
+            # Calculate DOB sum
+            dob_sum = month + day + year
+            
+        except (ValueError, TypeError):
+            flash("Invalid date format.", "error")
+            return redirect(url_for('student.complete_profile'))
+        
+        if step == 'confirm':
+            # Show confirmation page
+            month_names = ['', 'January', 'February', 'March', 'April', 'May', 'June',
+                          'July', 'August', 'September', 'October', 'November', 'December']
+            dob_display = f"{month_names[month]} {day}, {year}"
+            current_year = datetime.now().year
+            max_birth_year = current_year - 5
+            
+            return render_template(
+                'student_complete_profile.html',
+                current_page='profile',
+                page_title='Complete Profile',
+                form=form,
+                student=student,
+                confirmed=True,
+                max_birth_year=max_birth_year,
+                confirm_data={
+                    'first_name': first_name,
+                    'last_name': last_name,
+                    'dob_month': dob_month,
+                    'dob_day': dob_day,
+                    'dob_year': dob_year,
+                    'dob_display': dob_display
+                }
+            )
+        
+        elif step == 'submit':
+            # Final submission - update student record
+            try:
+                # Recalculate dob_sum for submit step (needed since it's only calculated in confirm step's try block)
+                # This prevents NameError when submitting the form
+                month = int(dob_month)
+                day = int(dob_day)
+                year = int(dob_year)
+                dob_sum = month + day + year
+                
+                # Update first name (encrypted)
+                student.first_name = first_name
+                
+                # Update last initial from last name (already validated to not be empty)
+                student.last_initial = last_name[0].upper()
+                
+                # Calculate and store DOB sum
+                student.dob_sum = dob_sum
+                
+                # Generate last_name_hash_by_part
+                student.last_name_hash_by_part = hash_last_name_parts(last_name, student.salt)
+                
+                # Regenerate first_half_hash using first initial + dob_sum
+                first_initial_char = first_name[0].upper() if first_name else ''
+                student.first_half_hash = compute_primary_claim_hash(first_initial_char, dob_sum, student.salt)
+                
+                # Regenerate second_half_hash using just dob_sum
+                dob_sum_str = str(dob_sum)
+                student.second_half_hash = hash_hmac(dob_sum_str.encode('utf-8'), student.salt)
+                
+                # Mark migration as completed
+                student.has_completed_profile_migration = True
+                
+                # Update all TeacherBlock entries for this student with new hashes
+                from app.models import TeacherBlock
+                teacher_blocks = TeacherBlock.query.filter_by(student_id=student.id).all()
+                for block in teacher_blocks:
+                    block.last_name_hash_by_part = student.last_name_hash_by_part
+                    block.first_half_hash = student.first_half_hash
+                    block.last_initial = student.last_initial
+                
+                db.session.commit()
+                
+                flash("Profile completed successfully! Thank you.", "success")
+                return redirect(url_for('student.dashboard'))
+                
+            except Exception as e:
+                db.session.rollback()
+                current_app.logger.error(f"Error completing profile for student {student.id}: {str(e)}")
+                flash("An error occurred. Please try again.", "error")
+                return redirect(url_for('student.complete_profile'))
+    
+    # GET request - show form
+    current_year = datetime.now().year
+    max_birth_year = current_year - 5  # Students should be at least 5 years old
+    
+    return render_template(
+        'student_complete_profile.html',
+        current_page='profile',
+        page_title='Complete Profile',
+        form=form,
+        student=student,
+        confirmed=False,
+        max_birth_year=max_birth_year
+    )
 
 
 # -------------------- STUDENT ONBOARDING --------------------

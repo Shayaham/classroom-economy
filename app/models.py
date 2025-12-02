@@ -128,6 +128,8 @@ class Student(db.Model):
     has_completed_setup = db.Column(db.Boolean, default=False)
     # Privacy-aligned DOB sum for username generation (non-reversible)
     dob_sum = db.Column(db.Integer, nullable=True)
+    # Track if student has completed the legacy profile migration
+    has_completed_profile_migration = db.Column(db.Boolean, default=False)
 
     @property
     def full_name(self):
