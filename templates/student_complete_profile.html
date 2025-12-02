@@ -68,7 +68,7 @@
                             <div class="col-md-4 mb-3">
                                 <label for="dob_year" class="form-label">Year <span class="text-danger">*</span></label>
                                 <input type="number" class="form-control" id="dob_year" name="dob_year" 
-                                       value="{{ form.dob_year.data or '' }}" min="1900" max="2020" required placeholder="2010">
+                                       value="{{ form.dob_year.data or '' }}" min="1900" max="{{ max_birth_year or 2020 }}" required placeholder="2010">
                             </div>
                         </div>
 
@@ -149,13 +149,15 @@
             return false;
         }
         
-        if (year < 1900 || year > 2020) {
+        const maxYear = {{ max_birth_year or 2020 }};
+        if (year < 1900 || year > maxYear) {
             e.preventDefault();
-            alert('Please enter a valid birth year (1900-2020).');
+            alert(`Please enter a valid birth year (1900-${maxYear}).`);
             return false;
         }
         
-        // Check for valid day in month
+        // Check for valid day in month (simplified - allows Feb 29 in all years)
+        // More sophisticated leap year validation would require additional logic
         const daysInMonth = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
         if (day > daysInMonth[month - 1]) {
             e.preventDefault();

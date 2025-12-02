@@ -278,14 +278,16 @@ def complete_profile():
             year = int(dob_year)
             
             # Validate ranges
+            current_year = datetime.now().year
             if not (1 <= month <= 12):
                 flash("Invalid month.", "error")
                 return redirect(url_for('student.complete_profile'))
             if not (1 <= day <= 31):
                 flash("Invalid day.", "error")
                 return redirect(url_for('student.complete_profile'))
-            if not (1900 <= year <= 2020):
-                flash("Invalid year.", "error")
+            # Students should be born between 1900 and (current year - 5) for elementary/middle school
+            if not (1900 <= year <= current_year - 5):
+                flash(f"Invalid year. Students should be born between 1900 and {current_year - 5}.", "error")
                 return redirect(url_for('student.complete_profile'))
             
             # Calculate DOB sum
@@ -300,6 +302,8 @@ def complete_profile():
             month_names = ['', 'January', 'February', 'March', 'April', 'May', 'June',
                           'July', 'August', 'September', 'October', 'November', 'December']
             dob_display = f"{month_names[month]} {day}, {year}"
+            current_year = datetime.now().year
+            max_birth_year = current_year - 5
             
             return render_template(
                 'student_complete_profile.html',
@@ -308,6 +312,7 @@ def complete_profile():
                 form=form,
                 student=student,
                 confirmed=True,
+                max_birth_year=max_birth_year,
                 confirm_data={
                     'first_name': first_name,
                     'last_name': last_name,
@@ -364,13 +369,17 @@ def complete_profile():
                 return redirect(url_for('student.complete_profile'))
     
     # GET request - show form
+    current_year = datetime.now().year
+    max_birth_year = current_year - 5  # Students should be at least 5 years old
+    
     return render_template(
         'student_complete_profile.html',
         current_page='profile',
         page_title='Complete Profile',
         form=form,
         student=student,
-        confirmed=False
+        confirmed=False,
+        max_birth_year=max_birth_year
     )
 
 

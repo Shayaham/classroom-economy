@@ -345,4 +345,3 @@ class StudentCompleteProfileForm(FlaskForm):
     dob_day = StringField('Day (1-31)', validators=[DataRequired(), Length(min=1, max=2)])
     dob_year = StringField('Year (4 digits)', validators=[DataRequired(), Length(min=4, max=4)])
     submit = SubmitField('Complete Profile')
-    submit = SubmitField('Add Class')
