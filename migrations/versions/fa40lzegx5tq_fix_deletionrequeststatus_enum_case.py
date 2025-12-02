@@ -1,6 +1,6 @@
 """Fix deletionrequeststatus enum case and type
 
-Revision ID: a1b2c3d4e5f6
+Revision ID: fa40lzegx5tq
 Revises: 5esz32blgjej
 Create Date: 2025-12-02 06:30:00.000000
 
@@ -20,7 +20,7 @@ from sqlalchemy.dialects import postgresql
 
 
 # revision identifiers, used by Alembic.
-revision = 'a1b2c3d4e5f6'
+revision = 'fa40lzegx5tq'
 down_revision = '5esz32blgjej'
 branch_labels = None
 depends_on = None
