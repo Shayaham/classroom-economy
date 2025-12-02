@@ -225,6 +225,13 @@
                           <a href="{{ url_for('admin.student_detail', student_id=student.id) }}" class="btn btn-sm btn-outline-primary">
                             <span class="material-symbols-outlined" style="vertical-align: middle; font-size: 16px;">visibility</span>
                           </a>
+                          <button type="button" class="btn btn-sm btn-outline-danger"
+                                  data-bs-toggle="modal"
+                                  data-bs-target="#deleteStudentModal"
+                                  data-student-id="{{ student.id }}"
+                                  data-student-name="{{ student.full_name }}">
+                            <span class="material-symbols-outlined" style="vertical-align: middle; font-size: 16px;">delete</span>
+                          </button>
                         </td>
                       </tr>
                       {% endfor %}
