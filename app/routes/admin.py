@@ -1342,7 +1342,7 @@ def bulk_delete_pending_students():
             deleted_count = TeacherBlock.query.filter(
                 TeacherBlock.teacher_id == current_admin_id,
                 TeacherBlock.block == block,
-                TeacherBlock.is_claimed == False,
+                TeacherBlock.is_claimed.is_(False),
                 TeacherBlock.student_id.is_(None)
             ).delete(synchronize_session=False)
         else:

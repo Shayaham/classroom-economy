@@ -969,57 +969,43 @@ function deleteAllPendingInBlock(block, unclaimedSeatsCount, unclaimedStudentsCo
 
   if (!confirmation) return;
 
+  // Helper function to delete a type of unclaimed students
+  const deleteUnclaimedType = (endpoint, errorPrefix) => {
+    return fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
+      },
+      body: JSON.stringify({ block: block })
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.status === 'success') {
+        return data.deleted_count;
+      } else {
+        throw new Error(`${errorPrefix}: ${data.message}`);
+      }
+    });
+  };
+
   // Use Promise.all to delete both types in parallel
   const promises = [];
-  let totalDeleted = 0;
   
   // Delete pending TeacherBlock entries if any
   if (unclaimedSeatsCount > 0) {
-    promises.push(
-      fetch('/admin/pending-students/bulk-delete', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
-        },
-        body: JSON.stringify({ block: block })
-      })
-      .then(response => response.json())
-      .then(data => {
-        if (data.status === 'success') {
-          totalDeleted += data.deleted_count;
-        } else {
-          throw new Error(`Pending students: ${data.message}`);
-        }
-      })
-    );
+    promises.push(deleteUnclaimedType('/admin/pending-students/bulk-delete', 'Pending students'));
   }
   
   // Delete legacy unclaimed students if any
   if (unclaimedStudentsCount > 0) {
-    promises.push(
-      fetch('/admin/legacy-unclaimed-students/bulk-delete', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
-        },
-        body: JSON.stringify({ block: block })
-      })
-      .then(response => response.json())
-      .then(data => {
-        if (data.status === 'success') {
-          totalDeleted += data.deleted_count;
-        } else {
-          throw new Error(`Legacy unclaimed students: ${data.message}`);
-        }
-      })
-    );
+    promises.push(deleteUnclaimedType('/admin/legacy-unclaimed-students/bulk-delete', 'Legacy unclaimed students'));
   }
   
   // Wait for all deletions to complete
   Promise.all(promises)
-    .then(() => {
+    .then(deletedCounts => {
+      const totalDeleted = deletedCounts.reduce((sum, count) => sum + count, 0);
       alert(`✓ Successfully deleted ${totalDeleted} unclaimed student(s) from Block ${block.toUpperCase()}`);
       location.reload();
     })
