@@ -37,6 +37,19 @@ def client():
     )
     ctx = app.app_context()
     ctx.push()
+    
+    # Enable foreign key constraints for SQLite
+    # This is necessary for CASCADE deletes to work in tests
+    from sqlalchemy import event
+    from sqlalchemy.engine import Engine
+    
+    @event.listens_for(Engine, "connect")
+    def set_sqlite_pragma(dbapi_conn, connection_record):
+        if 'sqlite' in str(type(dbapi_conn)):
+            cursor = dbapi_conn.cursor()
+            cursor.execute("PRAGMA foreign_keys=ON")
+            cursor.close()
+    
     db.create_all()
     client = app.test_client()
     yield client
