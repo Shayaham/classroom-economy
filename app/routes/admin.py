@@ -901,6 +901,22 @@ def edit_student():
     student = _get_student_or_404(student_id)
     current_admin_id = session.get('admin_id')
 
+    # Check if this is a legacy student (has teacher_id but no StudentTeacher record)
+    # If so, create the StudentTeacher association to upgrade them to the new system
+    if student.teacher_id == current_admin_id:
+        existing_st = StudentTeacher.query.filter_by(
+            student_id=student.id,
+            admin_id=current_admin_id
+        ).first()
+        
+        if not existing_st:
+            # Create StudentTeacher association for this legacy student
+            db.session.add(StudentTeacher(
+                student_id=student.id,
+                admin_id=current_admin_id
+            ))
+            db.session.flush()  # Ensure it's saved before we continue
+
     # Get form data
     new_first_name = request.form.get('first_name', '').strip()
     last_name_input = request.form.get('last_name', '').strip()
@@ -987,6 +1003,21 @@ def edit_student():
     # Handle block changes - update TeacherBlock entries
     removed_blocks = old_blocks - new_blocks_set
     added_blocks = new_blocks_set - old_blocks
+    
+    # For legacy students (those being upgraded), ensure TeacherBlock entries exist
+    # for ALL their blocks, not just newly added ones
+    # Check if this is a legacy student being upgraded (had no TeacherBlock entries)
+    existing_tb_count = TeacherBlock.query.filter_by(
+        student_id=student.id,
+        teacher_id=current_admin_id
+    ).count()
+    
+    if existing_tb_count == 0:
+        # This is a legacy student - ensure TeacherBlock entries for ALL blocks
+        blocks_to_ensure = new_blocks_set
+    else:
+        # Normal case - only create TeacherBlock entries for newly added blocks
+        blocks_to_ensure = added_blocks
 
     # Remove TeacherBlock entries for blocks the student is no longer in
     for block in removed_blocks:
@@ -996,8 +1027,8 @@ def edit_student():
             block=block
         ).delete()
 
-    # Create TeacherBlock entries for new blocks (reusing existing join codes)
-    for block in added_blocks:
+    # Create TeacherBlock entries for blocks that need them (reusing existing join codes)
+    for block in blocks_to_ensure:
         # Check if there's already an unclaimed TeacherBlock for this student in this block
         existing_tb = TeacherBlock.query.filter_by(
             teacher_id=current_admin_id,
@@ -3582,21 +3613,7 @@ def upload_students():
 
             join_code = join_codes_by_block[block]
 
-            # Check if this seat already exists for this teacher
-            # Duplicate detection: same teacher + block + first_name + last_initial
-            existing_seat = TeacherBlock.query.filter_by(
-                teacher_id=teacher_id,
-                block=block,
-                first_name=first_name,
-                last_initial=last_initial
-            ).first()
-
-            if existing_seat:
-                current_app.logger.info(f"Seat for {first_name} {last_name} already exists in block {block}, skipping.")
-                duplicated += 1
-                continue
-
-            # Generate dob_sum
+            # Generate dob_sum first (needed for duplicate detection)
             # Handle both mm/dd/yy and mm/dd/yyyy formats
             date_parts = dob_str.split('/')
             mm = int(date_parts[0])
@@ -3610,6 +3627,28 @@ def upload_students():
                 yyyy = year
 
             dob_sum = mm + dd + yyyy
+
+            # Check if this seat already exists for this teacher
+            # Duplicate detection: same teacher + block + last_initial + dob_sum + first_name
+            # Note: first_name is encrypted, so we must fetch candidates and check in Python
+            candidate_seats = TeacherBlock.query.filter_by(
+                teacher_id=teacher_id,
+                block=block,
+                last_initial=last_initial,
+                dob_sum=dob_sum
+            ).all()
+            
+            # Check if any candidate has matching first name (after decryption)
+            existing_seat = None
+            for seat in candidate_seats:
+                if seat.first_name == first_name:
+                    existing_seat = seat
+                    break
+
+            if existing_seat:
+                current_app.logger.info(f"Seat for {first_name} {last_name} (DOB sum: {dob_sum}) already exists in block {block}, skipping.")
+                duplicated += 1
+                continue
 
             # Generate salt
             salt = get_random_salt()
