@@ -1,7 +1,9 @@
 """
 Tests for feature settings and teacher onboarding functionality.
 """
+import os
 import pytest
+import pyotp
 from app import app, db
 from app.models import Admin, FeatureSettings, TeacherOnboarding, TeacherBlock
 
@@ -259,8 +261,6 @@ class TestTeacherDeletionCascade:
 
     def test_feature_settings_cascade_on_teacher_delete(self, client_with_fk):
         """Test that FeatureSettings are CASCADE deleted when teacher is deleted."""
-        import pyotp
-        
         # Create a teacher
         admin = Admin(
             username='cascade_test_teacher',
@@ -289,8 +289,6 @@ class TestTeacherDeletionCascade:
 
     def test_teacher_onboarding_cascade_on_teacher_delete(self, client_with_fk):
         """Test that TeacherOnboarding is CASCADE deleted when teacher is deleted."""
-        import pyotp
-        
         # Create a teacher
         admin = Admin(
             username='onboarding_cascade_test',
@@ -317,9 +315,6 @@ class TestTeacherDeletionCascade:
 
     def test_teacher_blocks_cascade_on_teacher_delete(self, client_with_fk):
         """Test that TeacherBlocks are CASCADE deleted when teacher is deleted."""
-        import pyotp
-        import os
-        
         # Create a teacher
         admin = Admin(
             username='blocks_cascade_test',

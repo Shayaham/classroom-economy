@@ -876,8 +876,8 @@ def delete_teacher(admin_id):
         TeacherBlock.query.filter_by(teacher_id=admin.id).delete()
 
         # Delete FeatureSettings and TeacherOnboarding for this teacher
-        # With passive_deletes=True these would CASCADE automatically,
-        # but explicit deletion ensures consistent behavior
+        # While these models have passive_deletes=True and ondelete='CASCADE',
+        # explicit deletion provides defense-in-depth and consistent patterns
         FeatureSettings.query.filter_by(teacher_id=admin.id).delete()
         TeacherOnboarding.query.filter_by(teacher_id=admin.id).delete()
 

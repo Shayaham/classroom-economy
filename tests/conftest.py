@@ -44,23 +44,33 @@ def client():
     ctx.pop()
 
 
+# SQLite pragma event listener for foreign key constraints
+# Defined at module level to avoid registration issues
+from sqlalchemy import event
+from sqlalchemy.engine import Engine
+
+_fk_pragma_listener_registered = False
+
+def _enable_sqlite_foreign_keys(dbapi_conn, connection_record):
+    """Enable foreign key constraints for SQLite connections."""
+    if 'sqlite' in str(type(dbapi_conn)):
+        cursor = dbapi_conn.cursor()
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.close()
+
+
 @pytest.fixture
 def client_with_fk():
     """
     Test client with foreign key constraints enabled.
     Use this fixture for tests that need to verify CASCADE behavior.
     """
-    from sqlalchemy import event
-    from sqlalchemy.engine import Engine
+    global _fk_pragma_listener_registered
     
-    # Enable foreign key constraints for SQLite
-    # This is necessary for CASCADE deletes to work in tests
-    @event.listens_for(Engine, "connect")
-    def set_sqlite_pragma(dbapi_conn, connection_record):
-        if 'sqlite' in str(type(dbapi_conn)):
-            cursor = dbapi_conn.cursor()
-            cursor.execute("PRAGMA foreign_keys=ON")
-            cursor.close()
+    # Register event listener only once
+    if not _fk_pragma_listener_registered:
+        event.listen(Engine, "connect", _enable_sqlite_foreign_keys)
+        _fk_pragma_listener_registered = True
     
     app.config.update(
         TESTING=True,
@@ -81,9 +91,6 @@ def client_with_fk():
     
     client = app.test_client()
     yield client
-    
-    # Remove the event listener after test
-    event.remove(Engine, "connect", set_sqlite_pragma)
     
     db.drop_all()
     ctx.pop()
