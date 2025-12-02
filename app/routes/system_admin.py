@@ -20,7 +20,8 @@ from app.models import (
     SystemAdmin, Admin, Student, AdminInviteCode, ErrorLog,
     Transaction, TapEvent, HallPassLog, StudentItem, RentPayment,
     StudentInsurance, InsuranceClaim, StudentTeacher, DeletionRequest,
-    DeletionRequestType, DeletionRequestStatus, TeacherBlock, UserReport
+    DeletionRequestType, DeletionRequestStatus, TeacherBlock, UserReport,
+    FeatureSettings, TeacherOnboarding
 )
 from app.auth import system_admin_required
 from forms import SystemAdminLoginForm, SystemAdminInviteForm
@@ -873,6 +874,12 @@ def delete_teacher(admin_id):
         # Delete all TeacherBlock entries for this teacher
         # This cleans up roster seats associated with the teacher
         TeacherBlock.query.filter_by(teacher_id=admin.id).delete()
+
+        # Delete FeatureSettings and TeacherOnboarding for this teacher
+        # With passive_deletes=True these would CASCADE automatically,
+        # but explicit deletion ensures consistent behavior
+        FeatureSettings.query.filter_by(teacher_id=admin.id).delete()
+        TeacherOnboarding.query.filter_by(teacher_id=admin.id).delete()
 
         admin_username = admin.username
         db.session.delete(admin)
