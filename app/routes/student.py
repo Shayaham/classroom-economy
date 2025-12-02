@@ -1292,6 +1292,120 @@ def apply_savings_interest(student, annual_rate=0.045):
             db.session.commit()
 
 
+@student_bp.route('/transfer-to-student', methods=['POST'])
+@login_required
+def transfer_to_student():
+    """Transfer funds from one student to another student in the same class."""
+    student = get_logged_in_student()
+    
+    # Get full class context (join_code, teacher_id, block)
+    context = get_current_class_context()
+    if not context:
+        return jsonify(status="error", message="No class selected."), 400
+    
+    join_code = context['join_code']
+    teacher_id = context['teacher_id']
+    
+    # Get form data
+    recipient_username = request.form.get('recipient_username', '').strip()
+    amount = request.form.get('amount', type=float)
+    passphrase = request.form.get('passphrase', '')
+    
+    # Validate passphrase
+    if not check_password_hash(student.passphrase_hash or '', passphrase):
+        return jsonify(status="error", message="Incorrect passphrase."), 400
+    
+    # Validate amount
+    if not amount or amount <= 0:
+        return jsonify(status="error", message="Amount must be greater than 0."), 400
+    
+    # Find recipient by username in the same class
+    from app.models import TeacherBlock
+    from hash_utils import hash_username_lookup
+    
+    # Hash the recipient username for lookup
+    try:
+        recipient_lookup_hash = hash_username_lookup(recipient_username)
+    except Exception as e:
+        current_app.logger.error(f"Failed to hash recipient username: {e}")
+        return jsonify(status="error", message="Invalid recipient username."), 400
+    
+    # Find recipient student
+    recipient = Student.query.filter_by(username_lookup_hash=recipient_lookup_hash).first()
+    
+    if not recipient:
+        return jsonify(status="error", message="Recipient not found."), 404
+    
+    # Prevent self-transfer
+    if recipient.id == student.id:
+        return jsonify(status="error", message="Cannot send money to yourself."), 400
+    
+    # Verify recipient is in the same class (same join_code)
+    recipient_seat = TeacherBlock.query.filter_by(
+        student_id=recipient.id,
+        join_code=join_code,
+        is_claimed=True
+    ).first()
+    
+    if not recipient_seat:
+        return jsonify(
+            status="error",
+            message="Recipient is not in your class. You can only send money to classmates."
+        ), 400
+    
+    # Calculate sender's checking balance for this class
+    checking_balance = round(sum(
+        tx.amount for tx in student.transactions
+        if tx.account_type == 'checking' and not tx.is_void and tx.join_code == join_code
+    ), 2)
+    
+    # Check sufficient balance
+    if amount > checking_balance:
+        return jsonify(status="error", message="Insufficient funds in checking account."), 400
+    
+    try:
+        # Create debit transaction for sender
+        sender_tx = Transaction(
+            student_id=student.id,
+            teacher_id=teacher_id,
+            join_code=join_code,
+            amount=-amount,
+            account_type='checking',
+            type='Transfer',
+            description=f'Sent to {recipient.full_name}'
+        )
+        
+        # Create credit transaction for recipient
+        recipient_tx = Transaction(
+            student_id=recipient.id,
+            teacher_id=teacher_id,
+            join_code=join_code,
+            amount=amount,
+            account_type='checking',
+            type='Transfer',
+            description=f'Received from {student.full_name}'
+        )
+        
+        db.session.add(sender_tx)
+        db.session.add(recipient_tx)
+        db.session.commit()
+        
+        current_app.logger.info(
+            f"Peer transfer: {amount} from student {student.id} to student {recipient.id} "
+            f"in class {join_code}"
+        )
+        
+        return jsonify(
+            status="success",
+            message=f"Successfully sent ${amount:.2f} to {recipient.full_name}!"
+        )
+        
+    except SQLAlchemyError as e:
+        db.session.rollback()
+        current_app.logger.error(f"Peer transfer failed: {e}", exc_info=True)
+        return jsonify(status="error", message="Transfer failed due to a database error."), 500
+
+
 # -------------------- INSURANCE --------------------
 
 @student_bp.route('/insurance', endpoint='student_insurance')
