@@ -144,11 +144,6 @@ def test_transfer_post_blocked_when_banking_disabled(client, setup_student_with_
     assert '/student/dashboard' in response.location
     
     # Verify no transactions were created
-    transactions = Transaction.query.filter_by(
-        student_id=student.id,
-        join_code=join_code,
-        type='Withdrawal'
-    ).all()
     
     # Should only have the initial transaction, no transfer
     all_transactions = Transaction.query.filter_by(student_id=student.id).all()
