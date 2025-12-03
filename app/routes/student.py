@@ -12,7 +12,7 @@ from calendar import monthrange
 from datetime import datetime, timedelta, timezone
 
 from flask import Blueprint, redirect, url_for, flash, request, session, jsonify, current_app
-from sqlalchemy import or_, func, select
+from sqlalchemy import or_, func, select, and_
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 from werkzeug.security import generate_password_hash, check_password_hash
 import pytz
@@ -1141,13 +1141,12 @@ def transfer():
 
     # CRITICAL FIX v2: Get transactions for display - scope by join_code
     # Include transactions with matching join_code OR NULL join_code (legacy) with matching teacher_id
-    from sqlalchemy import or_
     transactions = Transaction.query.filter(
         Transaction.student_id == student.id,
         Transaction.is_void == False,
         or_(
             Transaction.join_code == join_code,
-            (Transaction.join_code == None) & (Transaction.teacher_id == teacher_id)
+            and_(Transaction.join_code.is_(None), Transaction.teacher_id == teacher_id)
         )
     ).order_by(Transaction.timestamp.desc()).all()
     checking_transactions = [t for t in transactions if t.account_type == 'checking']
