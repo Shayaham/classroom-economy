@@ -25,6 +25,13 @@ from app.models import Student, StudentTeacher
 def fix_missing_associations():
     """Create StudentTeacher records for students missing them."""
     with app.app_context():
+        # Batch-fetch all existing StudentTeacher associations for students with teacher_id
+        # This prevents N+1 query problem by loading all associations upfront
+        existing_pairs = set(
+            (st.student_id, st.admin_id)
+            for st in StudentTeacher.query.join(Student).filter(Student.teacher_id.isnot(None)).all()
+        )
+        
         # Find all students with teacher_id but no StudentTeacher record
         # Use yield_per for memory efficiency with large datasets
         students_query = Student.query.filter(Student.teacher_id.isnot(None)).yield_per(1000)
@@ -35,13 +42,8 @@ def fix_missing_associations():
         batch = []
         
         for student in students_query:
-            # Check if StudentTeacher record already exists
-            existing = StudentTeacher.query.filter_by(
-                student_id=student.id,
-                admin_id=student.teacher_id
-            ).first()
-            
-            if not existing:
+            # Check using the in-memory set instead of DB query
+            if (student.id, student.teacher_id) not in existing_pairs:
                 # Create missing StudentTeacher record
                 st = StudentTeacher(
                     student_id=student.id,

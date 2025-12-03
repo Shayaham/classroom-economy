@@ -260,6 +260,9 @@ def get_admin_student_query(include_unassigned=True):
     CRITICAL SECURITY NOTE: We ONLY use the StudentTeacher table as the source of truth.
     The teacher_id column on Student is DEPRECATED and should NOT be used for scoping
     because it can contain stale data from deleted teachers or data migration issues.
+    
+    Args:
+        include_unassigned (bool): [DEPRECATED] No longer used. Kept for backward compatibility.
     """
     from app.models import Student, StudentTeacher  # Imported lazily to avoid circular import
 

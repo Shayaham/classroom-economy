@@ -6,6 +6,7 @@ belonging to other teachers.
 """
 
 import pytest
+import sqlalchemy as sa
 from app import app as flask_app
 from app.models import Admin, Student, StudentTeacher
 from app.extensions import db
@@ -96,7 +97,7 @@ def test_teacher_can_only_see_own_students(client, multi_teacher_data):
 
 def test_brand_new_teacher_sees_no_students(client, multi_teacher_data):
     """Test that a brand new teacher with no students sees 0 students."""
-    teacher1, teacher2 = multi_teacher_data
+    # multi_teacher_data fixture creates test data but we don't need the teacher objects here
     
     # Create a brand new teacher with no students
     new_teacher = Admin(username="new_teacher", totp_secret="SECRET3")
