@@ -246,3 +246,30 @@ def test_hall_pass_queue_uses_session_admin_id(client, setup_multi_teacher_hall_
     # Should see teacher1's data
     assert len(json_data['queue']) == 1
     assert json_data['queue'][0]['student_name'] == 'Alice A.'
+
+
+def test_hall_pass_queue_rejects_invalid_teacher_id(client):
+    """Test that endpoint returns 404 for non-existent teacher_id."""
+    response = client.get('/api/hall-pass/queue?teacher_id=99999')
+    assert response.status_code == 404
+    data = response.get_json()
+    assert data['status'] == 'error'
+    assert 'Invalid teacher_id' in data['message']
+
+
+def test_hall_pass_queue_rejects_cross_teacher_access(client, setup_multi_teacher_hall_passes):
+    """Test that teacher1 cannot access teacher2's queue."""
+    data = setup_multi_teacher_hall_passes
+    teacher2_id = data['teacher2'].id
+    
+    # Login as teacher1
+    with client.session_transaction() as sess:
+        sess['is_admin'] = True
+        sess['admin_id'] = data['teacher1'].id
+    
+    # Try to access teacher2's queue
+    response = client.get(f'/api/hall-pass/queue?teacher_id={teacher2_id}')
+    assert response.status_code == 403
+    json_data = response.get_json()
+    assert json_data['status'] == 'error'
+    assert 'Unauthorized' in json_data['message']

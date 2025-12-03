@@ -1293,6 +1293,7 @@ def apply_savings_interest(student, annual_rate=0.045):
 
 
 @student_bp.route('/transfer-to-student', methods=['POST'])
+@limiter.limit("10 per minute")
 @login_required
 def transfer_to_student():
     """Transfer funds from one student to another student in the same class."""
@@ -1350,17 +1351,27 @@ def transfer_to_student():
             message="Recipient is not in your class. You can only send money to classmates."
         ), 400
     
-    # Calculate sender's checking balance for this class
-    checking_balance = round(sum(
-        tx.amount for tx in student.transactions
-        if tx.account_type == 'checking' and not tx.is_void and tx.join_code == join_code
-    ), 2)
-    
-    # Check sufficient balance
-    if amount > checking_balance:
-        return jsonify(status="error", message="Insufficient funds in checking account."), 400
-    
     try:
+        # Lock the student row to prevent race conditions during balance check
+        # This ensures atomicity between balance check and transaction creation
+        locked_student = db.session.query(Student).filter_by(id=student.id).with_for_update().first()
+        
+        # Calculate sender's checking balance for this class using database aggregation
+        checking_balance = db.session.query(
+            func.sum(Transaction.amount)
+        ).filter(
+            Transaction.student_id == student.id,
+            Transaction.account_type == 'checking',
+            Transaction.is_void == False,
+            Transaction.join_code == join_code
+        ).scalar() or 0.0
+        checking_balance = round(checking_balance, 2)
+        
+        # Check sufficient balance
+        if amount > checking_balance:
+            db.session.rollback()
+            return jsonify(status="error", message="Insufficient funds in checking account."), 400
+        
         # Create debit transaction for sender
         sender_tx = Transaction(
             student_id=student.id,

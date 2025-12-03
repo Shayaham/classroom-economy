@@ -12,7 +12,7 @@ import pytz
 from datetime import datetime, timedelta, timezone
 
 from flask import Blueprint, request, jsonify, session, current_app
-from sqlalchemy import func, text, or_
+from sqlalchemy import func, or_
 from sqlalchemy.exc import SQLAlchemyError
 from werkzeug.security import check_password_hash
 
@@ -802,6 +802,8 @@ def get_hall_pass_queue():
     If no teacher_id is provided and user is logged in as admin, uses session admin_id.
     """
     
+    from app.models import Admin
+    
     # Determine which teacher's data to show
     teacher_id = request.args.get('teacher_id', type=int)
     
@@ -815,6 +817,22 @@ def get_hall_pass_queue():
             "status": "error",
             "message": "teacher_id parameter required for queue display"
         }), 400
+    
+    # Validate teacher exists
+    teacher = Admin.query.get(teacher_id)
+    if not teacher:
+        return jsonify({
+            "status": "error",
+            "message": "Invalid teacher_id"
+        }), 404
+    
+    # If querying as admin, verify authorization (only their own data unless system admin)
+    if session.get('is_admin') and not session.get('is_system_admin'):
+        if session.get('admin_id') != teacher_id:
+            return jsonify({
+                "status": "error",
+                "message": "Unauthorized"
+            }), 403
     
     # Get hall pass settings for this teacher (or use defaults)
     settings = HallPassSettings.query.filter_by(teacher_id=teacher_id, block=None).first()

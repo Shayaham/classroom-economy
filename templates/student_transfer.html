@@ -440,6 +440,14 @@
 
 {% block extra_scripts %}
 <script>
+    // HTML escape function to prevent XSS
+    function escapeHtml(text) {
+        if (text == null) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
     // Account-to-account transfer
     document.getElementById("transferDetailsForm").addEventListener("submit", function (e) {
         e.preventDefault();
@@ -480,7 +488,7 @@
         document.getElementById("modal_peer_amount").value = amount;
 
         document.getElementById("peer-transfer-summary").innerHTML =
-            `Send <strong>$${amount}</strong> to <strong>${recipientUsername}</strong>`;
+            `Send <strong>$${amount}</strong> to <strong>${escapeHtml(recipientUsername)}</strong>`;
 
         // Show modal
         const modal = new bootstrap.Modal(document.getElementById('peerPassphraseModal'));
