@@ -2491,10 +2491,46 @@ def logout():
     return redirect(url_for('student.login'))
 
 
+@student_bp.route('/switch-class/<join_code>', methods=['POST'])
+@login_required
+def switch_class(join_code):
+    """Switch to a different class using join_code for proper multi-tenancy isolation."""
+    from app.models import TeacherBlock, Admin
+
+    student = get_logged_in_student()
+
+    # Verify student has a claimed seat for this join_code
+    seat = TeacherBlock.query.filter_by(
+        student_id=student.id,
+        join_code=join_code,
+        is_claimed=True
+    ).first()
+
+    if not seat:
+        return jsonify(status="error", message="You don't have access to that class."), 403
+
+    # Update session with new join code
+    session['current_join_code'] = join_code
+
+    # Get teacher name for response
+    teacher = Admin.query.get(seat.teacher_id)
+    teacher_name = teacher.username if teacher else "Unknown"
+
+    # Get block/period info
+    block_display = f"Block {seat.block.upper()}" if seat.block else "Unknown Block"
+
+    return jsonify(
+        status="success",
+        message=f"Switched to {teacher_name}'s class ({block_display})",
+        teacher_name=teacher_name,
+        block=seat.block
+    )
+
+
 @student_bp.route('/switch-period/<int:teacher_id>', methods=['POST'])
 @login_required
 def switch_period(teacher_id):
-    """Switch to a different period/teacher's class economy."""
+    """DEPRECATED: Use switch_class instead. Kept for backwards compatibility."""
     student = get_logged_in_student()
 
     # Verify student has access to this teacher
@@ -2503,7 +2539,7 @@ def switch_period(teacher_id):
         flash("You don't have access to that class.", "error")
         return redirect(url_for('student.dashboard'))
 
-    # Update session with new teacher
+    # Update session with new teacher (old method)
     session['current_teacher_id'] = teacher_id
 
     # Get teacher name for flash message
