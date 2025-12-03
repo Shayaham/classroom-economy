@@ -57,7 +57,7 @@ function escapeHtml(text) {
 }
 
 // Use centralized timezone utility for timestamp formatting
-const formatTimestamp = window.TimezoneUtils.formatTimestamp;
+const formatTimestamp = window.TimezoneUtils?.formatTimestamp || ((ts) => ts || '—');
 
 async function loadAttendanceHistory(page = 1) {
     currentPage = page;
