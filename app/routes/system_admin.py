@@ -21,7 +21,8 @@ from app.models import (
     Transaction, TapEvent, HallPassLog, StudentItem, RentPayment,
     StudentInsurance, InsuranceClaim, StudentTeacher, DeletionRequest,
     DeletionRequestType, DeletionRequestStatus, TeacherBlock, UserReport,
-    FeatureSettings, TeacherOnboarding, RentSettings
+    FeatureSettings, TeacherOnboarding, RentSettings,
+    HallPassSettings, StoreItem, PayrollSettings, PayrollReward, PayrollFine, BankingSettings
 )
 from app.auth import system_admin_required
 from forms import SystemAdminLoginForm, SystemAdminInviteForm
