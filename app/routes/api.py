@@ -1095,16 +1095,18 @@ def attendance_history():
 
         if start_date:
             try:
+                # Parse date and treat as UTC midnight (start of day)
                 start_datetime = datetime.strptime(start_date, '%Y-%m-%d')
+                start_datetime = start_datetime.replace(tzinfo=timezone.utc)
                 query = query.filter(TapEvent.timestamp >= start_datetime)
             except ValueError:
                 return jsonify({"status": "error", "message": "Invalid start date format"}), 400
 
         if end_date:
             try:
-                # End date should include the entire day
+                # Parse date and treat as UTC end of day (23:59:59)
                 end_datetime = datetime.strptime(end_date, '%Y-%m-%d')
-                end_datetime = end_datetime.replace(hour=23, minute=59, second=59)
+                end_datetime = end_datetime.replace(hour=23, minute=59, second=59, tzinfo=timezone.utc)
                 query = query.filter(TapEvent.timestamp <= end_datetime)
             except ValueError:
                 return jsonify({"status": "error", "message": "Invalid end date format"}), 400
@@ -1133,6 +1135,20 @@ def attendance_history():
         records_data = []
         for record in records:
             student_info = students.get(record.student_id, {'name': 'Unknown', 'block': 'Unknown'})
+            
+            # Format timestamp as UTC with 'Z' suffix
+            timestamp_str = None
+            if record.timestamp:
+                # Ensure timestamp is treated as UTC and format properly
+                if record.timestamp.tzinfo is None:
+                    # Naive datetime - assume UTC
+                    timestamp_str = record.timestamp.replace(tzinfo=timezone.utc).isoformat()
+                else:
+                    # Convert to UTC if not already
+                    timestamp_str = record.timestamp.astimezone(timezone.utc).isoformat()
+                # Replace +00:00 with Z for cleaner UTC representation
+                timestamp_str = timestamp_str.replace('+00:00', 'Z')
+            
             records_data.append({
                 "id": record.id,
                 "student_id": record.student_id,
@@ -1141,7 +1157,7 @@ def attendance_history():
                 "period": record.period,
                 "status": record.status,
                 "reason": record.reason if record.reason else None,
-                "timestamp": record.timestamp.isoformat() + 'Z' if record.timestamp else None
+                "timestamp": timestamp_str
             })
 
         return jsonify({
@@ -1154,7 +1170,7 @@ def attendance_history():
         })
 
     except Exception as e:
-        current_app.logger.error(f"Error fetching attendance history: {e}")
+        current_app.logger.error(f"Error fetching attendance history: {e}", exc_info=True)
         return jsonify({"status": "error", "message": "Failed to fetch attendance history"}), 500
 
 
