@@ -343,7 +343,7 @@ class StudentBlock(db.Model):
     # Toggle for enabling/disabling tap in/out for this student in this period
     tap_enabled = db.Column(db.Boolean, default=True, nullable=False)
 
-    # When student marks "done for the day", store the date (UTC)
+    # When student marks "done for the day", store the date (Pacific time)
     # This locks them out until 11:59 PM same day
     done_for_day_date = db.Column(db.Date, nullable=True)
 
@@ -371,9 +371,9 @@ class TapEvent(db.Model):
     reason = db.Column(db.String(50), nullable=True)
 
     # Flag to indicate if this event was deleted by a teacher
-    is_deleted = db.Column(db.Boolean, default=False, nullable=False)
+    is_deleted = db.Column(db.Boolean, default=False, nullable=False, index=True)
     deleted_at = db.Column(db.DateTime, nullable=True)
-    deleted_by = db.Column(db.Integer, db.ForeignKey('admins.id'), nullable=True)
+    deleted_by = db.Column(db.Integer, db.ForeignKey('admins.id', ondelete='SET NULL'), nullable=True)
 
     student = db.relationship("Student", backref="tap_events")
     deleted_by_admin = db.relationship("Admin", foreign_keys=[deleted_by])

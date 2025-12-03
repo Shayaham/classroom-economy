@@ -1190,13 +1190,20 @@ def handle_tap():
 
     # If no StudentBlock record exists, create one with default settings (tap_enabled=True)
     if not student_block:
-        student_block = StudentBlock(
-            student_id=student.id,
-            period=period,
-            tap_enabled=True
-        )
-        db.session.add(student_block)
-        db.session.commit()
+        try:
+            student_block = StudentBlock(
+                student_id=student.id,
+                period=period,
+                tap_enabled=True
+            )
+            db.session.add(student_block)
+            db.session.commit()
+        except IntegrityError:
+            db.session.rollback()
+            student_block = StudentBlock.query.filter_by(
+                student_id=student.id,
+                period=period
+            ).first()
 
     # Check if tap is disabled for this period
     if not student_block.tap_enabled:
@@ -1209,6 +1216,10 @@ def handle_tap():
         now_pacific = now.astimezone(pacific)
         today_pacific = now_pacific.date()
 
+        # Automatically clear "done for the day" lock if it's from a previous day
+        if student_block.done_for_day_date is not None and student_block.done_for_day_date < today_pacific:
+            student_block.done_for_day_date = None
+            db.session.commit()
         if student_block.done_for_day_date == today_pacific:
             return jsonify({"error": "You are done for the day. You cannot tap in again until tomorrow."}), 403
 
@@ -1482,8 +1493,8 @@ def get_tap_entries(student_id):
     if not student:
         return jsonify({"error": "Student not found"}), 404
 
-    # Check if admin has access to this student
-    if not student.teachers.filter_by(id=admin.id).first():
+    # Check if admin has access to this student (many-to-many or legacy teacher_id)
+    if not (student.teachers.filter_by(id=admin.id).first() or student.teacher_id == admin.id):
         return jsonify({"error": "Access denied"}), 403
 
     # Get all tap events for this student
@@ -1515,9 +1526,10 @@ def get_tap_entries(student_id):
         unpaired = []
         expected_status = 'active'
         for event in active_events:
-            if event['status'] != expected_status:
+            if event['status'] == expected_status:
+                expected_status = 'inactive' if expected_status == 'active' else 'active'
+            else:
                 unpaired.append(event['id'])
-            expected_status = 'inactive' if expected_status == 'active' else 'active'
 
         # If we end on 'active', the last event is unpaired (student still tapped in)
         if active_events and active_events[-1]['status'] == 'active':
@@ -1555,7 +1567,7 @@ def delete_tap_entry(event_id):
 
     # Check if admin has access to this student
     student = Student.query.get(event.student_id)
-    if not student or not student.teachers.filter_by(id=admin.id).first():
+    if not student or (not student.teachers.filter_by(id=admin.id).first() and student.teacher_id != admin.id):
         return jsonify({"error": "Access denied"}), 403
 
     # Mark as deleted

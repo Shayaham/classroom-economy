@@ -41,7 +41,7 @@ def upgrade():
     op.add_column('tap_events', sa.Column('deleted_by', sa.Integer(), nullable=True))
 
     # Add foreign key for deleted_by
-    op.create_foreign_key('fk_tap_events_deleted_by', 'tap_events', 'admins', ['deleted_by'], ['id'])
+    op.create_foreign_key('fk_tap_events_deleted_by', 'tap_events', 'admins', ['deleted_by'], ['id'], ondelete='SET NULL')
 
 
 def downgrade():
