@@ -1,10 +1,11 @@
 """
-Test for student finances page to ensure proper scoping of statistics.
+Tests for student finances page to ensure proper scoping of statistics.
 
 Ensures that the finances page correctly displays class-scoped statistics
 like total earnings, rather than showing aggregate data from all classes.
 """
 
+import re
 import pytest
 from datetime import datetime, timezone
 from werkzeug.security import generate_password_hash
@@ -179,7 +180,6 @@ def test_finances_page_shows_scoped_earnings(client, setup_student_multi_class):
     assert 'Total Earnings' in html
     
     # Find the Total Earnings line and verify the amount
-    import re
     # Pattern to match: "Total Earnings" followed by the dollar amount
     pattern = r'Total Earnings.*?\$(\d+\.\d{2})'
     match = re.search(pattern, html, re.DOTALL)
