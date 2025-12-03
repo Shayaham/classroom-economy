@@ -52,8 +52,8 @@
             const parts = formatted.split(' ');
             return parts[parts.length - 1];
         } catch (e) {
-            // Fallback to showing timezone name or PST
-            return timezoneName === DEFAULT_TIMEZONE ? 'PST' : '';
+            // Fallback to showing timezone abbreviation; return empty string for consistency
+            return '';
         }
     }
 
