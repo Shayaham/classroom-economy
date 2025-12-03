@@ -342,7 +342,7 @@
                     if (data.status === 'success') {
                         renderQueue(data);
                     } else {
-                        console.error('Error response from queue API:', data.message);
+                        console.error('Error response from queue API:', data?.message || 'Unknown error');
                     }
                 })
                 .catch(error => {
