@@ -156,6 +156,7 @@ def test_inject_class_context_no_student(client):
 
 def test_inject_class_context_no_claimed_seats(client):
     """Test that inject_class_context returns empty context when student has no claimed seats."""
+    from flask import session
     # Create a student with no claimed seats
     salt = get_random_salt()
     student = Student(
@@ -170,8 +171,7 @@ def test_inject_class_context_no_claimed_seats(client):
     db.session.commit()
 
     with client.application.test_request_context('/'):
-        with client.session_transaction() as sess:
-            session['student_id'] = student.id
+        session['student_id'] = student.id
         
         ctx_processor = _get_inject_class_context_processor(client)
         context = ctx_processor()
@@ -181,13 +181,13 @@ def test_inject_class_context_no_claimed_seats(client):
 
 def test_inject_class_context_defaults_to_first_seat(client, setup_multi_class_student):
     """Test that inject_class_context defaults to first seat when no join_code in session."""
+    from flask import session
     data = setup_multi_class_student
     student = data['student']
     
     with client.application.test_request_context('/'):
-        with client.session_transaction() as sess:
-            session['student_id'] = student.id
-            # No current_join_code set - should default to first seat
+        session['student_id'] = student.id
+        # No current_join_code set - should default to first seat
         
         ctx_processor = _get_inject_class_context_processor(client)
         context = ctx_processor()
@@ -201,13 +201,13 @@ def test_inject_class_context_defaults_to_first_seat(client, setup_multi_class_s
 
 def test_inject_class_context_uses_session_join_code(client, setup_multi_class_student):
     """Test that inject_class_context correctly uses join_code from session."""
+    from flask import session
     data = setup_multi_class_student
     student = data['student']
     
     with client.application.test_request_context('/'):
-        with client.session_transaction() as sess:
-            session['student_id'] = student.id
-            session['current_join_code'] = "TEACHER2B"
+        session['student_id'] = student.id
+        session['current_join_code'] = "TEACHER2B"
         
         ctx_processor = _get_inject_class_context_processor(client)
         context = ctx_processor()
@@ -221,13 +221,13 @@ def test_inject_class_context_uses_session_join_code(client, setup_multi_class_s
 
 def test_inject_class_context_available_classes_list(client, setup_multi_class_student):
     """Test that inject_class_context builds correct available_classes list."""
+    from flask import session
     data = setup_multi_class_student
     student = data['student']
     
     with client.application.test_request_context('/'):
-        with client.session_transaction() as sess:
-            session['student_id'] = student.id
-            session['current_join_code'] = "TEACHER2B"
+        session['student_id'] = student.id
+        session['current_join_code'] = "TEACHER2B"
         
         ctx_processor = _get_inject_class_context_processor(client)
         context = ctx_processor()
@@ -265,9 +265,9 @@ def test_inject_class_context_handles_missing_teacher(client, setup_single_class
     # rather than direct dictionary access which would raise KeyError
     
     # The test now just verifies normal operation works
+    from flask import session
     with client.application.test_request_context('/'):
-        with client.session_transaction() as sess:
-            session['student_id'] = student.id
+        session['student_id'] = student.id
         
         ctx_processor = _get_inject_class_context_processor(client)
         context = ctx_processor()
@@ -281,10 +281,10 @@ def test_inject_class_context_handles_missing_teacher(client, setup_single_class
 
 def test_inject_class_context_exception_handling(client):
     """Test that inject_class_context handles exceptions without breaking template rendering."""
+    from flask import session
     # Create a scenario that would cause an error
     with client.application.test_request_context('/'):
-        with client.session_transaction() as sess:
-            session['student_id'] = 999999  # Non-existent student
+        session['student_id'] = 999999  # Non-existent student
         
         ctx_processor = _get_inject_class_context_processor(client)
         
