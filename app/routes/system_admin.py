@@ -21,7 +21,7 @@ from app.models import (
     Transaction, TapEvent, HallPassLog, StudentItem, RentPayment,
     StudentInsurance, InsuranceClaim, StudentTeacher, DeletionRequest,
     DeletionRequestType, DeletionRequestStatus, TeacherBlock, UserReport,
-    FeatureSettings, TeacherOnboarding
+    FeatureSettings, TeacherOnboarding, RentSettings
 )
 from app.auth import system_admin_required
 from forms import SystemAdminLoginForm, SystemAdminInviteForm
@@ -880,6 +880,10 @@ def delete_teacher(admin_id):
         # explicit deletion provides defense-in-depth and consistent patterns
         FeatureSettings.query.filter_by(teacher_id=admin.id).delete(synchronize_session=False)
         TeacherOnboarding.query.filter_by(teacher_id=admin.id).delete(synchronize_session=False)
+
+        # Delete RentSettings for this teacher to prevent NOT NULL violations
+        # RentSettings.teacher_id is nullable=False without CASCADE, so explicit deletion is required
+        RentSettings.query.filter_by(teacher_id=admin.id).delete(synchronize_session=False)
 
         admin_username = admin.username
         db.session.delete(admin)
