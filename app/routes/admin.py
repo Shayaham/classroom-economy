@@ -3636,7 +3636,7 @@ def attendance_log():
     periods_query = (
         db.session.query(TapEvent.period)
         .filter(TapEvent.student_id.in_(student_ids_subq))
-        .filter(TapEvent.is_deleted == False)
+        .filter(TapEvent.is_deleted.is_not(True))
         .distinct()
         .order_by(TapEvent.period)
     )
