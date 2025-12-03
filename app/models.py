@@ -35,7 +35,7 @@ class TeacherBlock(db.Model):
     __tablename__ = 'teacher_blocks'
 
     id = db.Column(db.Integer, primary_key=True)
-    teacher_id = db.Column(db.Integer, db.ForeignKey('admins.id'), nullable=False)
+    teacher_id = db.Column(db.Integer, db.ForeignKey('admins.id', ondelete='CASCADE'), nullable=False)
     block = db.Column(db.String(10), nullable=False)
 
     # Student identifiers (used for matching during claim)
@@ -65,7 +65,7 @@ class TeacherBlock(db.Model):
     claimed_at = db.Column(db.DateTime, nullable=True)
 
     # Relationships
-    teacher = db.relationship('Admin', backref=db.backref('roster_seats', lazy='dynamic'))
+    teacher = db.relationship('Admin', backref=db.backref('roster_seats', lazy='dynamic', passive_deletes=True))
     student = db.relationship('Student', backref='roster_seats')
 
     # Indexes for efficient lookups
@@ -950,7 +950,7 @@ class FeatureSettings(db.Model):
     """
     __tablename__ = 'feature_settings'
     id = db.Column(db.Integer, primary_key=True)
-    teacher_id = db.Column(db.Integer, db.ForeignKey('admins.id'), nullable=False)
+    teacher_id = db.Column(db.Integer, db.ForeignKey('admins.id', ondelete='CASCADE'), nullable=False)
     block = db.Column(db.String(10), nullable=True)  # NULL = global defaults for teacher
 
     # Feature toggles - all default to True (enabled)
@@ -970,7 +970,7 @@ class FeatureSettings(db.Model):
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # Relationships
-    teacher = db.relationship('Admin', backref=db.backref('feature_settings', lazy='dynamic'))
+    teacher = db.relationship('Admin', backref=db.backref('feature_settings', lazy='dynamic', passive_deletes=True))
 
     # Unique constraint: one settings row per teacher-block combination
     __table_args__ = (
@@ -1027,7 +1027,7 @@ class TeacherOnboarding(db.Model):
     """
     __tablename__ = 'teacher_onboarding'
     id = db.Column(db.Integer, primary_key=True)
-    teacher_id = db.Column(db.Integer, db.ForeignKey('admins.id'), nullable=False, unique=True)
+    teacher_id = db.Column(db.Integer, db.ForeignKey('admins.id', ondelete='CASCADE'), nullable=False, unique=True)
 
     # Onboarding status
     is_completed = db.Column(db.Boolean, default=False, nullable=False)
@@ -1048,7 +1048,7 @@ class TeacherOnboarding(db.Model):
     last_activity_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
     # Relationships
-    teacher = db.relationship('Admin', backref=db.backref('onboarding', uselist=False))
+    teacher = db.relationship('Admin', backref=db.backref('onboarding', uselist=False, passive_deletes=True))
 
     def __repr__(self):
         status = 'completed' if self.is_completed else ('skipped' if self.is_skipped else 'in_progress')

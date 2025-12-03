@@ -44,6 +44,51 @@ def client():
     ctx.pop()
 
 
+# SQLite pragma event listener for foreign key constraints
+# Registered at module level and persists across all tests
+from sqlalchemy import event
+from sqlalchemy.engine import Engine
+
+def _enable_sqlite_foreign_keys(dbapi_conn, connection_record):
+    """Enable foreign key constraints for SQLite connections."""
+    if 'sqlite' in str(type(dbapi_conn)):
+        cursor = dbapi_conn.cursor()
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.close()
+
+# Register event listener once at module load time
+# Only applies to SQLite connections, so won't affect other databases
+event.listen(Engine, "connect", _enable_sqlite_foreign_keys)
+
+
+@pytest.fixture
+def client_with_fk():
+    """
+    Test client with foreign key constraints enabled.
+    Use this fixture for tests that need to verify CASCADE behavior.
+    """
+    
+    app.config.update(
+        TESTING=True,
+        WTF_CSRF_ENABLED=False,
+        SQLALCHEMY_DATABASE_URI="sqlite:///:memory:",
+        ENV="testing",
+        SESSION_COOKIE_SECURE=False,
+    )
+    ctx = app.app_context()
+    ctx.push()
+    
+    db.create_all()
+    
+    # Foreign key constraints are enabled by the event listener.
+    
+    client = app.test_client()
+    yield client
+    
+    db.drop_all()
+    ctx.pop()
+
+
 @pytest.fixture
 def test_student():
     from hash_utils import hash_username, get_random_salt
