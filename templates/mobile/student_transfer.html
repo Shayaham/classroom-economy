@@ -23,134 +23,42 @@
         </div>
     </div>
 
-    <!-- Tabs for Transfer Types -->
-    <ul class="nav nav-pills mb-3" role="tablist">
-        <li class="nav-item" role="presentation">
-            <button class="nav-link active" id="account-transfer-tab" data-bs-toggle="pill" data-bs-target="#account-transfer" type="button" role="tab">
-                Between Accounts
-            </button>
-        </li>
-        <li class="nav-item" role="presentation">
-            <button class="nav-link" id="peer-transfer-tab" data-bs-toggle="pill" data-bs-target="#peer-transfer" type="button" role="tab">
-                Send to Student
-            </button>
-        </li>
-    </ul>
-
-    <!-- Tab Content -->
-    <div class="tab-content">
-        <!-- Account-to-Account Transfer -->
-        <div class="tab-pane fade show active" id="account-transfer" role="tabpanel">
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="card-title mb-0">Transfer Between Accounts</h5>
-                </div>
-                <div class="card-body">
-                    <form action="{{ url_for('student.transfer') }}" method="POST">
-                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                        <div class="mb-3">
-                            <label for="from_account" class="form-label">From:</label>
-                            <select class="form-select" id="from_account" name="from_account">
-                                <option value="checking">Checking</option>
-                                <option value="savings">Savings</option>
-                            </select>
-                        </div>
-                        <div class="mb-3">
-                            <label for="to_account" class="form-label">To:</label>
-                            <select class="form-select" id="to_account" name="to_account">
-                                <option value="savings">Savings</option>
-                                <option value="checking">Checking</option>
-                            </select>
-                        </div>
-                        <div class="mb-3">
-                            <label for="amount" class="form-label">Amount:</label>
-                            <div class="input-group">
-                                <span class="input-group-text">$</span>
-                                <input type="number" class="form-control" id="amount" name="amount" step="0.01" min="0.01" placeholder="0.00" required>
-                            </div>
-                        </div>
-                        <div class="mb-3">
-                            <label for="passphrase" class="form-label">Passphrase:</label>
-                            <input type="password" class="form-control" id="passphrase" name="passphrase" required>
-                        </div>
-                        <button type="submit" class="btn btn-primary w-100">Transfer</button>
-                    </form>
-                </div>
-            </div>
+    <!-- Transfer Form -->
+    <div class="card">
+        <div class="card-header">
+            <h5 class="card-title mb-0">Transfer Funds</h5>
         </div>
-
-        <!-- Peer-to-Peer Transfer -->
-        <div class="tab-pane fade" id="peer-transfer" role="tabpanel">
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="card-title mb-0">Send to Classmate</h5>
+        <div class="card-body">
+            <form action="{{ url_for('student.transfer') }}" method="POST">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="mb-3">
+                    <label for="from_account" class="form-label">From:</label>
+                    <select class="form-select" id="from_account" name="from_account">
+                        <option value="checking">Checking</option>
+                        <option value="savings">Savings</option>
+                    </select>
                 </div>
-                <div class="card-body">
-                    <form id="mobilePeerTransferForm">
-                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                        <div class="mb-3">
-                            <label for="mobile_recipient_username" class="form-label">Recipient Username:</label>
-                            <input type="text" class="form-control" id="mobile_recipient_username" name="recipient_username" placeholder="Enter classmate's username" required autocomplete="off">
-                            <small class="form-text text-muted">Only students in your current class.</small>
-                        </div>
-                        <div class="mb-3">
-                            <label for="mobile_peer_amount" class="form-label">Amount:</label>
-                            <div class="input-group">
-                                <span class="input-group-text">$</span>
-                                <input type="number" class="form-control" id="mobile_peer_amount" name="amount" step="0.01" min="0.01" placeholder="0.00" required>
-                            </div>
-                        </div>
-                        <div class="mb-3">
-                            <label for="mobile_peer_passphrase" class="form-label">Passphrase:</label>
-                            <input type="password" class="form-control" id="mobile_peer_passphrase" name="passphrase" required>
-                        </div>
-                        <button type="submit" class="btn btn-primary w-100">Send Money</button>
-                    </form>
-                    <div class="alert alert-info mt-3 mb-0">
-                        <small>Money will be sent from your checking account.</small>
+                <div class="mb-3">
+                    <label for="to_account" class="form-label">To:</label>
+                    <select class="form-select" id="to_account" name="to_account">
+                        <option value="savings">Savings</option>
+                        <option value="checking">Checking</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label for="amount" class="form-label">Amount:</label>
+                    <div class="input-group">
+                        <span class="input-group-text">$</span>
+                        <input type="number" class="form-control" id="amount" name="amount" step="0.01" min="0.01" placeholder="0.00" required>
                     </div>
                 </div>
-            </div>
+                <div class="mb-3">
+                    <label for="passphrase" class="form-label">Passphrase:</label>
+                    <input type="password" class="form-control" id="passphrase" name="passphrase" required>
+                </div>
+                <button type="submit" class="btn btn-primary w-100">Transfer</button>
+            </form>
         </div>
     </div>
 </div>
-
-{% block extra_scripts %}
-<script>
-    // Handle mobile peer transfer form submission
-    document.getElementById("mobilePeerTransferForm").addEventListener("submit", async function (e) {
-        e.preventDefault();
-
-        const formData = new FormData(this);
-        const submitButton = this.querySelector('button[type="submit"]');
-        const originalText = submitButton.innerHTML;
-        
-        submitButton.disabled = true;
-        submitButton.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Sending...';
-
-        try {
-            const response = await fetch("{{ url_for('student.transfer_to_student') }}", {
-                method: 'POST',
-                body: formData
-            });
-
-            const data = await response.json();
-
-            if (data.status === 'success') {
-                alert(data.message);
-                // Clear form and reload
-                this.reset();
-                window.location.reload();
-            } else {
-                alert(data.message || 'Transfer failed. Please try again.');
-            }
-        } catch (error) {
-            console.error('Transfer error:', error);
-            alert('An error occurred. Please try again.');
-        } finally {
-            submitButton.disabled = false;
-            submitButton.innerHTML = originalText;
-        }
-    });
-</script>
 {% endblock %}

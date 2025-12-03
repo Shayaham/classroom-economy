@@ -18,11 +18,6 @@
         </button>
     </li>
     <li class="nav-item" role="presentation">
-        <button class="nav-link" id="send-tab" data-bs-toggle="tab" data-bs-target="#send" type="button" role="tab">
-            <span class="material-symbols-outlined">send</span> Send to Student
-        </button>
-    </li>
-    <li class="nav-item" role="presentation">
         <button class="nav-link" id="transactions-tab" data-bs-toggle="tab" data-bs-target="#transactions" type="button" role="tab">
             <span class="material-symbols-outlined">receipt_long</span> Transactions
         </button>
@@ -208,56 +203,6 @@
         </div>
     </div>
 
-    <!-- Send to Student Tab -->
-    <div class="tab-pane fade" id="send" role="tabpanel">
-        <div class="row justify-content-center">
-            <div class="col-md-8 col-lg-6">
-                <div class="card mb-4">
-                    <div class="card-header">
-                        <span class="material-symbols-outlined">account_balance_wallet</span> Current Balance
-                    </div>
-                    <div class="card-body">
-                        <div class="text-center p-3 bg-primary bg-opacity-10 rounded">
-                            <h6 class="text-muted mb-2">Checking</h6>
-                            <h4 class="text-primary mb-0">${{ "%.2f"|format(student.checking_balance) }}</h4>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="card">
-                    <div class="card-header">
-                        <span class="material-symbols-outlined">send</span> Send Money to Classmate
-                    </div>
-                    <div class="card-body">
-                        <form id="peerTransferForm">
-                            <div class="mb-3">
-                                <label for="recipient_username" class="form-label">Recipient Username</label>
-                                <input type="text" class="form-control" id="recipient_username" name="recipient_username" placeholder="Enter classmate's username" required autocomplete="off">
-                                <div class="form-text">Only students in your current class can receive transfers.</div>
-                            </div>
-
-                            <div class="mb-3">
-                                <label for="peer_amount" class="form-label">Amount</label>
-                                <div class="input-group">
-                                    <span class="input-group-text">$</span>
-                                    <input type="number" class="form-control" id="peer_amount" name="amount" step="0.01" min="0.01" placeholder="0.00" required>
-                                </div>
-                            </div>
-
-                            <button type="submit" class="btn btn-primary w-100">
-                                <span class="material-symbols-outlined">check_circle</span> Continue to Confirmation
-                            </button>
-                        </form>
-                    </div>
-                </div>
-
-                <div class="alert alert-info mt-3">
-                    <span class="material-symbols-outlined">info</span> <strong>Note:</strong> You can only send money to students in your current class. The money will be sent from your checking account to theirs.
-                </div>
-            </div>
-        </div>
-    </div>
-
     <!-- Transactions Tab -->
     <div class="tab-pane fade" id="transactions" role="tabpanel">
         <!-- Nested tabs for Checking vs Savings -->
@@ -403,52 +348,10 @@
         </div>
     </div>
 </div>
-
-<!-- Peer Transfer Passphrase Modal -->
-<div class="modal fade" id="peerPassphraseModal" tabindex="-1" aria-labelledby="peerPassphraseModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <form id="peerPassphraseForm">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="peerPassphraseModalLabel">Confirm Transfer to Student</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <div class="alert alert-info">
-                        <strong>Transfer Details:</strong>
-                        <div class="mt-2">
-                            <span id="peer-transfer-summary"></span>
-                        </div>
-                    </div>
-                    <div class="mb-3">
-                        <label for="peer_passphrase" class="form-label">Enter your passphrase to confirm:</label>
-                        <input type="password" class="form-control" name="passphrase" id="peer_passphrase" autocomplete="current-password" required autofocus>
-                    </div>
-                    <input type="hidden" name="recipient_username" id="modal_recipient_username">
-                    <input type="hidden" name="amount" id="modal_peer_amount">
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Confirm Transfer</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
 {% endblock %}
 
 {% block extra_scripts %}
 <script>
-    // HTML escape function to prevent XSS
-    function escapeHtml(text) {
-        if (text == null) return '';
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
-    }
-
-    // Account-to-account transfer
     document.getElementById("transferDetailsForm").addEventListener("submit", function (e) {
         e.preventDefault();
 
@@ -474,83 +377,6 @@
         document.getElementById('passphraseModal').addEventListener('shown.bs.modal', function () {
             document.getElementById('passphrase').focus();
         });
-    });
-
-    // Peer-to-peer transfer
-    document.getElementById("peerTransferForm").addEventListener("submit", function (e) {
-        e.preventDefault();
-
-        const recipientUsername = document.getElementById("recipient_username").value;
-        const amount = parseFloat(document.getElementById("peer_amount").value).toFixed(2);
-
-        // Update modal with transfer details
-        document.getElementById("modal_recipient_username").value = recipientUsername;
-        document.getElementById("modal_peer_amount").value = amount;
-
-        document.getElementById("peer-transfer-summary").innerHTML =
-            `Send <strong>$${amount}</strong> to <strong>${escapeHtml(recipientUsername)}</strong>`;
-
-        // Show modal
-        const modal = new bootstrap.Modal(document.getElementById('peerPassphraseModal'));
-        modal.show();
-
-        // Focus on passphrase input when modal is shown
-        document.getElementById('peerPassphraseModal').addEventListener('shown.bs.modal', function () {
-            document.getElementById('peer_passphrase').focus();
-        });
-    });
-
-    // Handle peer transfer passphrase form submission
-    document.getElementById("peerPassphraseForm").addEventListener("submit", async function (e) {
-        e.preventDefault();
-
-        const formData = new FormData(this);
-        const submitButton = this.querySelector('button[type="submit"]');
-        const originalText = submitButton.innerHTML;
-        
-        submitButton.disabled = true;
-        submitButton.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Processing...';
-
-        try {
-            const response = await fetch("{{ url_for('student.transfer_to_student') }}", {
-                method: 'POST',
-                body: formData
-            });
-
-            const data = await response.json();
-
-            if (data.status === 'success') {
-                // Close modal
-                bootstrap.Modal.getInstance(document.getElementById('peerPassphraseModal')).hide();
-                
-                // Show success message
-                const alertDiv = document.createElement('div');
-                alertDiv.className = 'alert alert-success alert-dismissible fade show';
-                alertDiv.innerHTML = `
-                    <span class="material-symbols-outlined">check_circle</span>
-                    <strong>Success!</strong> ${data.message}
-                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                `;
-                document.querySelector('.container-fluid').insertBefore(alertDiv, document.querySelector('.nav-tabs'));
-                
-                // Clear form
-                document.getElementById("peerTransferForm").reset();
-                
-                // Reload page after short delay to update balances
-                setTimeout(() => {
-                    window.location.reload();
-                }, 2000);
-            } else {
-                // Show error message
-                alert(data.message || 'Transfer failed. Please try again.');
-            }
-        } catch (error) {
-            console.error('Transfer error:', error);
-            alert('An error occurred. Please try again.');
-        } finally {
-            submitButton.disabled = false;
-            submitButton.innerHTML = originalText;
-        }
     });
 </script>
 {% endblock %}

@@ -21,7 +21,7 @@ from app.extensions import db, limiter
 from app.models import (
     Student, Transaction, TapEvent, StoreItem, StudentItem,
     RentSettings, RentPayment, InsurancePolicy, StudentInsurance, InsuranceClaim,
-    BankingSettings, UserReport, FeatureSettings, TeacherBlock
+    BankingSettings, UserReport, FeatureSettings
 )
 from app.auth import admin_required, login_required, get_logged_in_student, SESSION_TIMEOUT_MINUTES
 from forms import (
@@ -1066,13 +1066,16 @@ def transfer():
         amount = float(request.form.get('amount'))
 
         # CRITICAL FIX: Calculate balances using join_code scoping
+        # Include transactions with matching join_code OR NULL join_code (legacy) with matching teacher_id
         checking_balance = round(sum(
             tx.amount for tx in student.transactions
-            if tx.account_type == 'checking' and not tx.is_void and tx.join_code == join_code
+            if tx.account_type == 'checking' and not tx.is_void and 
+            (tx.join_code == join_code or (tx.join_code is None and tx.teacher_id == teacher_id))
         ), 2)
         savings_balance = round(sum(
             tx.amount for tx in student.transactions
-            if tx.account_type == 'savings' and not tx.is_void and tx.join_code == join_code
+            if tx.account_type == 'savings' and not tx.is_void and 
+            (tx.join_code == join_code or (tx.join_code is None and tx.teacher_id == teacher_id))
         ), 2)
 
         if from_account == to_account:
@@ -1137,10 +1140,15 @@ def transfer():
             return redirect(url_for('student.dashboard'))
 
     # CRITICAL FIX v2: Get transactions for display - scope by join_code
-    transactions = Transaction.query.filter_by(
-        student_id=student.id,
-        join_code=join_code,  # FIX: Use join_code (class code) as it's guaranteed unique
-        is_void=False
+    # Include transactions with matching join_code OR NULL join_code (legacy) with matching teacher_id
+    from sqlalchemy import or_
+    transactions = Transaction.query.filter(
+        Transaction.student_id == student.id,
+        Transaction.is_void == False,
+        or_(
+            Transaction.join_code == join_code,
+            (Transaction.join_code == None) & (Transaction.teacher_id == teacher_id)
+        )
     ).order_by(Transaction.timestamp.desc()).all()
     checking_transactions = [t for t in transactions if t.account_type == 'checking']
     savings_transactions = [t for t in transactions if t.account_type == 'savings']
@@ -1154,9 +1162,11 @@ def transfer():
 
     # Calculate forecast interest based on settings
     # CRITICAL FIX v2: Calculate savings balance using join_code scoping
+    # Include transactions with matching join_code OR NULL join_code (legacy) with matching teacher_id
     savings_balance = round(sum(
         tx.amount for tx in student.transactions
-        if tx.account_type == 'savings' and not tx.is_void and tx.join_code == join_code
+        if tx.account_type == 'savings' and not tx.is_void and 
+        (tx.join_code == join_code or (tx.join_code is None and tx.teacher_id == teacher_id))
     ), 2)
 
     if calculation_type == 'compound':
@@ -1290,128 +1300,6 @@ def apply_savings_interest(student, annual_rate=0.045):
             )
             db.session.add(interest_tx)
             db.session.commit()
-
-
-@student_bp.route('/transfer-to-student', methods=['POST'])
-@limiter.limit("10 per minute")
-@login_required
-def transfer_to_student():
-    """Transfer funds from one student to another student in the same class."""
-    student = get_logged_in_student()
-    
-    # Get full class context (join_code, teacher_id, block)
-    context = get_current_class_context()
-    if not context:
-        return jsonify(status="error", message="No class selected."), 400
-    
-    join_code = context['join_code']
-    teacher_id = context['teacher_id']
-    
-    # Get form data
-    recipient_username = request.form.get('recipient_username', '').strip()
-    amount = request.form.get('amount', type=float)
-    passphrase = request.form.get('passphrase', '')
-    
-    # Validate passphrase
-    if not check_password_hash(student.passphrase_hash or '', passphrase):
-        return jsonify(status="error", message="Incorrect passphrase."), 400
-    
-    # Validate amount
-    if not amount or amount <= 0:
-        return jsonify(status="error", message="Amount must be greater than 0."), 400
-    
-    # Find recipient by username in the same class
-    # Hash the recipient username for lookup
-    try:
-        recipient_lookup_hash = hash_username_lookup(recipient_username)
-    except Exception as e:
-        current_app.logger.error(f"Failed to hash recipient username: {e}")
-        return jsonify(status="error", message="Invalid recipient username."), 400
-    
-    # Find recipient student
-    recipient = Student.query.filter_by(username_lookup_hash=recipient_lookup_hash).first()
-    
-    if not recipient:
-        return jsonify(status="error", message="Recipient not found."), 404
-    
-    # Prevent self-transfer
-    if recipient.id == student.id:
-        return jsonify(status="error", message="Cannot send money to yourself."), 400
-    
-    # Verify recipient is in the same class (same join_code)
-    recipient_seat = TeacherBlock.query.filter_by(
-        student_id=recipient.id,
-        join_code=join_code,
-        is_claimed=True
-    ).first()
-    
-    if not recipient_seat:
-        return jsonify(
-            status="error",
-            message="Recipient is not in your class. You can only send money to classmates."
-        ), 400
-    
-    try:
-        # Lock the student row to prevent race conditions during balance check
-        # This ensures atomicity between balance check and transaction creation
-        db.session.query(Student).filter_by(id=student.id).with_for_update().first()
-        
-        # Calculate sender's checking balance for this class using database aggregation
-        checking_balance = db.session.query(
-            func.sum(Transaction.amount)
-        ).filter(
-            Transaction.student_id == student.id,
-            Transaction.account_type == 'checking',
-            Transaction.is_void == False,
-            Transaction.join_code == join_code
-        ).scalar() or 0.0
-        checking_balance = round(checking_balance, 2)
-        
-        # Check sufficient balance
-        if amount > checking_balance:
-            db.session.rollback()
-            return jsonify(status="error", message="Insufficient funds in checking account."), 400
-        
-        # Create debit transaction for sender
-        sender_tx = Transaction(
-            student_id=student.id,
-            teacher_id=teacher_id,
-            join_code=join_code,
-            amount=-amount,
-            account_type='checking',
-            type='Transfer',
-            description=f'Sent to {recipient.full_name}'
-        )
-        
-        # Create credit transaction for recipient
-        recipient_tx = Transaction(
-            student_id=recipient.id,
-            teacher_id=teacher_id,
-            join_code=join_code,
-            amount=amount,
-            account_type='checking',
-            type='Transfer',
-            description=f'Received from {student.full_name}'
-        )
-        
-        db.session.add(sender_tx)
-        db.session.add(recipient_tx)
-        db.session.commit()
-        
-        current_app.logger.info(
-            f"Peer transfer: {amount} from student {student.id} to student {recipient.id} "
-            f"in class {join_code}"
-        )
-        
-        return jsonify(
-            status="success",
-            message=f"Successfully sent ${amount:.2f} to {recipient.full_name}!"
-        )
-        
-    except SQLAlchemyError as e:
-        db.session.rollback()
-        current_app.logger.error(f"Peer transfer failed: {e}", exc_info=True)
-        return jsonify(status="error", message="Transfer failed due to a database error."), 500
 
 
 # -------------------- INSURANCE --------------------
