@@ -1542,7 +1542,7 @@ def get_tap_entries(student_id):
 
     # Check if admin has access to this student via StudentTeacher association
     # SECURITY: Only use StudentTeacher table, NOT the deprecated teacher_id field
-    if not student.teachers.filter_by(id=admin.id).first():
+    if student.teachers.filter_by(id=admin.id).count() == 0:
         return jsonify({"error": "Access denied"}), 403
 
     # Get all tap events for this student
@@ -1616,7 +1616,7 @@ def delete_tap_entry(event_id):
     # Check if admin has access to this student via StudentTeacher association
     # SECURITY: Only use StudentTeacher table, NOT the deprecated teacher_id field
     student = Student.query.get(event.student_id)
-    if not student or not student.teachers.filter_by(id=admin.id).first():
+    if not student or student.teachers.filter_by(id=admin.id).count() == 0:
         return jsonify({"error": "Access denied"}), 403
 
     # Mark as deleted
