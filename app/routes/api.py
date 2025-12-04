@@ -1954,7 +1954,8 @@ def get_block_tap_settings():
         return jsonify({"tap_enabled": True})
     
     # Check if tap is enabled for any student in this block
-    # We'll return true if at least one student has it enabled
+    # Returns the overall block state: true if at least one student has tap enabled,
+    # false if all students have it disabled
     any_enabled = False
     for student in students_in_block:
         student_block = StudentBlock.query.filter_by(

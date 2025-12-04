@@ -1192,9 +1192,7 @@ document.addEventListener('DOMContentLoaded', function() {
       .then(response => response.json())
       .then(data => {
         if (data.status === 'ok') {
-          const message = isEnabled 
-            ? `Tap in/out enabled for all students in Block ${block}` 
-            : `Tap in/out disabled for all students in Block ${block}`;
+          const message = isEnabled ? `Tap in/out enabled for all students in Block ${block}` : `Tap in/out disabled for all students in Block ${block}`;
           
           // Show a temporary notification
           const notification = document.createElement('div');
