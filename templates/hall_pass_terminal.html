@@ -491,7 +491,9 @@
                     document.getElementById('period').textContent = pass.period;
                     document.getElementById('destination').textContent = pass.destination;
 
-                    document.getElementById('requestTime').textContent = window.TimezoneUtils.formatTimestamp(pass.request_time);
+                    document.getElementById('requestTime').textContent = window.TimezoneUtils 
+                        ? window.TimezoneUtils.formatTimestamp(pass.request_time) 
+                        : new Date(pass.request_time).toLocaleString();
 
                     document.getElementById('usePassBtn').style.display = 'none';
                     document.getElementById('returnBtn').style.display = 'none';
