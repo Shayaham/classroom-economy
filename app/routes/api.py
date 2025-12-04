@@ -1809,9 +1809,12 @@ def student_status():
 # -------------------- UTILITY API --------------------
 
 @api_bp.route('/set-timezone', methods=['POST'])
-@login_required
 def set_timezone():
     """Store user's timezone in session for datetime formatting"""
+    # Allow access if user is logged in as student OR admin
+    if 'student_id' not in session and not session.get('is_admin'):
+        return jsonify({"status": "error", "message": "Unauthorized"}), 401
+
     data = request.get_json()
     timezone_name = data.get('timezone')
 
