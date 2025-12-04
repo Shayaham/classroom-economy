@@ -211,7 +211,7 @@ Despite multi-tenancy fixes, a P0 data isolation issue remains:
 
 **Problem:** Race conditions and legacy code created duplicate student records.
 
-**Solution:** Developed cleanup scripts with dry-run capabilities, comprehensive logging, and validation. Scripts preserved in `scripts/cleanup_duplicates*.py`.
+Solution: Developed cleanup scripts with dry-run capabilities, comprehensive logging, and validation. The Flask-context version (`cleanup_duplicates_flask.py`) is preserved, while the obsolete version was removed.
 
 ### Timezone Handling
 
