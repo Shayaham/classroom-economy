@@ -89,7 +89,7 @@ See the detailed implementation plan in [docs/security/CRITICAL_SAME_TEACHER_LEA
 1. Go to repository Settings → Secrets and Variables → Actions
 2. Add new repository secret:
    - Name: `PRODUCTION_SERVER_IP`
-   - Value: `24.199.127.184` (or current production server IP)
+   - Value: `<your-production-server-ip>`
 
 **Estimated Effort:** 2 minutes
 
