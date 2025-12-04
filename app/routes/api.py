@@ -1097,8 +1097,11 @@ def attendance_history():
         # Get student IDs that the current admin can access (tenant-scoped)
         accessible_student_ids_query = get_admin_student_query(include_unassigned=False).with_entities(Student.id)
         
-        # Build query scoped to admin's students
-        query = TapEvent.query.filter(TapEvent.student_id.in_(accessible_student_ids_query))
+        # Build query scoped to admin's students and exclude deleted records
+        query = TapEvent.query.filter(
+            TapEvent.student_id.in_(accessible_student_ids_query),
+            TapEvent.is_deleted == False
+        )
 
         # Apply filters
         if period:
