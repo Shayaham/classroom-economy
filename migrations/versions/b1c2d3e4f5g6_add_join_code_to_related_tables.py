@@ -2,7 +2,7 @@
 
 Revision ID: b1c2d3e4f5g6
 Revises: a1b2c3d4e5f7
-Create Date: 2025-12-06
+Create Date: 2025-12-06 00:00:00.000000
 
 CRITICAL: This migration completes the P0 fix for multi-period isolation by adding
 join_code to all remaining tables that need it. This ensures students enrolled in
@@ -44,89 +44,88 @@ def index_exists(table_name, index_name):
     return index_name in indexes
 
 
+def table_exists(table_name):
+    """Check if a table exists."""
+    conn = op.get_bind()
+    inspector = sa.inspect(conn)
+    return table_name in inspector.get_table_names()
+
+
 def upgrade():
     """Add join_code columns to related tables."""
 
-    # 1. Add join_code to student_items table
-    if not column_exists('student_items', 'join_code'):
-        op.add_column('student_items',
-            sa.Column('join_code', sa.String(20), nullable=True)
-        )
-        print("✅ Added join_code column to student_items table")
-    else:
-        print("⚠️  Column 'join_code' already exists on 'student_items', skipping...")
+    tables_to_update = [
+        {
+            'name': 'student_items',
+            'indexes': [
+                ('ix_student_items_join_code', ['join_code']),
+                ('ix_student_items_student_join_code', ['student_id', 'join_code'])
+            ],
+        },
+        {
+            'name': 'student_insurance',
+            'indexes': [
+                ('ix_student_insurance_join_code', ['join_code']),
+                ('ix_student_insurance_student_join_code', ['student_id', 'join_code'])
+            ],
+        },
+        {
+            'name': 'hall_pass_logs',
+            'indexes': [
+                ('ix_hall_pass_logs_join_code', ['join_code']),
+                ('ix_hall_pass_logs_student_join_code', ['student_id', 'join_code'])
+            ],
+        },
+        {
+            'name': 'rent_payments',
+            'indexes': [
+                ('ix_rent_payments_join_code', ['join_code']),
+                ('ix_rent_payments_student_join_code', ['student_id', 'join_code'])
+            ],
+        },
+    ]
 
-    if not index_exists('student_items', 'ix_student_items_join_code'):
-        op.create_index(
-            'ix_student_items_join_code',
-            'student_items',
-            ['join_code']
-        )
-        print("✅ Added index ix_student_items_join_code")
-    else:
-        print("⚠️  Index 'ix_student_items_join_code' already exists, skipping...")
+    column_name = 'join_code'
 
-    # 2. Add join_code to student_insurance table
-    if not column_exists('student_insurance', 'join_code'):
-        op.add_column('student_insurance',
-            sa.Column('join_code', sa.String(20), nullable=True)
-        )
-        print("✅ Added join_code column to student_insurance table")
-    else:
-        print("⚠️  Column 'join_code' already exists on 'student_insurance', skipping...")
+    for table in tables_to_update:
+        table_name = table['name']
+        if not column_exists(table_name, column_name):
+            op.add_column(
+                table_name,
+                sa.Column(column_name, sa.String(20), nullable=True)
+            )
+            print(f"✅ Added {column_name} column to {table_name} table")
+        else:
+            print(f"⚠️  Column '{column_name}' already exists on '{table_name}', skipping...")
 
-    if not index_exists('student_insurance', 'ix_student_insurance_join_code'):
-        op.create_index(
-            'ix_student_insurance_join_code',
-            'student_insurance',
-            ['join_code']
-        )
-        print("✅ Added index ix_student_insurance_join_code")
-    else:
-        print("⚠️  Index 'ix_student_insurance_join_code' already exists, skipping...")
-
-    # 3. Add join_code to hall_pass_logs table
-    if not column_exists('hall_pass_logs', 'join_code'):
-        op.add_column('hall_pass_logs',
-            sa.Column('join_code', sa.String(20), nullable=True)
-        )
-        print("✅ Added join_code column to hall_pass_logs table")
-    else:
-        print("⚠️  Column 'join_code' already exists on 'hall_pass_logs', skipping...")
-
-    if not index_exists('hall_pass_logs', 'ix_hall_pass_logs_join_code'):
-        op.create_index(
-            'ix_hall_pass_logs_join_code',
-            'hall_pass_logs',
-            ['join_code']
-        )
-        print("✅ Added index ix_hall_pass_logs_join_code")
-    else:
-        print("⚠️  Index 'ix_hall_pass_logs_join_code' already exists, skipping...")
-
-    # 4. Add join_code to rent_payments table
-    if not column_exists('rent_payments', 'join_code'):
-        op.add_column('rent_payments',
-            sa.Column('join_code', sa.String(20), nullable=True)
-        )
-        print("✅ Added join_code column to rent_payments table")
-    else:
-        print("⚠️  Column 'join_code' already exists on 'rent_payments', skipping...")
-
-    if not index_exists('rent_payments', 'ix_rent_payments_join_code'):
-        op.create_index(
-            'ix_rent_payments_join_code',
-            'rent_payments',
-            ['join_code']
-        )
-        print("✅ Added index ix_rent_payments_join_code")
-    else:
-        print("⚠️  Index 'ix_rent_payments_join_code' already exists, skipping...")
+        for index_name, columns in table['indexes']:
+            if not index_exists(table_name, index_name):
+                op.create_index(index_name, table_name, columns)
+                print(f"✅ Added index {index_name}")
+            else:
+                print(f"⚠️  Index '{index_name}' already exists, skipping...")
 
     print("")
     print("⚠️  WARNING: Existing records will have NULL join_code")
     print("⚠️  Action required: Backfill join_code for historical data")
     print("⚠️  See docs/security/CRITICAL_SAME_TEACHER_LEAK.md for backfill strategy")
+    print("")
+    print("----")
+    print("Table-specific SQL examples to backfill join_code using enrollments.period mapping:")
+    print("")
+    print("student_items:")
+    print("""UPDATE student_items\nSET join_code = (\n    SELECT join_code FROM enrollments\n    WHERE enrollments.student_id = student_items.student_id\n      AND enrollments.period = student_items.period\n    LIMIT 1\n)\nWHERE join_code IS NULL;""")
+    print("")
+    print("student_insurance:")
+    print("""UPDATE student_insurance\nSET join_code = (\n    SELECT join_code FROM enrollments\n    WHERE enrollments.student_id = student_insurance.student_id\n      AND enrollments.period = student_insurance.period\n    LIMIT 1\n)\nWHERE join_code IS NULL;""")
+    print("")
+    print("hall_pass_logs:")
+    print("""UPDATE hall_pass_logs\nSET join_code = (\n    SELECT join_code FROM enrollments\n    WHERE enrollments.student_id = hall_pass_logs.student_id\n      AND enrollments.period = hall_pass_logs.period\n    LIMIT 1\n)\nWHERE join_code IS NULL;""")
+    print("")
+    print("rent_payments:")
+    print("""UPDATE rent_payments\nSET join_code = (\n    SELECT join_code FROM enrollments\n    WHERE enrollments.student_id = rent_payments.student_id\n      AND enrollments.period = rent_payments.period\n    LIMIT 1\n)\nWHERE join_code IS NULL;""")
+    print("----")
+    print("If your schema differs, see docs/security/CRITICAL_SAME_TEACHER_LEAK.md#backfill-join_code for more details.")
     print("")
     print("✅ Migration complete - P0 multi-period isolation schema ready")
 
@@ -134,40 +133,50 @@ def upgrade():
 def downgrade():
     """Remove join_code columns from related tables."""
 
-    # Drop indexes and columns in reverse order
+    tables_to_update = [
+        {
+            'name': 'student_items',
+            'indexes': [
+                'ix_student_items_join_code',
+                'ix_student_items_student_join_code'
+            ],
+        },
+        {
+            'name': 'student_insurance',
+            'indexes': [
+                'ix_student_insurance_join_code',
+                'ix_student_insurance_student_join_code'
+            ],
+        },
+        {
+            'name': 'hall_pass_logs',
+            'indexes': [
+                'ix_hall_pass_logs_join_code',
+                'ix_hall_pass_logs_student_join_code'
+            ],
+        },
+        {
+            'name': 'rent_payments',
+            'indexes': [
+                'ix_rent_payments_join_code',
+                'ix_rent_payments_student_join_code'
+            ],
+        },
+    ]
 
-    # 4. rent_payments
-    if index_exists('rent_payments', 'ix_rent_payments_join_code'):
-        op.drop_index('ix_rent_payments_join_code', table_name='rent_payments')
-        print("❌ Dropped index ix_rent_payments_join_code")
+    column_name = 'join_code'
 
-    if column_exists('rent_payments', 'join_code'):
-        op.drop_column('rent_payments', 'join_code')
-        print("❌ Removed join_code column from rent_payments table")
+    for table in reversed(tables_to_update):
+        table_name = table['name']
+        if not table_exists(table_name):
+            print(f"⚠️  Table '{table_name}' does not exist, skipping downgrade steps")
+            continue
 
-    # 3. hall_pass_logs
-    if index_exists('hall_pass_logs', 'ix_hall_pass_logs_join_code'):
-        op.drop_index('ix_hall_pass_logs_join_code', table_name='hall_pass_logs')
-        print("❌ Dropped index ix_hall_pass_logs_join_code")
+        for index_name in table['indexes']:
+            if index_exists(table_name, index_name):
+                op.drop_index(index_name, table_name=table_name)
+                print(f"❌ Dropped index {index_name}")
 
-    if column_exists('hall_pass_logs', 'join_code'):
-        op.drop_column('hall_pass_logs', 'join_code')
-        print("❌ Removed join_code column from hall_pass_logs table")
-
-    # 2. student_insurance
-    if index_exists('student_insurance', 'ix_student_insurance_join_code'):
-        op.drop_index('ix_student_insurance_join_code', table_name='student_insurance')
-        print("❌ Dropped index ix_student_insurance_join_code")
-
-    if column_exists('student_insurance', 'join_code'):
-        op.drop_column('student_insurance', 'join_code')
-        print("❌ Removed join_code column from student_insurance table")
-
-    # 1. student_items
-    if index_exists('student_items', 'ix_student_items_join_code'):
-        op.drop_index('ix_student_items_join_code', table_name='student_items')
-        print("❌ Dropped index ix_student_items_join_code")
-
-    if column_exists('student_items', 'join_code'):
-        op.drop_column('student_items', 'join_code')
-        print("❌ Removed join_code column from student_items table")
+        if column_exists(table_name, column_name):
+            op.drop_column(table_name, column_name)
+            print(f"❌ Removed {column_name} column from {table_name} table")
