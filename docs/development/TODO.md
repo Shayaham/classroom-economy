@@ -53,6 +53,25 @@
 
 ---
 
+## 🔮 FUTURE CONSIDERATIONS (v1.5+)
+
+### Custom Condition Builder (Advanced Feature)
+- **Status:** Research completed, deferred to future release
+- **Description:** Drag-and-drop visual rule builder allowing teachers to create custom conditional logic for rent, insurance, store, payroll, and banking features
+- **Use Case:** Teachers could define custom triggers like "IF checking balance < $50 AND no insurance THEN charge $5 late fee"
+- **Implementation Options:**
+  - Phase 1: JSON-based rules engine with simple form builder (4-6 weeks)
+  - Phase 2: Enhanced drag-and-drop UI with SortableJS (2-3 weeks)
+  - Phase 3: Full Blockly integration for visual programming experience (4-6 weeks)
+- **Rationale for Deferral:** Power-user feature, not critical for core functionality; prioritize high-demand features first
+- **Estimated Effort:** 12-18 weeks for full implementation
+- **Dependencies:** None (standalone feature)
+- **References:**
+  - Research notes in conversation logs
+  - Potential libraries: json-rules-engine, Blockly, ZEN Engine (GoRules)
+
+---
+
 ## ✅ RECENTLY COMPLETED
 
 - ✅ Configurable payroll settings with advanced schedule/rate options (global + per-block)
