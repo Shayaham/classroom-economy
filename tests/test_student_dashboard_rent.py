@@ -31,7 +31,7 @@ def test_dashboard_handles_rent_with_multi_block_student(client):
     seat_a = TeacherBlock(
         teacher_id=teacher.id,
         block="A",
-        first_name=b"Rent",
+        first_name="Rent",
         last_initial="R",
         last_name_hash_by_part=["hash_a"],
         dob_sum=2025,
@@ -44,7 +44,7 @@ def test_dashboard_handles_rent_with_multi_block_student(client):
     seat_b = TeacherBlock(
         teacher_id=teacher.id,
         block="B",
-        first_name=b"Rent",
+        first_name="Rent",
         last_initial="R",
         last_name_hash_by_part=["hash_b"],
         dob_sum=2025,

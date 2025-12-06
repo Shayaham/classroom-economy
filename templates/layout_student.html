@@ -709,6 +709,14 @@ document.addEventListener('DOMContentLoaded', () => {
 document.addEventListener('DOMContentLoaded', () => {
     const classSwitchItems = document.querySelectorAll('.class-switch-item');
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+    const classSwitchTriggers = document.querySelectorAll('.class-switch-trigger');
+
+    classSwitchTriggers.forEach(trigger => {
+        trigger.addEventListener('click', (event) => {
+            event.preventDefault();
+            document.getElementById('classSwitcherDropdown')?.click();
+        });
+    });
 
     classSwitchItems.forEach(item => {
         item.addEventListener('click', async (e) => {
