@@ -929,8 +929,9 @@ def students():
         else:
             student.username_display = "Not Set"
 
-    # Fetch join codes and unclaimed seats for each block
+    # Fetch join codes, class labels, and unclaimed seats for each block
     join_codes_by_block = {}
+    class_labels_by_block = {}
     unclaimed_seats_by_block = {}
     unclaimed_seats_list_by_block = {}
 
@@ -945,6 +946,8 @@ def students():
                 # All TeacherBlock records for the same block should have the same join_code
                 # (enforced by roster import logic), so taking the first one is correct.
                 join_codes_by_block[block_name] = tb.join_code
+                # Store class label (use the first one; they should all be the same for a given block)
+                class_labels_by_block[block_name] = tb.get_class_label()
                 unclaimed_seats_by_block[block_name] = 0
 
             # Track unclaimed seats (excluding legacy placeholders)
@@ -1023,6 +1026,7 @@ def students():
                          blocks=blocks,
                          students_by_block=students_by_block,
                          join_codes_by_block=join_codes_by_block,
+                         class_labels_by_block=class_labels_by_block,
                          unclaimed_seats_by_block=unclaimed_seats_by_block,
                          unclaimed_seats_list_by_block=unclaimed_seats_list_by_block,
                          current_page="students")
