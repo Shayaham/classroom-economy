@@ -940,12 +940,12 @@ def dashboard():
         elif preview_start_date and preview_start_date <= now < due_date:
             is_preview_period = True
 
-        student_blocks = [b.strip().upper() for b in student.block.split(',') if b.strip()]
+        rent_blocks = [b.strip().upper() for b in student.block.split(',') if b.strip()]
         current_month = now.month
         current_year = now.year
 
         all_paid = True
-        for period in student_blocks:
+        for period in rent_blocks:
             all_payments_for_period = RentPayment.query.filter_by(
                 student_id=student.id,
                 period=period,
@@ -985,11 +985,10 @@ def dashboard():
     local_now = datetime.now(tz)
     # --- DASHBOARD DEBUG LOGGING ---
     current_app.logger.info(f"📊 DASHBOARD DEBUG: Student {student.id} - Block states:")
-    for blk in student_blocks:
-        blk_state = period_states[blk]
-        active = blk_state["active"]
-        done = blk_state["done"]
-        seconds = blk_state["duration"]
+    for blk, blk_state in period_states.items():
+        active = blk_state.get("active")
+        done = blk_state.get("done")
+        seconds = blk_state.get("duration")
         current_app.logger.info(f"Block {blk} => DB Active={active}, Done={done}, Seconds (today)={seconds}, Total Unpaid Seconds={unpaid_seconds_per_block.get(blk, 0)}")
 
 
