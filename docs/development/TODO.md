@@ -1,6 +1,6 @@
 # Classroom Token Hub - Development TODO List
 
-**Last Updated:** 2025-11-23  
+**Last Updated:** 2025-12-06
 **Purpose:** Track active work and near-term follow-ups for the platform.
 
 ---
@@ -39,7 +39,8 @@
 - [ ] CSV exports for roster, transactions, attendance, payroll history, and store purchases
 
 ### 3. Mobile & Accessibility
-- [ ] Responsive navigation for student/admin portals
+- [x] Responsive navigation for admin portal (completed 2025-12-06)
+- [ ] Responsive navigation for student portal
 - [ ] Larger touch targets for tap in/out and store interactions
 - [ ] ARIA labels for key buttons and forms
 
@@ -74,6 +75,12 @@
 
 ## ✅ RECENTLY COMPLETED
 
+- ✅ Teacher display names and custom class labels (2025-12-06)
+  - Added `display_name` to Admin model
+  - Added `class_label` to TeacherBlock model
+  - Created teacher settings page at `/admin/settings`
+  - Updated templates to show custom labels instead of "Block X"
+  - Added responsive navigation (icon-only mode on mobile)
 - ✅ Configurable payroll settings with advanced schedule/rate options (global + per-block)
 - ✅ Insurance policies, enrollments, and claims flows in admin portal
 - ✅ Student/teacher sharing via `student_teachers` with scoped queries in `app/auth.py`
