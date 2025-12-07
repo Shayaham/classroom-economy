@@ -94,7 +94,7 @@ Roster seats created during CSV uploads so students can self-claim via join code
 - `get_class_label()`: Returns class_label if set, otherwise block.
 | `claimed_at` | DateTime | Claim timestamp. |
 
-### `transactions`
+### `transaction`
 Ledger entries for checking/savings accounts, scoped by join code (class economy).
 
 | Column | Type | Description |
