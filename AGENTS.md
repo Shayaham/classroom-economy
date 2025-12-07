@@ -95,7 +95,7 @@ The repository has experienced recurring "multiple heads" errors during deployme
 
 - **Join codes are the source of truth for class/period isolation.** Students pick a join code from their claimed seats, and all student-facing balances/transactions are scoped by that join code (see `get_current_class_context` in `app/routes/student.py` and the `Transaction.join_code` comment in `app/models.py`).
 - **Teacher ownership lives in the link table.** Student access for admins is enforced solely through the `student_teachers` association; the legacy `students.teacher_id` column is deprecated and ignored by scoped helpers (see `get_admin_student_query` in `app/auth.py`).
-- Scoped query helpers live in `app/auth.py` (`_scoped_students`/`get_admin_student_query`, `_get_student_or_404`, `_get_student_by_username_or_404`). Admin routes in `app/routes/admin.py` and system-admin tools in `app/routes/system_admin.py` rely on these—prefer them over direct `Student.query` calls.
+- Scoped query helpers like `get_admin_student_query` and `get_student_for_admin` are centralized in `app/auth.py`. Admin routes in `app/routes/admin.py` and system-admin tools in `app/routes/system_admin.py` rely on these—prefer them over direct `Student.query` calls.
 - Student/admin sessions continue to store `admin_id` and `is_system_admin` for authorization checks; student sessions also persist the selected `current_join_code` for per-class context.
 - Maintenance page and middleware exist to keep downtime user-friendly during migrations.
 
