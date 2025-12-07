@@ -912,14 +912,19 @@ def dashboard():
         # Don't show if already seen
         recent_deposit = None
 
-    # Get student's active insurance policies
-    active_insurance = StudentInsurance.query.filter_by(
-        student_id=student.id,
-        status='active'
-    ).first()  # Get first active policy for dashboard display
+    # Get student's active insurance policies (scoped to current class)
+    teacher_id = get_current_teacher_id()
+    active_insurance = None
+    if teacher_id:
+        active_insurance = StudentInsurance.query.join(
+            InsurancePolicy, StudentInsurance.policy_id == InsurancePolicy.id
+        ).filter(
+            StudentInsurance.student_id == student.id,
+            StudentInsurance.status == 'active',
+            InsurancePolicy.teacher_id == teacher_id  # Scope to current class only
+        ).first()
 
     rent_status = None
-    teacher_id = get_current_teacher_id()
     rent_settings = RentSettings.query.filter_by(teacher_id=teacher_id).first() if teacher_id else None
     if rent_settings and rent_settings.is_enabled and student.is_rent_enabled:
         now = datetime.now()
@@ -1496,14 +1501,15 @@ def purchase_insurance(policy_id):
                 flash(f"You must wait {policy.repurchase_wait_days - days_since_cancel} more days before repurchasing this policy.", "warning")
                 return redirect(url_for('student.student_insurance'))
 
-    # Check tier restrictions - can only have one policy per tier
+    # Check tier restrictions - can only have one policy per tier (scoped to current class)
     if policy.tier_category_id:
         existing_tier_enrollment = StudentInsurance.query.join(
             InsurancePolicy, StudentInsurance.policy_id == InsurancePolicy.id
         ).filter(
             StudentInsurance.student_id == student.id,
             StudentInsurance.status == 'active',
-            InsurancePolicy.tier_category_id == policy.tier_category_id
+            InsurancePolicy.tier_category_id == policy.tier_category_id,
+            InsurancePolicy.teacher_id == teacher_id  # Scope to current class only
         ).first()
 
         if existing_tier_enrollment:

@@ -1148,11 +1148,17 @@ def student_detail(student_id):
     # Fetch most recent TapEvent for this student
     latest_tap_event = TapEvent.query.filter_by(student_id=student.id).order_by(TapEvent.timestamp.desc()).first()
 
-    # Get student's active insurance policy
-    active_insurance = StudentInsurance.query.filter_by(
-        student_id=student.id,
-        status='active'
-    ).first()
+    # Get student's active insurance policy (scoped to current teacher)
+    teacher_id = session.get('admin_id')
+    active_insurance = None
+    if teacher_id:
+        active_insurance = StudentInsurance.query.join(
+            InsurancePolicy, StudentInsurance.policy_id == InsurancePolicy.id
+        ).filter(
+            StudentInsurance.student_id == student.id,
+            StudentInsurance.status == 'active',
+            InsurancePolicy.teacher_id == teacher_id  # Scope to current teacher only
+        ).first()
 
     # Get all blocks for the edit modal
     all_students = _scoped_students().all()
@@ -4230,12 +4236,18 @@ def export_students():
 
     # Write student data
     students = _scoped_students().order_by(Student.first_name, Student.last_initial).all()
+    teacher_id = session.get('admin_id')
     for student in students:
-        # Get active insurance for this student
-        active_insurance = StudentInsurance.query.filter_by(
-            student_id=student.id,
-            status='active'
-        ).first()
+        # Get active insurance for this student (scoped to current teacher)
+        active_insurance = None
+        if teacher_id:
+            active_insurance = StudentInsurance.query.join(
+                InsurancePolicy, StudentInsurance.policy_id == InsurancePolicy.id
+            ).filter(
+                StudentInsurance.student_id == student.id,
+                StudentInsurance.status == 'active',
+                InsurancePolicy.teacher_id == teacher_id  # Scope to current teacher only
+            ).first()
         insurance_name = active_insurance.policy.title if active_insurance else 'None'
 
         writer.writerow([
