@@ -1150,15 +1150,7 @@ def student_detail(student_id):
 
     # Get student's active insurance policy (scoped to current teacher)
     teacher_id = session.get('admin_id')
-    active_insurance = None
-    if teacher_id:
-        active_insurance = StudentInsurance.query.join(
-            InsurancePolicy, StudentInsurance.policy_id == InsurancePolicy.id
-        ).filter(
-            StudentInsurance.student_id == student.id,
-            StudentInsurance.status == 'active',
-            InsurancePolicy.teacher_id == teacher_id  # Scope to current teacher only
-        ).first()
+    active_insurance = student.get_active_insurance(teacher_id)
 
     # Get all blocks for the edit modal
     all_students = _scoped_students().all()
@@ -4237,17 +4229,26 @@ def export_students():
     # Write student data
     students = _scoped_students().order_by(Student.first_name, Student.last_initial).all()
     teacher_id = session.get('admin_id')
+
+    # Prefetch active insurances to avoid N+1 queries
+    student_ids = [s.id for s in students]
+    active_insurances_map = {}
+    if teacher_id and student_ids:
+        scoped_insurances = StudentInsurance.query.join(
+            InsurancePolicy, StudentInsurance.policy_id == InsurancePolicy.id
+        ).filter(
+            StudentInsurance.student_id.in_(student_ids),
+            StudentInsurance.status == 'active',
+            InsurancePolicy.teacher_id == teacher_id
+        ).all()
+
+        for ins in scoped_insurances:
+            if ins.student_id not in active_insurances_map:
+                active_insurances_map[ins.student_id] = ins
+
     for student in students:
-        # Get active insurance for this student (scoped to current teacher)
-        active_insurance = None
-        if teacher_id:
-            active_insurance = StudentInsurance.query.join(
-                InsurancePolicy, StudentInsurance.policy_id == InsurancePolicy.id
-            ).filter(
-                StudentInsurance.student_id == student.id,
-                StudentInsurance.status == 'active',
-                InsurancePolicy.teacher_id == teacher_id  # Scope to current teacher only
-            ).first()
+        # Get active insurance for this student from pre-fetched map
+        active_insurance = active_insurances_map.get(student.id)
         insurance_name = active_insurance.policy.title if active_insurance else 'None'
 
         writer.writerow([

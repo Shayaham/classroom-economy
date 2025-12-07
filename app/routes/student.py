@@ -913,16 +913,9 @@ def dashboard():
         recent_deposit = None
 
     # Get student's active insurance policies (scoped to current class)
-    teacher_id = get_current_teacher_id()
-    active_insurance = None
-    if teacher_id:
-        active_insurance = StudentInsurance.query.join(
-            InsurancePolicy, StudentInsurance.policy_id == InsurancePolicy.id
-        ).filter(
-            StudentInsurance.student_id == student.id,
-            StudentInsurance.status == 'active',
-            InsurancePolicy.teacher_id == teacher_id  # Scope to current class only
-        ).first()
+    context = get_current_class_context()
+    teacher_id = context['teacher_id'] if context else None
+    active_insurance = student.get_active_insurance(teacher_id)
 
     rent_status = None
     rent_settings = RentSettings.query.filter_by(teacher_id=teacher_id).first() if teacher_id else None
