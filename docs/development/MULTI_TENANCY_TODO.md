@@ -10,7 +10,7 @@ The multi-teacher model is live: students can be shared across teachers through 
 - ✅ Scoped helpers in `app/auth.py` (`get_admin_student_query`, `get_student_for_admin`) used across admin routes
 - ✅ CSV/manual creation auto-links the creating teacher; system admins can manage sharing/links via `/sysadmin/student-ownership`
 - ✅ Maintenance-mode banner/page available for low-disruption migrations
-- ✅ Student and admin sessions persist the current join code to scope balances/transactions per class/period
+- ✅ Student sessions persist the current join code to scope balances/transactions per class/period
 
 ## Goals
 - Teachers should only see/manage their own students (including shared students)
