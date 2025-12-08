@@ -292,13 +292,14 @@ class EconomyBalanceChecker {
         html += '<h6><i class="bi bi-info-circle-fill"></i> Classroom Wage Index (CWI)</h6>';
         html += `<div class="cwi-value">Weekly Expected Income: <strong>$${cwiData.cwi.toFixed(2)}</strong></div>`;
 
-        if (cwiData.breakdown) {
+        if (cwiData.cwi_breakdown || cwiData.breakdown) {
             html += '<details class="mt-2">';
             html += '<summary style="cursor: pointer;">Calculation Details</summary>';
             html += '<div class="mt-2 small">';
-            html += `<div>Pay Rate: $${cwiData.breakdown.pay_rate_per_hour?.toFixed(2) || 'N/A'}/hour</div>`;
-            html += `<div>Expected Hours: ${cwiData.breakdown.expected_weekly_hours || 'N/A'} hours/week</div>`;
-            html += `<div>Total Weekly Minutes: ${cwiData.breakdown.expected_weekly_minutes || 'N/A'} minutes</div>`;
+            const breakdown = cwiData.cwi_breakdown || cwiData.breakdown;
+            html += `<div>Pay Rate: $${breakdown.pay_rate_per_hour?.toFixed(2) || 'N/A'}/hour</div>`;
+            html += `<div>Expected Hours: ${breakdown.expected_weekly_hours || 'N/A'} hours/week</div>`;
+            html += `<div>Total Weekly Minutes: ${breakdown.expected_weekly_minutes || 'N/A'} minutes</div>`;
             html += '</div></details>';
         }
 

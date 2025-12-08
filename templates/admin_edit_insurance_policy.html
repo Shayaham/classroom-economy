@@ -465,7 +465,7 @@ document.addEventListener('DOMContentLoaded', function() {
   if (typeof EconomyBalanceChecker !== 'undefined') {
     const economyChecker = new EconomyBalanceChecker({
       warningsContainer: '#economy-warnings',
-      expectedWeeklyHours: 5.0
+      expectedWeeklyHours: {{ (payroll_settings.expected_weekly_hours if payroll_settings and payroll_settings.expected_weekly_hours is not none else 5.0) | float }}
     });
 
     // Display CWI info if payroll is configured

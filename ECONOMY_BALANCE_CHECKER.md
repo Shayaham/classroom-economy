@@ -331,4 +331,4 @@ To test the balance checker:
 - Original feature request: [Add economy balance checker]
 - Backend utility: `app/utils/economy_balance.py`
 - Frontend module: `static/js/economy-balance.js`
-- API endpoints: `app/routes/admin.py` (lines 5482-5835)
+- API endpoints: `app/routes/admin.py`

@@ -11,7 +11,6 @@ It provides tools to:
 Reference: AGENTS financial setup.md
 """
 
-from datetime import timedelta
 from typing import Dict, List, Optional, Tuple, Any
 from dataclasses import dataclass
 from enum import Enum
@@ -107,6 +106,12 @@ class EconomyBalanceChecker:
     # Budget survival minimum
     MIN_WEEKLY_SAVINGS_RATIO = 0.10
 
+    # Conversion helpers
+    AVERAGE_WEEKS_PER_MONTH = 365.25 / 12 / 7
+
+    # Conservative weekly store spending estimate
+    ESTIMATED_WEEKLY_STORE_SPENDING_RATIO = 0.15
+
     # Thresholds for warnings
     MINOR_DEVIATION_THRESHOLD = 0.15  # 15% deviation = warning
     MAJOR_DEVIATION_THRESHOLD = 0.30  # 30% deviation = critical
@@ -121,6 +126,35 @@ class EconomyBalanceChecker:
         """
         self.teacher_id = teacher_id
         self.block = block
+
+    def _normalize_to_weekly(
+        self,
+        value: float,
+        frequency: str,
+        custom_frequency_value: Optional[float] = None,
+        custom_frequency_unit: Optional[str] = None,
+    ) -> float:
+        """Normalize a value to its weekly equivalent based on frequency."""
+
+        if frequency == 'monthly':
+            return value / self.AVERAGE_WEEKS_PER_MONTH
+        if frequency == 'weekly':
+            return value
+        if frequency == 'biweekly':
+            return value / 2
+        if frequency == 'daily':
+            return value * 7
+        if frequency == 'custom':
+            # Default to days when unit is unspecified
+            unit = (custom_frequency_unit or 'days').lower()
+            freq_value = custom_frequency_value or 1
+            if unit == 'weeks':
+                return value * (7 / freq_value)
+            if unit == 'months':
+                return value / (self.AVERAGE_WEEKS_PER_MONTH * freq_value)
+            return value * (7 / freq_value)
+
+        return value
 
     def calculate_cwi(self, payroll_settings, expected_weekly_hours: float = None) -> CWICalculation:
         """
@@ -183,11 +217,16 @@ class EconomyBalanceChecker:
             return warnings
 
         rent_amount = float(rent_settings.rent_amount)
-        rent_ratio = rent_amount / cwi if cwi > 0 else 0
+        weekly_rent = self._normalize_to_weekly(
+            rent_amount,
+            rent_settings.frequency_type,
+            rent_settings.custom_frequency_value,
+            getattr(rent_settings, 'custom_frequency_unit', None)
+        )
+        rent_ratio = weekly_rent / cwi if cwi > 0 else 0
 
         recommended_min = cwi * self.RENT_MIN_RATIO
         recommended_max = cwi * self.RENT_MAX_RATIO
-        recommended_default = cwi * self.RENT_DEFAULT_RATIO
 
         # Check if within bounds
         if rent_ratio < self.RENT_MIN_RATIO:
@@ -196,8 +235,8 @@ class EconomyBalanceChecker:
             warnings.append(BalanceWarning(
                 feature="Rent",
                 level=level,
-                message=f"Rent (${rent_amount:.2f}) is below recommended minimum. Students may not learn proper budgeting.",
-                current_value=rent_amount,
+                message=f"Weekly rent (${weekly_rent:.2f}) is below recommended minimum. Students may not learn proper budgeting.",
+                current_value=weekly_rent,
                 recommended_min=recommended_min,
                 recommended_max=recommended_max,
                 cwi_ratio=rent_ratio
@@ -208,8 +247,8 @@ class EconomyBalanceChecker:
             warnings.append(BalanceWarning(
                 feature="Rent",
                 level=level,
-                message=f"Rent (${rent_amount:.2f}) is above recommended maximum. Students may struggle with other expenses.",
-                current_value=rent_amount,
+                message=f"Weekly rent (${weekly_rent:.2f}) is above recommended maximum. Students may struggle with other expenses.",
+                current_value=weekly_rent,
                 recommended_min=recommended_min,
                 recommended_max=recommended_max,
                 cwi_ratio=rent_ratio
@@ -219,8 +258,8 @@ class EconomyBalanceChecker:
             warnings.append(BalanceWarning(
                 feature="Rent",
                 level=WarningLevel.INFO,
-                message=f"Rent is balanced at ${rent_amount:.2f} ({rent_ratio:.2f}x CWI)",
-                current_value=rent_amount,
+                message=f"Rent is balanced at ${weekly_rent:.2f}/week ({rent_ratio:.2f}x CWI)",
+                current_value=weekly_rent,
                 recommended_min=recommended_min,
                 recommended_max=recommended_max,
                 cwi_ratio=rent_ratio
@@ -246,7 +285,6 @@ class EconomyBalanceChecker:
 
         recommended_min = cwi * self.INSURANCE_MIN_RATIO
         recommended_max = cwi * self.INSURANCE_MAX_RATIO
-        recommended_default = cwi * self.INSURANCE_DEFAULT_RATIO
 
         for policy in insurance_policies:
             if not policy.is_active:
@@ -256,16 +294,7 @@ class EconomyBalanceChecker:
             premium = float(policy.premium)
 
             # Normalize to weekly based on charge_frequency
-            if policy.charge_frequency == 'monthly':
-                weekly_premium = premium / 4.33  # Average weeks per month
-            elif policy.charge_frequency == 'weekly':
-                weekly_premium = premium
-            elif policy.charge_frequency == 'biweekly':
-                weekly_premium = premium / 2
-            elif policy.charge_frequency == 'daily':
-                weekly_premium = premium * 7
-            else:
-                weekly_premium = premium  # Default to as-is
+            weekly_premium = self._normalize_to_weekly(premium, policy.charge_frequency)
 
             premium_ratio = weekly_premium / cwi if cwi > 0 else 0
 
@@ -327,7 +356,6 @@ class EconomyBalanceChecker:
 
         recommended_min = cwi * self.FINE_MIN_RATIO
         recommended_max = cwi * self.FINE_MAX_RATIO
-        recommended_default = cwi * self.FINE_DEFAULT_RATIO
 
         for fine in fines:
             if not fine.is_active:
@@ -444,6 +472,163 @@ class EconomyBalanceChecker:
 
         return warnings
 
+    def validate_rent_value(
+        self,
+        rent_amount: float,
+        frequency_type: str,
+        cwi: float,
+        custom_frequency_value: Optional[float] = None,
+        custom_frequency_unit: Optional[str] = None,
+    ) -> Tuple[List[Dict[str, str]], Dict[str, float], float]:
+        weekly_rent = self._normalize_to_weekly(
+            rent_amount,
+            frequency_type,
+            custom_frequency_value,
+            custom_frequency_unit,
+        )
+        ratio = weekly_rent / cwi if cwi > 0 else 0
+
+        recommendations = {
+            'min': round(cwi * self.RENT_MIN_RATIO, 2),
+            'max': round(cwi * self.RENT_MAX_RATIO, 2),
+            'recommended': round(cwi * self.RENT_DEFAULT_RATIO, 2),
+        }
+
+        warnings: List[Dict[str, str]] = []
+        if ratio < self.RENT_MIN_RATIO:
+            warnings.append({
+                'level': 'warning',
+                'message': f"Rent (${weekly_rent:.2f}/week) is below recommended minimum (${recommendations['min']:.2f}).",
+            })
+        elif ratio > self.RENT_MAX_RATIO:
+            warnings.append({
+                'level': 'critical',
+                'message': f"Rent (${weekly_rent:.2f}/week) is above recommended maximum (${recommendations['max']:.2f}).",
+            })
+        else:
+            warnings.append({
+                'level': 'success',
+                'message': f'Rent is balanced at ${weekly_rent:.2f}/week',
+            })
+
+        return warnings, recommendations, ratio
+
+    def validate_insurance_value(self, premium: float, frequency: str, cwi: float) -> Tuple[List[Dict[str, str]], Dict[str, float], float]:
+        weekly_value = self._normalize_to_weekly(premium, frequency)
+        ratio = weekly_value / cwi if cwi > 0 else 0
+
+        recommendations = {
+            'min_weekly': round(cwi * self.INSURANCE_MIN_RATIO, 2),
+            'max_weekly': round(cwi * self.INSURANCE_MAX_RATIO, 2),
+            'recommended_weekly': round(cwi * self.INSURANCE_DEFAULT_RATIO, 2),
+        }
+
+        warnings: List[Dict[str, str]] = []
+        if ratio < self.INSURANCE_MIN_RATIO:
+            warnings.append({
+                'level': 'warning',
+                'message': 'Premium may be too low relative to coverage.',
+            })
+        elif ratio > self.INSURANCE_MAX_RATIO:
+            warnings.append({
+                'level': 'critical',
+                'message': f'Premium (${premium:.2f}/{frequency}) is too expensive. Students may not enroll.',
+            })
+        else:
+            warnings.append({
+                'level': 'success',
+                'message': f'Premium is balanced at ${premium:.2f}/{frequency}',
+            })
+
+        return warnings, recommendations, ratio
+
+    def validate_fine_value(self, fine_amount: float, cwi: float) -> Tuple[List[Dict[str, str]], Dict[str, float], float]:
+        ratio = fine_amount / cwi if cwi > 0 else 0
+
+        recommendations = {
+            'min': round(cwi * self.FINE_MIN_RATIO, 2),
+            'max': round(cwi * self.FINE_MAX_RATIO, 2),
+            'recommended': round(cwi * self.FINE_DEFAULT_RATIO, 2),
+        }
+
+        warnings: List[Dict[str, str]] = []
+        if ratio < self.FINE_MIN_RATIO:
+            warnings.append({
+                'level': 'warning',
+                'message': f'Fine (${fine_amount:.2f}) may be too small to be meaningful.',
+            })
+        elif ratio > self.FINE_MAX_RATIO:
+            warnings.append({
+                'level': 'critical',
+                'message': f'Fine (${fine_amount:.2f}) is too harsh. May cause student insolvency.',
+            })
+        else:
+            warnings.append({
+                'level': 'success',
+                'message': f'Fine is balanced at ${fine_amount:.2f}',
+            })
+
+        return warnings, recommendations, ratio
+
+    def validate_store_item_value(self, price: float, cwi: float) -> Tuple[List[Dict[str, str]], Dict[str, Dict[str, float]], float]:
+        ratio = price / cwi if cwi > 0 else 0
+        recommendations: Dict[str, Dict[str, float]] = {}
+        warnings: List[Dict[str, str]] = []
+
+        tier_found = None
+        for tier, (min_r, max_r) in self.STORE_TIERS.items():
+            if min_r <= ratio <= max_r:
+                tier_found = tier
+                recommendations[tier.value] = {
+                    'min': round(cwi * min_r, 2),
+                    'max': round(cwi * max_r, 2),
+                }
+                break
+
+        recommendations['tiers'] = {
+            tier.value: {
+                'min': round(cwi * bounds[0], 2),
+                'max': round(cwi * bounds[1], 2),
+            }
+            for tier, bounds in self.STORE_TIERS.items()
+        }
+
+        if tier_found:
+            warnings.append({
+                'level': 'success',
+                'message': f'Price fits {tier_found.value.upper()} tier (${price:.2f})',
+            })
+        elif ratio > self.STORE_TIERS[PricingTier.LUXURY][1]:
+            warnings.append({
+                'level': 'critical',
+                'message': f'Price (${price:.2f}) exceeds LUXURY tier max. Students may never afford this.',
+            })
+        elif ratio < self.STORE_TIERS[PricingTier.BASIC][0]:
+            warnings.append({
+                'level': 'warning',
+                'message': f'Price (${price:.2f}) is below BASIC tier. May not be meaningful reward.',
+            })
+
+        return warnings, recommendations, ratio
+
+    def validate_feature_value(self, feature: str, value: float, cwi: float, **kwargs):
+        if feature == 'rent':
+            return self.validate_rent_value(
+                value,
+                kwargs.get('frequency_type', 'monthly'),
+                cwi,
+                kwargs.get('custom_frequency_value'),
+                kwargs.get('custom_frequency_unit'),
+            )
+        if feature == 'insurance':
+            return self.validate_insurance_value(value, kwargs.get('frequency', 'weekly'), cwi)
+        if feature == 'fine':
+            return self.validate_fine_value(value, cwi)
+        if feature == 'store_item':
+            return self.validate_store_item_value(value, cwi)
+
+        raise ValueError('Unsupported feature type')
+
     def calculate_budget_survival(
         self,
         cwi: float,
@@ -471,19 +656,12 @@ class EconomyBalanceChecker:
         weekly_rent = 0
         if rent_settings and rent_settings.is_enabled:
             rent_amount = float(rent_settings.rent_amount)
-            # Convert to weekly based on frequency
-            if rent_settings.frequency_type == 'monthly':
-                weekly_rent = rent_amount / 4.33
-            elif rent_settings.frequency_type == 'weekly':
-                weekly_rent = rent_amount
-            elif rent_settings.frequency_type == 'daily':
-                weekly_rent = rent_amount * 7
-            elif rent_settings.frequency_type == 'custom':
-                # Estimate based on custom frequency
-                custom_days = rent_settings.custom_frequency_value or 7
-                weekly_rent = rent_amount * (7 / custom_days)
-            else:
-                weekly_rent = rent_amount  # Default
+            weekly_rent = self._normalize_to_weekly(
+                rent_amount,
+                rent_settings.frequency_type,
+                rent_settings.custom_frequency_value,
+                getattr(rent_settings, 'custom_frequency_unit', None)
+            )
 
         # Calculate weekly insurance (use cheapest active policy as baseline)
         weekly_insurance = 0
@@ -494,16 +672,7 @@ class EconomyBalanceChecker:
                 cheapest_weekly = float('inf')
                 for policy in active_policies:
                     premium = float(policy.premium)
-                    if policy.charge_frequency == 'monthly':
-                        weekly_equiv = premium / 4.33
-                    elif policy.charge_frequency == 'weekly':
-                        weekly_equiv = premium
-                    elif policy.charge_frequency == 'biweekly':
-                        weekly_equiv = premium / 2
-                    elif policy.charge_frequency == 'daily':
-                        weekly_equiv = premium * 7
-                    else:
-                        weekly_equiv = premium
+                    weekly_equiv = self._normalize_to_weekly(premium, policy.charge_frequency)
 
                     if weekly_equiv < cheapest_weekly:
                         cheapest_weekly = weekly_equiv
@@ -513,7 +682,7 @@ class EconomyBalanceChecker:
         # Estimate weekly store spending if not provided
         if average_store_spending is None:
             # Conservative estimate: 15% of CWI on store items
-            average_store_spending = cwi * 0.15
+            average_store_spending = cwi * self.ESTIMATED_WEEKLY_STORE_SPENDING_RATIO
 
         # Calculate weekly savings
         weekly_savings = weekly_income - weekly_rent - weekly_insurance - average_store_spending

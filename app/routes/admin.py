@@ -47,7 +47,7 @@ from forms import (
 # Import utility functions
 from app.utils.helpers import is_safe_url, format_utc_iso, generate_anonymous_code, render_template_with_fallback as render_template
 from app.utils.join_code import generate_join_code
-from app.utils.economy_balance import EconomyBalanceChecker, format_warnings_for_display
+from app.utils.economy_balance import EconomyBalanceChecker
 from app.utils.claim_credentials import (
     compute_primary_claim_hash,
     match_claim_hash,
@@ -2158,7 +2158,8 @@ def edit_store_item(item_id):
         db.session.commit()
         flash(f"'{item.name}' has been updated.", "success")
         return redirect(url_for('admin.store_management'))
-    return render_template('admin_edit_item.html', form=form, item=item, current_page="store")
+    payroll_settings = PayrollSettings.query.filter_by(teacher_id=admin_id, is_active=True).first()
+    return render_template('admin_edit_item.html', form=form, item=item, current_page="store", payroll_settings=payroll_settings)
 
 
 @admin_bp.route('/store/delete/<int:item_id>', methods=['POST'])
@@ -2212,6 +2213,7 @@ def rent_settings():
     """Configure rent settings."""
     admin_id = session.get("admin_id")
     student_ids_subq = _student_scope_subquery()
+    payroll_settings = PayrollSettings.query.filter_by(teacher_id=admin_id, is_active=True).first()
 
     # Get teacher's blocks for class selector
     teacher_blocks = db.session.query(TeacherBlock.block).filter_by(teacher_id=admin_id).distinct().all()
@@ -2326,31 +2328,28 @@ def rent_settings():
 
     # Calculate payroll warning
     payroll_warning = None
-    if settings and settings.is_enabled and settings.rent_amount > 0:
-        # Get average payroll amount per student per month
-        payroll_settings = PayrollSettings.query.filter_by(is_active=True).first()
-        if payroll_settings:
-            # Calculate rent per month based on frequency
-            rent_per_month = settings.rent_amount
-            if settings.frequency_type == 'daily':
-                rent_per_month = settings.rent_amount * 30
-            elif settings.frequency_type == 'weekly':
-                rent_per_month = settings.rent_amount * 4
-            elif settings.frequency_type == 'custom':
-                if settings.custom_frequency_unit == 'days':
-                    rent_per_month = settings.rent_amount * (30 / settings.custom_frequency_value)
-                elif settings.custom_frequency_unit == 'weeks':
-                    rent_per_month = settings.rent_amount * (30 / (settings.custom_frequency_value * 7))
-                elif settings.custom_frequency_unit == 'months':
-                    rent_per_month = settings.rent_amount / settings.custom_frequency_value
+    if settings and settings.is_enabled and settings.rent_amount > 0 and payroll_settings:
+        # Calculate rent per month based on frequency
+        rent_per_month = settings.rent_amount
+        if settings.frequency_type == 'daily':
+            rent_per_month = settings.rent_amount * 30
+        elif settings.frequency_type == 'weekly':
+            rent_per_month = settings.rent_amount * 4
+        elif settings.frequency_type == 'custom':
+            if settings.custom_frequency_unit == 'days':
+                rent_per_month = settings.rent_amount * (30 / settings.custom_frequency_value)
+            elif settings.custom_frequency_unit == 'weeks':
+                rent_per_month = settings.rent_amount * (30 / (settings.custom_frequency_value * 7))
+            elif settings.custom_frequency_unit == 'months':
+                rent_per_month = settings.rent_amount / settings.custom_frequency_value
 
-            # Estimate monthly payroll (assuming average 20 work days, 6 hours per day)
-            # Using simple mode settings if available
-            pay_per_minute = payroll_settings.pay_rate
-            estimated_monthly_payroll = pay_per_minute * 60 * 6 * 20  # 6 hours/day * 20 days
+        # Estimate monthly payroll (assuming average 20 work days, 6 hours per day)
+        # Using simple mode settings if available
+        pay_per_minute = payroll_settings.pay_rate
+        estimated_monthly_payroll = pay_per_minute * 60 * 6 * 20  # 6 hours/day * 20 days
 
-            if rent_per_month > estimated_monthly_payroll * 0.8:  # If rent is more than 80% of payroll
-                payroll_warning = f"Rent (${rent_per_month:.2f}/month) exceeds recommended 80% of estimated monthly payroll (${estimated_monthly_payroll:.2f}). Students may struggle to afford rent."
+        if rent_per_month > estimated_monthly_payroll * 0.8:  # If rent is more than 80% of payroll
+            payroll_warning = f"Rent (${rent_per_month:.2f}/month) exceeds recommended 80% of estimated monthly payroll (${estimated_monthly_payroll:.2f}). Students may struggle to afford rent."
 
     return render_template('admin_rent_settings.html',
                           settings=settings,
@@ -2359,6 +2358,7 @@ def rent_settings():
                           active_waivers=active_waivers,
                           all_students=all_students,
                           payroll_warning=payroll_warning,
+                          payroll_settings=payroll_settings,
                           settings_block=settings_block,
                           teacher_blocks=teacher_blocks,
                           class_labels_by_block=class_labels_by_block)
@@ -2737,13 +2737,16 @@ def edit_insurance_policy(policy_id):
         InsurancePolicy.id != policy_id
     ).all()
 
+    payroll_settings = PayrollSettings.query.filter_by(teacher_id=session.get('admin_id'), is_active=True).first()
+
     return render_template(
         'admin_edit_insurance_policy.html',
         form=form,
         policy=policy,
         available_policies=available_policies,
         tier_groups=tier_groups,
-        next_tier_category_id=next_tier_category_id
+        next_tier_category_id=next_tier_category_id,
+        payroll_settings=payroll_settings
     )
 
 
@@ -5508,12 +5511,13 @@ def api_calculate_cwi():
 
         # Create a temporary PayrollSettings-like object for calculation
         class TempPayrollSettings:
-            def __init__(self, pay_rate, time_unit='minutes', frequency_days=7):
+            def __init__(self, pay_rate, time_unit='minutes', frequency_days=7, expected_weekly_hours=None):
                 self.pay_rate = pay_rate
                 self.time_unit = time_unit
                 self.payroll_frequency_days = frequency_days
+                self.expected_weekly_hours = expected_weekly_hours
 
-        temp_settings = TempPayrollSettings(pay_rate_per_minute)
+        temp_settings = TempPayrollSettings(pay_rate_per_minute, expected_weekly_hours=expected_weekly_hours)
 
         # Calculate CWI
         checker = EconomyBalanceChecker(admin_id, block)
@@ -5626,7 +5630,9 @@ def api_economy_analyze():
             'warnings': warnings_by_level,
             'recommendations': analysis.recommendations,
             'cwi_breakdown': {
+                'pay_rate_per_hour': analysis.cwi.pay_rate_per_minute * 60,
                 'pay_rate_per_minute': analysis.cwi.pay_rate_per_minute,
+                'expected_weekly_hours': expected_weekly_hours,
                 'expected_weekly_minutes': analysis.cwi.expected_weekly_minutes,
                 'notes': analysis.cwi.notes
             }
@@ -5658,6 +5664,13 @@ def api_economy_validate(feature):
 
         value = float(data.get('value', 0))
         block = data.get('block')
+        feature = feature.lower()
+        valid_features = ['rent', 'insurance', 'fine', 'store_item']
+        if feature not in valid_features:
+            return jsonify({
+                'status': 'error',
+                'message': f"Invalid feature type. Must be one of: {', '.join(valid_features)}"
+            }), 400
 
         # Get payroll settings to calculate CWI
         payroll_settings = PayrollSettings.query.filter_by(
@@ -5681,145 +5694,21 @@ def api_economy_validate(feature):
 
         warnings = []
         recommendations = {}
+        ratio = None
 
-        if feature == 'rent':
-            recommended_min = cwi * checker.RENT_MIN_RATIO
-            recommended_max = cwi * checker.RENT_MAX_RATIO
-            recommended = cwi * checker.RENT_DEFAULT_RATIO
-            ratio = value / cwi if cwi > 0 else 0
+        validation_kwargs = {
+            'frequency': data.get('frequency', 'weekly'),
+            'frequency_type': data.get('frequency_type', data.get('frequency', 'monthly')),
+            'custom_frequency_value': data.get('custom_frequency_value'),
+            'custom_frequency_unit': data.get('custom_frequency_unit'),
+        }
 
-            recommendations = {
-                'min': round(recommended_min, 2),
-                'max': round(recommended_max, 2),
-                'recommended': round(recommended, 2)
-            }
-
-            if ratio < checker.RENT_MIN_RATIO:
-                warnings.append({
-                    'level': 'warning',
-                    'message': f'Rent (${value:.2f}) is below recommended minimum (${recommended_min:.2f}). Students may not learn proper budgeting.'
-                })
-            elif ratio > checker.RENT_MAX_RATIO:
-                warnings.append({
-                    'level': 'critical',
-                    'message': f'Rent (${value:.2f}) is above recommended maximum (${recommended_max:.2f}). Students may struggle with other expenses.'
-                })
-            else:
-                warnings.append({
-                    'level': 'success',
-                    'message': f'Rent is balanced at ${value:.2f} ({ratio:.2f}x weekly income)'
-                })
-
-        elif feature == 'insurance':
-            frequency = data.get('frequency', 'weekly')
-
-            # Normalize to weekly
-            if frequency == 'monthly':
-                weekly_value = value / 4.33
-            elif frequency == 'biweekly':
-                weekly_value = value / 2
-            elif frequency == 'daily':
-                weekly_value = value * 7
-            else:
-                weekly_value = value
-
-            recommended_min = cwi * checker.INSURANCE_MIN_RATIO
-            recommended_max = cwi * checker.INSURANCE_MAX_RATIO
-            recommended = cwi * checker.INSURANCE_DEFAULT_RATIO
-            ratio = weekly_value / cwi if cwi > 0 else 0
-
-            recommendations = {
-                'min_weekly': round(recommended_min, 2),
-                'max_weekly': round(recommended_max, 2),
-                'recommended_weekly': round(recommended, 2)
-            }
-
-            if ratio < checker.INSURANCE_MIN_RATIO:
-                warnings.append({
-                    'level': 'warning',
-                    'message': f'Premium may be too low relative to coverage.'
-                })
-            elif ratio > checker.INSURANCE_MAX_RATIO:
-                warnings.append({
-                    'level': 'critical',
-                    'message': f'Premium (${value:.2f}/{frequency}) is too expensive. Students may not enroll.'
-                })
-            else:
-                warnings.append({
-                    'level': 'success',
-                    'message': f'Premium is balanced at ${value:.2f}/{frequency}'
-                })
-
-        elif feature == 'fine':
-            recommended_min = cwi * checker.FINE_MIN_RATIO
-            recommended_max = cwi * checker.FINE_MAX_RATIO
-            recommended = cwi * checker.FINE_DEFAULT_RATIO
-            ratio = value / cwi if cwi > 0 else 0
-
-            recommendations = {
-                'min': round(recommended_min, 2),
-                'max': round(recommended_max, 2),
-                'recommended': round(recommended, 2)
-            }
-
-            if ratio < checker.FINE_MIN_RATIO:
-                warnings.append({
-                    'level': 'warning',
-                    'message': f'Fine (${value:.2f}) may be too small to be meaningful.'
-                })
-            elif ratio > checker.FINE_MAX_RATIO:
-                warnings.append({
-                    'level': 'critical',
-                    'message': f'Fine (${value:.2f}) is too harsh. May cause student insolvency.'
-                })
-            else:
-                warnings.append({
-                    'level': 'success',
-                    'message': f'Fine is balanced at ${value:.2f}'
-                })
-
-        elif feature == 'store_item':
-            ratio = value / cwi if cwi > 0 else 0
-
-            # Determine tier
-            tier_found = None
-            for tier_name, (min_r, max_r) in [
-                ('BASIC', (0.02, 0.05)),
-                ('STANDARD', (0.05, 0.10)),
-                ('PREMIUM', (0.10, 0.25)),
-                ('LUXURY', (0.25, 0.50))
-            ]:
-                if min_r <= ratio <= max_r:
-                    tier_found = tier_name
-                    recommendations[tier_name.lower()] = {
-                        'min': round(cwi * min_r, 2),
-                        'max': round(cwi * max_r, 2)
-                    }
-                    break
-
-            # Provide all tier recommendations
-            recommendations['tiers'] = {
-                'basic': {'min': round(cwi * 0.02, 2), 'max': round(cwi * 0.05, 2)},
-                'standard': {'min': round(cwi * 0.05, 2), 'max': round(cwi * 0.10, 2)},
-                'premium': {'min': round(cwi * 0.10, 2), 'max': round(cwi * 0.25, 2)},
-                'luxury': {'min': round(cwi * 0.25, 2), 'max': round(cwi * 0.50, 2)}
-            }
-
-            if tier_found:
-                warnings.append({
-                    'level': 'success',
-                    'message': f'Price fits {tier_found} tier (${value:.2f})'
-                })
-            elif ratio > 0.50:
-                warnings.append({
-                    'level': 'critical',
-                    'message': f'Price (${value:.2f}) exceeds LUXURY tier max. Students may never afford this.'
-                })
-            elif ratio < 0.02:
-                warnings.append({
-                    'level': 'warning',
-                    'message': f'Price (${value:.2f}) is below BASIC tier. May not be meaningful reward.'
-                })
+        warnings, recommendations, ratio = checker.validate_feature_value(
+            feature,
+            value,
+            cwi,
+            **validation_kwargs,
+        )
 
         return jsonify({
             'status': 'success',
@@ -5827,7 +5716,13 @@ def api_economy_validate(feature):
             'warnings': warnings,
             'recommendations': recommendations,
             'cwi': cwi,
-            'ratio': ratio if feature != 'insurance' else None
+            'ratio': ratio if feature != 'insurance' else None,
+            'cwi_breakdown': {
+                'pay_rate_per_hour': cwi_calc.pay_rate_per_minute * 60,
+                'pay_rate_per_minute': cwi_calc.pay_rate_per_minute,
+                'expected_weekly_hours': expected_weekly_hours,
+                'expected_weekly_minutes': cwi_calc.expected_weekly_minutes,
+            }
         })
 
     except Exception as e:
