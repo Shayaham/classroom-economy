@@ -2484,14 +2484,26 @@ def _next_tenant_scoped_tier_id(seed, existing_ids):
 @admin_required
 def insurance_management():
     """Main insurance management dashboard."""
-    student_ids_subq = _student_scope_subquery()
+    admin_id = session.get('admin_id')
     form = InsurancePolicyForm()
+
+    # Get teacher's blocks for class selector
+    teacher_blocks = db.session.query(TeacherBlock.block).filter_by(teacher_id=admin_id).distinct().all()
+    teacher_blocks = sorted([b[0] for b in teacher_blocks])
+
+    # Get which class settings to show (default to first block)
+    settings_block = request.args.get('settings_block') or request.form.get('settings_block')
+    if not settings_block and teacher_blocks:
+        settings_block = teacher_blocks[0]
+
+    # Get class labels for display
+    class_labels_by_block = _get_class_labels_for_blocks(admin_id, teacher_blocks)
 
     # Populate blocks choices from teacher's students
     blocks = _get_teacher_blocks()
     form.blocks.choices = [(block, f"Period {block}") for block in blocks]
 
-    current_teacher_id = session.get('admin_id')
+    current_teacher_id = admin_id
     existing_policies = InsurancePolicy.query.filter_by(teacher_id=current_teacher_id).all()
 
     # Collect existing tier groups for the current teacher
@@ -2565,37 +2577,67 @@ def insurance_management():
     # Get policies for current teacher only
     policies = existing_policies
 
-    # Get all student enrollments
-    active_enrollments = (
-        StudentInsurance.query
-        .join(Student, StudentInsurance.student_id == Student.id)
-        .filter(Student.id.in_(student_ids_subq))
-        .filter(StudentInsurance.status == 'active')
-        .all()
-    )
-    cancelled_enrollments = (
-        StudentInsurance.query
-        .join(Student, StudentInsurance.student_id == Student.id)
-        .filter(Student.id.in_(student_ids_subq))
-        .filter(StudentInsurance.status == 'cancelled')
-        .all()
-    )
+    # Filter students by selected block
+    if settings_block:
+        # Use SQL LIKE for more efficient filtering (case-insensitive, match whole block)
+        block_pattern = f'%,{settings_block},%'  # for matching in the middle
+        block_pattern_start = f'{settings_block},%'  # for matching at the start
+        block_pattern_end = f'%,{settings_block}'  # for matching at the end
+        block_pattern_exact = f'{settings_block}'  # for exact match
+        students_in_block = (
+            _scoped_students()
+            .filter(
+                sa.or_(
+                    sa.func.lower(Student.block) == settings_block.lower(),
+                    sa.func.lower(Student.block).like(f'{settings_block.lower()},%'),
+                    sa.func.lower(Student.block).like(f'%,{settings_block.lower()},%'),
+                    sa.func.lower(Student.block).like(f'%,{settings_block.lower()}')
+                )
+            )
+            .all()
+        )
+    else:
+        students_in_block = _scoped_students().all()
 
-    # Get all claims
-    claims = (
-        InsuranceClaim.query
-        .join(Student, InsuranceClaim.student_id == Student.id)
-        .filter(Student.id.in_(student_ids_subq))
-        .order_by(InsuranceClaim.filed_date.desc())
-        .all()
-    )
-    pending_claims_count = (
-        InsuranceClaim.query
-        .join(Student, InsuranceClaim.student_id == Student.id)
-        .filter(Student.id.in_(student_ids_subq))
-        .filter(InsuranceClaim.status == 'pending')
-        .count()
-    )
+    student_ids_in_block = [s.id for s in students_in_block]
+
+    # Get student enrollments for selected block
+    active_enrollments = []
+    cancelled_enrollments = []
+    claims = []
+    pending_claims_count = 0
+
+    if student_ids_in_block:
+        active_enrollments = (
+            StudentInsurance.query
+            .join(Student, StudentInsurance.student_id == Student.id)
+            .filter(Student.id.in_(student_ids_in_block))
+            .filter(StudentInsurance.status == 'active')
+            .all()
+        )
+        cancelled_enrollments = (
+            StudentInsurance.query
+            .join(Student, StudentInsurance.student_id == Student.id)
+            .filter(Student.id.in_(student_ids_in_block))
+            .filter(StudentInsurance.status == 'cancelled')
+            .all()
+        )
+
+        # Get claims for selected block, filtered by join_code for proper multi-tenancy isolation
+        claims = (
+            InsuranceClaim.query
+            .join(StudentInsurance, InsuranceClaim.student_insurance_id == StudentInsurance.id)
+            .filter(StudentInsurance.join_code == join_code)
+            .order_by(InsuranceClaim.filed_date.desc())
+            .all()
+        )
+        pending_claims_count = (
+            InsuranceClaim.query
+            .join(StudentInsurance, InsuranceClaim.student_insurance_id == StudentInsurance.id)
+            .filter(StudentInsurance.join_code == join_code)
+            .filter(InsuranceClaim.status == 'pending')
+            .count()
+        )
 
     return render_template('admin_insurance.html',
                           form=form,
@@ -2605,7 +2647,10 @@ def insurance_management():
                           claims=claims,
                           pending_claims_count=pending_claims_count,
                           tier_groups=tier_groups,
-                          next_tier_category_id=next_tier_category_id)
+                          next_tier_category_id=next_tier_category_id,
+                          teacher_blocks=teacher_blocks,
+                          settings_block=settings_block,
+                          class_labels_by_block=class_labels_by_block)
 
 
 @admin_bp.route('/insurance/edit/<int:policy_id>', methods=['GET', 'POST'])
