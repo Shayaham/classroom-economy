@@ -2578,15 +2578,26 @@ def insurance_management():
     policies = existing_policies
 
     # Filter students by selected block
-    all_students = _scoped_students().all()
-    students_in_block = []
     if settings_block:
-        students_in_block = [
-            s for s in all_students
-            if s.block and settings_block.upper() in [b.strip().upper() for b in s.block.split(',')]
-        ]
+        # Use SQL LIKE for more efficient filtering (case-insensitive, match whole block)
+        block_pattern = f'%,{settings_block},%'  # for matching in the middle
+        block_pattern_start = f'{settings_block},%'  # for matching at the start
+        block_pattern_end = f'%,{settings_block}'  # for matching at the end
+        block_pattern_exact = f'{settings_block}'  # for exact match
+        students_in_block = (
+            _scoped_students()
+            .filter(
+                sa.or_(
+                    sa.func.lower(Student.block) == settings_block.lower(),
+                    sa.func.lower(Student.block).like(f'{settings_block.lower()},%'),
+                    sa.func.lower(Student.block).like(f'%,{settings_block.lower()},%'),
+                    sa.func.lower(Student.block).like(f'%,{settings_block.lower()}')
+                )
+            )
+            .all()
+        )
     else:
-        students_in_block = all_students
+        students_in_block = _scoped_students().all()
 
     student_ids_in_block = [s.id for s in students_in_block]
 
