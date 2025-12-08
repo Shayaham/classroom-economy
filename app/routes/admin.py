@@ -3583,6 +3583,10 @@ def payroll_settings():
         # Determine which mode we're in
         settings_mode = request.form.get('settings_mode', 'simple')
 
+        # Shared fields
+        expected_weekly_hours_raw = request.form.get('expected_weekly_hours')
+        expected_weekly_hours = float(expected_weekly_hours_raw) if expected_weekly_hours_raw else 5.0
+
         # Parse form data based on mode
         if settings_mode == 'simple':
             # Simple mode fields
@@ -3609,6 +3613,7 @@ def payroll_settings():
                 'payroll_frequency_days': payroll_frequency_days,
                 'first_pay_date': first_pay_date,
                 'daily_limit_hours': daily_limit_hours,
+                'expected_weekly_hours': expected_weekly_hours,
                 'time_unit': 'minutes',
                 'pay_schedule_type': frequency,
                 'is_active': True,
@@ -3691,6 +3696,7 @@ def payroll_settings():
                 'payroll_frequency_days': payroll_frequency_days,
                 'first_pay_date': first_pay_date,
                 'rounding_mode': rounding,
+                'expected_weekly_hours': expected_weekly_hours,
                 'is_active': True,
                 # Reset simple fields
                 'daily_limit_hours': None
@@ -5523,6 +5529,8 @@ def api_calculate_cwi():
         checker = EconomyBalanceChecker(admin_id, block)
         cwi_calc = checker.calculate_cwi(temp_settings, expected_weekly_hours)
 
+        recommendations = checker._generate_recommendations(cwi_calc.cwi, [])
+
         return jsonify({
             'status': 'success',
             'cwi': cwi_calc.cwi,
@@ -5532,7 +5540,8 @@ def api_calculate_cwi():
                 'expected_weekly_hours': expected_weekly_hours,
                 'expected_weekly_minutes': cwi_calc.expected_weekly_minutes,
                 'notes': cwi_calc.notes
-            }
+            },
+            'recommendations': recommendations
         })
 
     except Exception as e:
