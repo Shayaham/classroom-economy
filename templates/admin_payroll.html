@@ -707,13 +707,16 @@
             <form method="POST" action="{{ url_for('admin.payroll_add_reward') }}" class="mb-4">
               {{ reward_form.hidden_tag() }}
               <div class="mb-2">
+                <label for="reward_name" class="form-label visually-hidden">Reward Name</label>
                 {{ reward_form.name(class="form-control form-control-sm", placeholder="Reward Name", id="reward_name") }}
               </div>
               <div class="mb-2">
+                <label for="reward_description" class="form-label visually-hidden">Description</label>
                 {{ reward_form.description(class="form-control form-control-sm", rows=2, placeholder="Description (optional)", id="reward_description") }}
               </div>
               <div class="input-group input-group-sm mb-2">
                 <span class="input-group-text">$</span>
+                <label for="reward_amount" class="form-label visually-hidden">Amount</label>
                 {{ reward_form.amount(class="form-control", placeholder="Amount", step="0.01", id="reward_amount") }}
               </div>
               <div class="form-check form-switch mb-2">
@@ -768,13 +771,16 @@
             <form method="POST" action="{{ url_for('admin.payroll_add_fine') }}" class="mb-4">
               {{ fine_form.hidden_tag() }}
               <div class="mb-2">
+                <label for="fine_name" class="form-label visually-hidden">Fine Name</label>
                 {{ fine_form.name(class="form-control form-control-sm", placeholder="Fine Name", id="fine_name") }}
               </div>
               <div class="mb-2">
+                <label for="fine_description" class="form-label visually-hidden">Description</label>
                 {{ fine_form.description(class="form-control form-control-sm", rows=2, placeholder="Description (optional)", id="fine_description") }}
               </div>
               <div class="input-group input-group-sm mb-2">
                 <span class="input-group-text">$</span>
+                <label for="fine_amount" class="form-label visually-hidden">Amount</label>
                 {{ fine_form.amount(class="form-control", placeholder="Amount", step="0.01", id="fine_amount") }}
               </div>
               <div class="form-check form-switch mb-2">
