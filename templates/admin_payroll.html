@@ -1779,8 +1779,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 const totalMinutes = breakdown.expected_weekly_minutes || (expectedHours * 60);
                 calcNoteEl.innerHTML = `
                     <strong>Pay Rate:</strong> $${payRateHour.toFixed(2)}/hour ($${breakdown.pay_rate_per_minute?.toFixed(2) || '0.00'}/minute)<br>
-                    <strong>Expected Hours:</strong> ${expectedHours.toFixed(2)} hours/week (${totalMinutes.toFixed(0)} minutes)<br>
-                    <strong>Total Weekly Minutes:</strong> ${totalMinutes.toFixed(0)} minutes
+                    <strong>Expected Hours:</strong> ${expectedHours.toFixed(2)} hours/week (${totalMinutes.toFixed(0)} minutes)
                 `;
             }
 
@@ -1824,6 +1823,33 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Load CWI on page load
     updateCWIOverview();
+
+    // Add confirmation dialog for expected hours form
+    const expectedHoursForm = document.getElementById('expectedHoursForm');
+    if (expectedHoursForm) {
+        expectedHoursForm.addEventListener('submit', function(e) {
+            const currentValue = parseFloat(expectedHoursOverview.value) || 5.0;
+            const initialValue = parseFloat(expectedHoursOverview.getAttribute('value')) || 5.0;
+
+            // Only show confirmation if the value has changed
+            if (currentValue !== initialValue) {
+                e.preventDefault();
+
+                const confirmed = confirm(
+                    `This will update the Expected Weekly Hours to ${currentValue.toFixed(2)} hours/week for ALL classes.\n\n` +
+                    `This affects:\n` +
+                    `• CWI calculations for all classes\n` +
+                    `• Economy balance recommendations\n` +
+                    `• Rent, insurance, and store pricing guidance\n\n` +
+                    `Do you want to continue?`
+                );
+
+                if (confirmed) {
+                    expectedHoursForm.submit();
+                }
+            }
+        });
+    }
 });
 
 // Run Payroll

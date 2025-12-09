@@ -3741,7 +3741,7 @@ def payroll_settings():
 @admin_bp.route('/payroll/update-expected-hours', methods=['POST'])
 @admin_required
 def update_expected_weekly_hours():
-    """Update the expected weekly hours for CWI calculation."""
+    """Update the expected weekly hours for CWI calculation across all payroll settings."""
     try:
         admin_id = session.get("admin_id")
         expected_weekly_hours = float(request.form.get('expected_weekly_hours', 5.0))
@@ -3750,16 +3750,17 @@ def update_expected_weekly_hours():
             flash('Expected weekly hours must be between 0.25 and 40.', 'error')
             return redirect(url_for('admin.payroll'))
 
-        # Get or create the default payroll settings (block=NULL)
-        default_setting = PayrollSettings.query.filter_by(
-            teacher_id=admin_id,
-            block=None
-        ).first()
+        # Get all existing payroll settings for this teacher
+        settings_to_update = PayrollSettings.query.filter_by(teacher_id=admin_id).all()
 
-        if default_setting:
-            default_setting.expected_weekly_hours = expected_weekly_hours
+        if settings_to_update:
+            # Update the value for all existing settings (both global and per-block)
+            for setting in settings_to_update:
+                setting.expected_weekly_hours = expected_weekly_hours
+            flash_message = f'Expected weekly hours updated to {expected_weekly_hours} hours/week for all classes.'
         else:
-            # Create new default settings with expected hours
+            # If no settings exist at all, create a new global default one.
+            # This is a good starting point for a new teacher.
             default_setting = PayrollSettings(
                 teacher_id=admin_id,
                 block=None,
@@ -3769,9 +3770,10 @@ def update_expected_weekly_hours():
                 settings_mode='simple'
             )
             db.session.add(default_setting)
+            flash_message = f'Default expected weekly hours set to {expected_weekly_hours} hours/week.'
 
         db.session.commit()
-        flash(f'Expected weekly hours updated to {expected_weekly_hours} hours/week', 'success')
+        flash(flash_message, 'success')
 
     except ValueError:
         flash('Invalid expected weekly hours value', 'error')
