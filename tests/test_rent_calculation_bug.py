@@ -111,11 +111,11 @@ def test_rent_validation_monthly(admin_with_exact_payroll):
 
     # THE BUG: Recommendations should be based on CWI, not rent_amount!
     assert recommendations['min'] == expected_min, \
-        f"BUGBUG: Expected min ${expected_min}, got ${recommendations['min']}"
+        f"Expected min recommendation ${expected_min}, but got ${recommendations['min']}"
     assert recommendations['max'] == expected_max, \
-        f"BUG: Expected max ${expected_max}, got ${recommendations['max']}"
+        f"Expected max recommendation ${expected_max}, but got ${recommendations['max']}"
     assert recommendations['recommended'] == expected_ideal, \
-        f"BUG: Expected ideal ${expected_ideal}, got ${recommendations['recommended']}"
+        f"Expected ideal recommendation ${expected_ideal}, but got ${recommendations['recommended']}"
 
     # Verify warning message
     assert len(warnings) > 0, "Should have at least one warning"
