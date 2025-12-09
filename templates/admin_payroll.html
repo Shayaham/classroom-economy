@@ -125,7 +125,7 @@
       </div>
       <div class="card-body">
         <form method="POST" action="{{ url_for('admin.update_expected_weekly_hours') }}" id="expectedHoursForm">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+          {{ expected_hours_form.hidden_tag() }}
 
           <div class="row align-items-end mb-3">
             <div class="col-md-4">
