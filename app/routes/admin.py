@@ -3745,6 +3745,10 @@ def update_expected_weekly_hours():
     try:
         admin_id = session.get("admin_id")
         expected_weekly_hours = float(request.form.get('expected_weekly_hours', 5.0))
+        # Validate expected_weekly_hours is within a reasonable range (0.25 to 40)
+        if not (0.25 <= expected_weekly_hours <= 40):
+            flash('Expected weekly hours must be between 0.25 and 40.', 'error')
+            return redirect(url_for('admin.payroll'))
 
         # Get or create the default payroll settings (block=NULL)
         default_setting = PayrollSettings.query.filter_by(
