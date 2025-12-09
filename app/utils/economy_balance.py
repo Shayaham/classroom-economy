@@ -534,7 +534,7 @@ class EconomyBalanceChecker:
                     return monthly_value * freq_value
                 else:  # days
                     return monthly_value / (self.AVERAGE_WEEKS_PER_MONTH * 7) * freq_value
-            return monthly_value
+            raise ValueError(f"Unsupported frequency_type: {frequency_type}")
 
         recommendations = {
             'min': round(convert_from_monthly(monthly_min), 2),
