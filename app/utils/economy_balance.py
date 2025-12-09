@@ -509,7 +509,6 @@ class EconomyBalanceChecker:
         monthly_recommended = cwi * self.RENT_DEFAULT_RATIO
 
         # Convert to weekly for ratio calculation
-        weekly_min = monthly_min / self.AVERAGE_WEEKS_PER_MONTH
         weekly_max = monthly_max / self.AVERAGE_WEEKS_PER_MONTH
 
         # Calculate ratio based on weekly equivalents
