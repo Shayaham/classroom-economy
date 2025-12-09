@@ -264,19 +264,26 @@ class EconomyBalanceChecker {
     /**
      * Get complete economy analysis
      */
-    async analyzeEconomy(expectedWeeklyHours = null) {
+    async analyzeEconomy(expectedWeeklyHours = null, block = null) {
         const hours = expectedWeeklyHours || this.expectedWeeklyHours;
 
         try {
+            const requestBody = {
+                expected_weekly_hours: hours
+            };
+
+            // Include block if provided
+            if (block) {
+                requestBody.block = block;
+            }
+
             const response = await fetch(`${this.apiBaseUrl}/analyze`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'X-CSRFToken': this.getCsrfToken()
                 },
-                body: JSON.stringify({
-                    expected_weekly_hours: hours
-                })
+                body: JSON.stringify(requestBody)
             });
 
             const data = await response.json();

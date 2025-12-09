@@ -627,7 +627,8 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // Display CWI info if payroll is configured
-    economyChecker.analyzeEconomy().then(analysis => {
+    const currentBlock = '{{ settings_block }}';
+    economyChecker.analyzeEconomy(null, currentBlock).then(analysis => {
       economyChecker.displayCWIInfo(analysis, '#cwi-info');
     }).catch(err => {
       console.log('Payroll not configured yet, skipping CWI display');
