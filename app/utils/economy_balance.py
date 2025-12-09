@@ -480,35 +480,102 @@ class EconomyBalanceChecker:
         custom_frequency_value: Optional[float] = None,
         custom_frequency_unit: Optional[str] = None,
     ) -> Tuple[List[Dict[str, str]], Dict[str, float], float]:
+        """
+        Validate rent amount against CWI-based recommendations.
+
+        Per AGENTS spec, rent ratios (2.0-2.5x CWI) are defined for MONTHLY rent.
+        The spec formula: weekly_savings = CWI - (rent/weeks_per_month) - utilities - store
+        indicates rent is monthly and CWI is weekly.
+
+        Therefore:
+        - Monthly rent_min = 2.0 * CWI (weekly)
+        - Monthly rent_max = 2.5 * CWI (weekly)
+        - Monthly rent_ideal = 2.25 * CWI (weekly)
+
+        This is converted to other frequencies as needed.
+        """
+        # Convert input rent to weekly for comparison
         weekly_rent = self._normalize_to_weekly(
             rent_amount,
             frequency_type,
             custom_frequency_value,
             custom_frequency_unit,
         )
+
+        # Calculate monthly recommendations per AGENTS spec
+        # These ratios are explicitly for MONTHLY rent in the spec
+        monthly_min = cwi * self.RENT_MIN_RATIO
+        monthly_max = cwi * self.RENT_MAX_RATIO
+        monthly_recommended = cwi * self.RENT_DEFAULT_RATIO
+
+        # Convert to weekly for ratio calculation
+
+        # Calculate ratio based on weekly equivalents
         ratio = weekly_rent / cwi if cwi > 0 else 0
+        monthly_ratio = ratio * self.AVERAGE_WEEKS_PER_MONTH
+
+        # Convert recommendations to match the input frequency for clarity
+        def convert_from_monthly(monthly_value: float) -> float:
+            """Convert a monthly value to the teacher's chosen frequency."""
+            if frequency_type == 'monthly':
+                return monthly_value
+            elif frequency_type == 'weekly':
+                return monthly_value / self.AVERAGE_WEEKS_PER_MONTH
+            elif frequency_type == 'biweekly':
+                return monthly_value / (self.AVERAGE_WEEKS_PER_MONTH / 2)
+            elif frequency_type == 'daily':
+                return monthly_value / (self.AVERAGE_WEEKS_PER_MONTH * 7)
+            elif frequency_type == 'custom':
+                unit = (custom_frequency_unit or 'days').lower()
+                freq_value = custom_frequency_value or 1
+                if unit == 'weeks':
+                    return monthly_value / self.AVERAGE_WEEKS_PER_MONTH * freq_value
+                elif unit == 'months':
+                    return monthly_value * freq_value
+                else:  # days
+                    return monthly_value / (self.AVERAGE_WEEKS_PER_MONTH * 7) * freq_value
+            raise ValueError(f"Unsupported frequency_type: {frequency_type}")
 
         recommendations = {
-            'min': round(cwi * self.RENT_MIN_RATIO, 2),
-            'max': round(cwi * self.RENT_MAX_RATIO, 2),
-            'recommended': round(cwi * self.RENT_DEFAULT_RATIO, 2),
+            'min': round(convert_from_monthly(monthly_min), 2),
+            'max': round(convert_from_monthly(monthly_max), 2),
+            'recommended': round(convert_from_monthly(monthly_recommended), 2),
         }
 
+        # Generate frequency label for messages
+        if frequency_type == 'custom':
+            freq_value = custom_frequency_value or 1
+            freq_unit = (custom_frequency_unit or 'days').lower()
+            # Pluralize unit if needed
+            if freq_value == 1:
+                label_unit = freq_unit.rstrip('s')
+            else:
+                label_unit = freq_unit if freq_unit.endswith('s') else freq_unit + 's'
+            frequency_label = f"per {freq_value} {label_unit}"
+        else:
+            frequency_label = {
+                'monthly': 'per month',
+                'weekly': 'per week',
+                'biweekly': 'per 2 weeks',
+                'daily': 'per day',
+            }.get(frequency_type, frequency_type)
+
         warnings: List[Dict[str, str]] = []
-        if ratio < self.RENT_MIN_RATIO:
+        # Compare against monthly ratios since spec defines ratios for monthly rent
+        if monthly_ratio < self.RENT_MIN_RATIO:
             warnings.append({
                 'level': 'warning',
-                'message': f"Rent (${weekly_rent:.2f}/week) is below recommended minimum (${recommendations['min']:.2f}).",
+                'message': f"Rent amount is too low. To meet the recommended minimum, set rent to at least ${recommendations['min']:.2f} {frequency_label}.",
             })
-        elif ratio > self.RENT_MAX_RATIO:
+        elif monthly_ratio > self.RENT_MAX_RATIO:
             warnings.append({
                 'level': 'critical',
-                'message': f"Rent (${weekly_rent:.2f}/week) is above recommended maximum (${recommendations['max']:.2f}).",
+                'message': f"Rent amount is too high. Students may struggle with other expenses. Set rent to at most ${recommendations['max']:.2f} {frequency_label}.",
             })
         else:
             warnings.append({
                 'level': 'success',
-                'message': f'Rent is balanced at ${weekly_rent:.2f}/week',
+                'message': f'Rent is balanced at ${rent_amount:.2f} {frequency_label} (${weekly_rent:.2f}/week)',
             })
 
         return warnings, recommendations, ratio

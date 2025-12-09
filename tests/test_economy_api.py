@@ -249,14 +249,15 @@ def test_different_expected_hours_per_block(client):
 
 
 def test_validate_rent_with_monthly_frequency(logged_in_admin_client, admin_with_payroll):
-    """Test that monthly rent is correctly normalized to weekly for validation."""
+    """Test that monthly rent recommendations are correctly calculated per AGENTS spec."""
     admin, payroll_settings = admin_with_payroll
     client = logged_in_admin_client
 
     # Test with monthly rent of $440
     # CWI = 0.25 * 8 * 60 = 120.0 per week
-    # Monthly rent $440 should be normalized to ~$101.15 per week ($440 / 4.348)
-    # Recommended weekly rent range: $240 - $300 (2.0x - 2.5x CWI)
+    # Per AGENTS spec: monthly rent ratios are 2.0-2.5x CWI (weekly)
+    # Recommended MONTHLY rent range: $240 - $300 (2.0-2.5 × $120 weekly CWI)
+    # Weekly equivalent: $240/4.348 = ~$55.20/week to $300/4.348 = ~$69.00/week
     response = client.post(
         '/api/economy/validate/rent',
         json={
@@ -269,19 +270,19 @@ def test_validate_rent_with_monthly_frequency(logged_in_admin_client, admin_with
     data = response.get_json()
 
     # Verify CWI is calculated correctly
-    expected_cwi = 0.25 * 8.0 * 60  # 120.0
+    expected_cwi = 0.25 * 8.0 * 60  # 120.0 per week
     assert abs(data['cwi'] - expected_cwi) < 0.01
 
-    # Verify recommendations are based on weekly CWI
+    # Verify recommendations are MONTHLY values per AGENTS spec
+    # Monthly rent_min = 2.0 * CWI (weekly) = 2.0 * 120 = 240
     recommendations = data['recommendations']
-    assert abs(recommendations['min'] - (expected_cwi * 2.0)) < 0.01  # 240.0
-    assert abs(recommendations['max'] - (expected_cwi * 2.5)) < 0.01  # 300.0
-    assert abs(recommendations['recommended'] - (expected_cwi * 2.25)) < 0.01  # 270.0
+    assert abs(recommendations['min'] - (expected_cwi * 2.0)) < 0.01  # 240.0 per month
+    assert abs(recommendations['max'] - (expected_cwi * 2.5)) < 0.01  # 300.0 per month
+    assert abs(recommendations['recommended'] - (expected_cwi * 2.25)) < 0.01  # 270.0 per month
 
-    # Monthly rent of $440 is below the recommended range
-    # (weekly equivalent ~$101.15 is less than minimum $240)
+    # Monthly rent of $440 is ABOVE the recommended maximum of $300/month
     assert data['status'] == 'warning'
     assert len(data['warnings']) > 0
     warning_msg = data['warnings'][0]['message'].lower()
-    # Warning should mention the weekly equivalent, not the monthly amount
-    assert 'week' in warning_msg
+    # Warning should mention "per month" since that's the input frequency
+    assert 'per month' in warning_msg or 'month' in warning_msg

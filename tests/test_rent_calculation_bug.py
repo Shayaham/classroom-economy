@@ -94,22 +94,29 @@ def test_rent_validation_monthly(admin_with_exact_payroll):
     expected_weekly_rent = rent_amount / checker.AVERAGE_WEEKS_PER_MONTH  # ~103.49
     print(f"\n✓ Weekly rent: ${expected_weekly_rent:.2f}")
 
-    # Verify recommendations are based on CWI
-    expected_min = round(cwi * checker.RENT_MIN_RATIO, 2)  # $281.25 × 2.0 = $562.50
-    expected_max = round(cwi * checker.RENT_MAX_RATIO, 2)  # $281.25 × 2.5 = $703.13
-    expected_ideal = round(cwi * checker.RENT_DEFAULT_RATIO, 2)  # $281.25 × 2.25 = $632.81
+    # Per AGENTS spec: rent ratios are for MONTHLY rent
+    # Monthly rent_min = 2.0 * CWI (weekly)
+    # This gives reasonable values: student earning $281/week pays ~$562/month (~$129/week)
+    expected_min = round(cwi * checker.RENT_MIN_RATIO, 2)  # $281.25 × 2.0 = $562.50/month
+    expected_max = round(cwi * checker.RENT_MAX_RATIO, 2)  # $281.25 × 2.5 = $703.13/month
+    expected_ideal = round(cwi * checker.RENT_DEFAULT_RATIO, 2)  # $281.25 × 2.25 = $632.81/month
 
-    print(f"\nExpected recommendations (weekly):")
-    print(f"  Min: ${expected_min}")
-    print(f"  Max: ${expected_max}")
-    print(f"  Ideal: ${expected_ideal}")
+    # Weekly equivalents for context
+    weekly_min = expected_min / checker.AVERAGE_WEEKS_PER_MONTH  # ~$129.37/week
+    weekly_max = expected_max / checker.AVERAGE_WEEKS_PER_MONTH  # ~$161.71/week
+    weekly_ideal = expected_ideal / checker.AVERAGE_WEEKS_PER_MONTH  # ~$145.54/week
+
+    print(f"\nExpected recommendations (monthly, per AGENTS spec):")
+    print(f"  Min: ${expected_min} (${weekly_min:.2f}/week)")
+    print(f"  Max: ${expected_max} (${weekly_max:.2f}/week)")
+    print(f"  Ideal: ${expected_ideal} (${weekly_ideal:.2f}/week)")
 
     print(f"\nActual recommendations returned:")
     print(f"  Min: ${recommendations['min']}")
     print(f"  Max: ${recommendations['max']}")
     print(f"  Ideal: ${recommendations['recommended']}")
 
-    # THE BUG: Recommendations should be based on CWI, not rent_amount!
+    # Recommendations should match monthly values per AGENTS spec
     assert recommendations['min'] == expected_min, \
         f"Expected min recommendation ${expected_min}, but got ${recommendations['min']}"
     assert recommendations['max'] == expected_max, \
@@ -122,11 +129,11 @@ def test_rent_validation_monthly(admin_with_exact_payroll):
     warning_msg = warnings[0]['message']
     print(f"\nWarning message: {warning_msg}")
 
-    # Warning should reference weekly rent and weekly recommendation
-    assert f"${expected_weekly_rent:.2f}/week" in warning_msg or f"${expected_weekly_rent:.0f}" in warning_msg, \
-        f"Warning should mention weekly rent ${expected_weekly_rent:.2f}"
+    # Warning should show the monthly minimum value directly
     assert f"${expected_min:.2f}" in warning_msg or f"${expected_min:.0f}" in warning_msg, \
-        f"Warning should mention recommendation ${expected_min:.2f}, got: {warning_msg}"
+        f"Warning should mention monthly recommendation ${expected_min:.2f}, got: {warning_msg}"
+    assert "per month" in warning_msg.lower(), \
+        f"Warning should indicate 'per month' frequency, got: {warning_msg}"
 
     print("\n✓ All validation checks passed!")
 
@@ -164,17 +171,18 @@ def test_api_endpoint_with_exact_values(client, admin_with_exact_payroll):
     expected_cwi = 281.25
     assert abs(data['cwi'] - expected_cwi) < 0.01
 
-    # Verify recommendations (this is where the bug manifests!)
-    expected_min = 562.50
-    expected_max = 703.13
-    expected_ideal = 632.81
+    # Verify recommendations - per AGENTS spec, ratios are for MONTHLY rent
+    # Monthly rent = ratio * CWI (weekly)
+    expected_min = 562.50  # 2.0 * $281.25 (monthly)
+    expected_max = 703.13  # 2.5 * $281.25 (monthly) - rounded
+    expected_ideal = 632.81  # 2.25 * $281.25 (monthly) - rounded
 
     assert abs(data['recommendations']['min'] - expected_min) < 0.01, \
-        f"BUG DETECTED: API returned min ${data['recommendations']['min']}, expected ${expected_min}"
+        f"API returned min ${data['recommendations']['min']}, expected ${expected_min}"
     assert abs(data['recommendations']['max'] - expected_max) < 0.01, \
-        f"BUG DETECTED: API returned max ${data['recommendations']['max']}, expected ${expected_max}"
+        f"API returned max ${data['recommendations']['max']}, expected ${expected_max}"
     assert abs(data['recommendations']['recommended'] - expected_ideal) < 0.01, \
-        f"BUG DETECTED: API returned ideal ${data['recommendations']['recommended']}, expected ${expected_ideal}"
+        f"API returned ideal ${data['recommendations']['recommended']}, expected ${expected_ideal}"
 
     print("\n✓ API endpoint validation passed!")
 
@@ -269,11 +277,12 @@ def test_multi_block_validation_uses_correct_cwi(client):
     assert abs(data_with_block['cwi'] - 281.25) < 0.01, \
         f"With block='A', CWI should be $281.25, got ${data_with_block['cwi']}"
 
+    # Per AGENTS spec, ratios are for monthly rent: monthly_min = 2.0 * CWI (weekly)
     assert abs(data_with_block['recommendations']['min'] - 562.50) < 0.01, \
-        f"With block='A', min recommendation should be $562.50, got ${data_with_block['recommendations']['min']}"
+        f"With block='A', min recommendation should be $562.50/month, got ${data_with_block['recommendations']['min']}"
 
     assert abs(data_with_block['recommendations']['max'] - 703.13) < 0.01, \
-        f"With block='A', max recommendation should be $703.13, got ${data_with_block['recommendations']['max']}"
+        f"With block='A', max recommendation should be $703.13/month, got ${data_with_block['recommendations']['max']}"
 
     print("\n✓ Multi-block validation test passed!")
     print("  Frontend MUST pass the 'block' parameter to ensure correct CWI is used.")
