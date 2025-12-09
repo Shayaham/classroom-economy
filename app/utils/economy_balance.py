@@ -545,12 +545,22 @@ class EconomyBalanceChecker:
         }
 
         # Generate frequency label for messages
-        frequency_label = {
-            'monthly': 'per month',
-            'weekly': 'per week',
-            'biweekly': 'per 2 weeks',
-            'daily': 'per day',
-        }.get(frequency_type, frequency_type)
+        if frequency_type == 'custom':
+            freq_value = custom_frequency_value or 1
+            freq_unit = (custom_frequency_unit or 'days').lower()
+            # Pluralize unit if needed
+            if freq_value == 1:
+                label_unit = freq_unit.rstrip('s')
+            else:
+                label_unit = freq_unit if freq_unit.endswith('s') else freq_unit + 's'
+            frequency_label = f"per {freq_value} {label_unit}"
+        else:
+            frequency_label = {
+                'monthly': 'per month',
+                'weekly': 'per week',
+                'biweekly': 'per 2 weeks',
+                'daily': 'per day',
+            }.get(frequency_type, frequency_type)
 
         warnings: List[Dict[str, str]] = []
         # Compare against monthly ratios since spec defines ratios for monthly rent
