@@ -548,6 +548,10 @@
             <!-- Banking (includes Transactions) -->
             <a href="{{ url_for('admin.banking') }}"
                class="btn text-start {% if current_page == 'banking' %}btn-primary text-white{% else %}btn-outline-primary{% endif %}"><span class="material-symbols-outlined">account_balance</span> Banking</a>
+
+            <!-- Help & Support -->
+            <a href="{{ url_for('admin.help_support') }}"
+               class="btn text-start {% if current_page == 'help' %}btn-primary text-white{% else %}btn-outline-primary{% endif %}"><span class="material-symbols-outlined">help</span> Help & Support</a>
         </div>
         <div class="mt-auto">
             <!-- Collapsible Settings Group -->
