@@ -5650,11 +5650,18 @@ def api_economy_analyze():
         # Get or create checker
         checker = EconomyBalanceChecker(admin_id, block)
 
-        # Get current settings from database
-        payroll_settings = PayrollSettings.query.filter_by(
-            teacher_id=admin_id,
-            is_active=True
-        ).first()
+        # Get current settings from database - filter by block if provided
+        if block:
+            payroll_settings = PayrollSettings.query.filter_by(
+                teacher_id=admin_id,
+                block=block,
+                is_active=True
+            ).first()
+        else:
+            payroll_settings = PayrollSettings.query.filter_by(
+                teacher_id=admin_id,
+                is_active=True
+            ).first()
 
         if not payroll_settings:
             return jsonify({
@@ -5688,7 +5695,12 @@ def api_economy_analyze():
         ).all()
 
         # Perform analysis
-        expected_weekly_hours = float(data.get('expected_weekly_hours', 5.0))
+        # Use expected_weekly_hours from request if provided, otherwise use value from payroll_settings
+        if 'expected_weekly_hours' in data:
+            expected_weekly_hours = float(data.get('expected_weekly_hours'))
+        else:
+            expected_weekly_hours = float(payroll_settings.expected_weekly_hours or 5.0)
+
         analysis = checker.analyze_economy(
             payroll_settings=payroll_settings,
             rent_settings=rent_settings,
@@ -5766,11 +5778,18 @@ def api_economy_validate(feature):
                 'message': f"Invalid feature type. Must be one of: {', '.join(valid_features)}"
             }), 400
 
-        # Get payroll settings to calculate CWI
-        payroll_settings = PayrollSettings.query.filter_by(
-            teacher_id=admin_id,
-            is_active=True
-        ).first()
+        # Get payroll settings to calculate CWI - filter by block if provided
+        if block:
+            payroll_settings = PayrollSettings.query.filter_by(
+                teacher_id=admin_id,
+                block=block,
+                is_active=True
+            ).first()
+        else:
+            payroll_settings = PayrollSettings.query.filter_by(
+                teacher_id=admin_id,
+                is_active=True
+            ).first()
 
         if not payroll_settings:
             return jsonify({

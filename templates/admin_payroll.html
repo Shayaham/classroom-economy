@@ -1776,9 +1776,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
     async function updateCWIOverview() {
         const expectedHours = parseFloat(expectedHoursOverview.value) || 5.0;
+        const currentBlock = document.getElementById('cwi_block_input')?.value;
 
         try {
-            const analysis = await cwiChecker.analyzeEconomy(expectedHours);
+            const analysis = await cwiChecker.analyzeEconomy(expectedHours, currentBlock);
 
             if (!analysis || !analysis.cwi) {
                 cwiDisplayOverview.innerHTML = '<div class="alert alert-warning"><i class="bi bi-exclamation-triangle me-2"></i>Please configure payroll settings first to see CWI calculation.</div>';
