@@ -121,8 +121,16 @@ function performTap(period, action, pin, reason = null) {
 // Poll the server every 10 seconds to refresh block status
 setInterval(() => {
   fetch("/api/student-status")
-    .then(r => r.json())
+    .then(r => {
+      // If session expired, redirect to login
+      if (r.status === 401) {
+        window.location.href = '/student/login?session_expired=1';
+        return null;
+      }
+      return r.json();
+    })
     .then(data => {
+      if (!data) return; // Session expired, already redirecting
       if (data.status === 'ok' && data.periods) {
         Object.keys(data.periods).forEach(period => {
           const periodData = data.periods[period];
