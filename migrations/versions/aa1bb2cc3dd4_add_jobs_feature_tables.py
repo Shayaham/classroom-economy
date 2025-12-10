@@ -1,8 +1,8 @@
 """Add jobs feature tables
 
-Revision ID: a1b2c3d4e5f6
+Revision ID: aa1bb2cc3dd4
 Revises: z2a3b4c5d6e7
-Create Date: 2025-12-10 00:00:00.000000
+Create Date: 2025-12-10 08:00:00.000000
 
 This migration adds the jobs feature to the classroom economy system.
 
@@ -28,7 +28,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = 'a1b2c3d4e5f6'
+revision = 'aa1bb2cc3dd4'
 down_revision = 'z2a3b4c5d6e7'
 branch_labels = None
 depends_on = None
