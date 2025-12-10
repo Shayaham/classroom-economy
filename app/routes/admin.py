@@ -55,6 +55,7 @@ from app.utils.claim_credentials import (
 )
 from app.utils.ip_handler import get_real_ip
 from app.utils.name_utils import hash_last_name_parts, verify_last_name_parts
+from app.utils.help_content import HELP_ARTICLES
 from hash_utils import get_random_salt, hash_hmac, hash_username, hash_username_lookup
 from payroll import calculate_payroll
 from attendance import get_last_payroll_time, calculate_unpaid_attendance_seconds, get_join_code_for_student_period
@@ -5062,7 +5063,8 @@ def help_support():
 
     return render_template('admin_help_support.html',
                          current_page='help',
-                         my_reports=my_reports)
+                         my_reports=my_reports,
+                         help_content=HELP_ARTICLES['teacher'])
 
 
 # -------------------- FEATURE SETTINGS --------------------
