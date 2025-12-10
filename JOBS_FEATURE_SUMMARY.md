@@ -179,7 +179,7 @@ Start with Phase 2:
 - `app/models.py` (lines 1264-1549) - 9 new models
 - `app/routes/admin_jobs.py` - 14 route handlers
 - `forms.py` (lines 351-481) - 9 forms
-- `migrations/versions/a1b2c3d4e5f6_*.py` - Migration
+- `migrations/versions/aa1bb2cc3dd4_*.py` - Migration
 
 ### Testing & Docs
 - `tests/test_jobs_feature.py` - Test suite

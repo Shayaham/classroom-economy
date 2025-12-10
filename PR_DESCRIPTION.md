@@ -47,7 +47,7 @@ This PR implements the complete backend infrastructure for the Jobs feature, whi
 
 ### Migration
 
-**File**: `migrations/versions/a1b2c3d4e5f6_add_jobs_feature_tables.py`
+**File**: `migrations/versions/aa1bb2cc3dd4_add_jobs_feature_tables.py`
 - Creates 8 new tables
 - Adds `jobs_enabled` column to `feature_settings`
 - Includes 11 indexes for query performance
@@ -180,7 +180,7 @@ If **Yes**, confirm:
 - [x] Breaking changes or data migrations documented in PR description
 
 **Migration file location:**
-`migrations/versions/a1b2c3d4e5f6_add_jobs_feature_tables.py`
+`migrations/versions/aa1bb2cc3dd4_add_jobs_feature_tables.py`
 
 **Notes:**
 - No breaking changes - additive only
@@ -273,7 +273,7 @@ None. This is an additive feature:
 
 1. **Review migration**:
    ```bash
-   cat migrations/versions/a1b2c3d4e5f6_add_jobs_feature_tables.py
+   cat migrations/versions/aa1bb2cc3dd4_add_jobs_feature_tables.py
    ```
 
 2. **Check migration heads**:
@@ -344,7 +344,7 @@ This will drop all jobs tables and remove the `jobs_enabled` column.
 
 ### New Files (7)
 - `app/routes/admin_jobs.py` - Route handlers (525 lines)
-- `migrations/versions/a1b2c3d4e5f6_add_jobs_feature_tables.py` - Migration (227 lines)
+- `migrations/versions/aa1bb2cc3dd4_add_jobs_feature_tables.py` - Migration (227 lines)
 - `tests/test_jobs_feature.py` - Test suite (753 lines)
 - `docs/JOBS_FEATURE.md` - Feature documentation (638 lines)
 - `docs/JOBS_FEATURE_NEXT_STEPS.md` - Implementation roadmap (698 lines)

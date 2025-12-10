@@ -272,7 +272,7 @@ jobs_settings = JobsSettings(
 
 ## Database Migration
 
-Migration file: `migrations/versions/a1b2c3d4e5f6_add_jobs_feature_tables.py`
+Migration file: `migrations/versions/aa1bb2cc3dd4_add_jobs_feature_tables.py`
 
 **Creates 8 new tables:**
 1. job_templates
@@ -531,5 +531,5 @@ When extending this feature:
 - Models: `app/models.py` (lines 1264-1549)
 - Routes: `app/routes/admin_jobs.py`
 - Forms: `forms.py` (lines 351-481)
-- Migration: `migrations/versions/a1b2c3d4e5f6_add_jobs_feature_tables.py`
+- Migration: `migrations/versions/aa1bb2cc3dd4_add_jobs_feature_tables.py`
 - Tests: `tests/test_jobs_feature.py`
