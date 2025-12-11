@@ -162,7 +162,30 @@ All deprecated Python and SQLAlchemy patterns have been updated:
 **Estimated Effort:** 4-6 weeks
 **Priority:** Medium (useful for multi-school deployments)
 
-#### 2. Custom Condition Builder (v1.5+)
+#### 2. Teacher Self-Serve Account Recovery (Future)
+**Status:** Documented, deferred due to security complexity
+**Documentation:** `docs/development/SYSADMIN_INTERFACE_DESIGN.md` (mentions TOTP reset)
+
+**Problem:** Teachers who lose access to their TOTP authenticator app are locked out of their accounts. Currently requires sysadmin intervention.
+
+**Security Challenge:** Self-serve recovery requires storing additional sensitive information, which conflicts with the platform's minimal-PII philosophy.
+
+**Potential Approaches:**
+- **Backup codes** (one-time use) - Requires secure storage and user safekeeping
+- **Recovery email** - Additional PII to protect, phishing risk
+- **Security questions** - Generally weak security, social engineering risk
+- **SMS verification** - More PII, SIM-swapping attacks
+- **Printable recovery key** - User responsibility to secure physical key
+
+**Current Workaround:** System admins can reset teacher TOTP via `/sysadmin` interface (planned feature)
+
+**Estimated Effort:** 3-4 weeks (implementation) + security review
+**Priority:** Medium (nice-to-have, but sysadmin reset is acceptable)
+**Blocker:** Requires decision on acceptable security/PII tradeoffs
+
+**Recommendation:** Defer until v1.5+ and prioritize sysadmin-assisted TOTP reset as the primary recovery path.
+
+#### 3. Custom Condition Builder (v1.5+)
 **Status:** Research completed, deferred to future release
 
 **Description:** Drag-and-drop visual rule builder for custom conditional logic in rent, insurance, store, payroll, and banking features.
