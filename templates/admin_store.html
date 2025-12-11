@@ -5,6 +5,8 @@
 
 {% block extra_head %}
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/easymde/dist/easymde.min.css">
+<script src="{{ url_for('static', filename='js/economy-balance.js') }}"></script>
+<script src="{{ url_for('static', filename='js/item-form-economy.js') }}"></script>
 <style>
     .EasyMDEContainer .CodeMirror {
         min-height: 120px;
@@ -157,6 +159,10 @@
                   <h6 class="mb-0">Basic Information</h6>
                 </div>
                 <div class="card-body">
+                  <!-- Economy Balance Check -->
+                  <div id="economy-data" data-expected-weekly-hours="{{ (payroll_settings.expected_weekly_hours if payroll_settings and payroll_settings.expected_weekly_hours is not none else 5.0) | float }}" class="visually-hidden"></div>
+                  <div id="cwi-info" class="mb-3"></div>
+
                   <div class="row">
                     <div class="col-md-6 mb-3">
                       {{ form.name.label(class="form-label fw-bold") }}
@@ -164,9 +170,25 @@
                     </div>
                     <div class="col-md-6 mb-3">
                       {{ form.price.label(class="form-label fw-bold") }}
-                      {{ form.price(class="form-control") }}
+                      {{ form.price(class="form-control", **{'data-economy-validate': 'store_item'}) }}
                     </div>
                   </div>
+
+                  <div class="row">
+                    <div class="col-md-6 mb-3">
+                      {{ form.tier.label(class="form-label fw-bold") }}
+                      {{ form.tier(class="form-select", **{'data-tier-select': 'true'}) }}
+                      <small class="text-muted">Optional pricing category for organization</small>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                      <div id="tier-recommendation" class="alert alert-info mt-2" style="display: none;">
+                        <small><strong>Recommended range:</strong> <span id="tier-range-text"></span></small>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Economy Balance Warnings -->
+                  <div id="economy-warnings"></div>
                   <div class="mb-3">
                     {{ form.description.label(class="form-label fw-bold") }}
                     {{ form.description(class="form-control", rows=3) }}
