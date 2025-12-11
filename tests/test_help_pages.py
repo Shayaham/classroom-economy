@@ -40,4 +40,4 @@ def test_student_help_page(client, test_student):
     assert b"Report an Issue" in resp.data
     assert b"How To Guides" in resp.data
     assert b"Troubleshooting" in resp.data
-    assert b"Earning Money" in resp.data
+    assert b"Earning &amp; Spending" in resp.data
