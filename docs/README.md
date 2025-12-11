@@ -46,7 +46,7 @@ Welcome to the Classroom Token Hub documentation! This index points you to the m
 ### 🔒 Security
 - **[Security Audit 2025](security/SECURITY_AUDIT_2025.md)** — Comprehensive security audit findings.
 - **[Multi-Tenancy Audit](security/MULTI_TENANCY_AUDIT.md)** — Multi-tenancy security analysis.
-- **[Critical Same-Teacher Leak](security/CRITICAL_SAME_TEACHER_LEAK.md)** — ⚠️ **P0 BLOCKER** - Data isolation issue requiring fix before 1.0.
+- **[Critical Same-Teacher Leak](security/CRITICAL_SAME_TEACHER_LEAK.md)** — ✅ **RESOLVED** - Data isolation fix deployed (backfill in progress).
 - **[Validation Report](security/VALIDATION_REPORT.md)** — Input/output validation audit.
 - **[Access & Secrets Report](security/ACCESS_AND_SECRETS_REPORT.md)** — Access control and secrets review.
 - **[Source Code Vulnerability Report](security/SOURCE_CODE_VULNERABILITY_REPORT.md)** — Code security analysis.
