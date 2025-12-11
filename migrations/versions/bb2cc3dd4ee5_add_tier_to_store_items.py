@@ -27,11 +27,21 @@ branch_labels = None
 depends_on = None
 
 
+def column_exists(table_name, column_name):
+    """Check if a column exists in a table."""
+    conn = op.get_bind()
+    inspector = sa.inspect(conn)
+    columns = [col['name'] for col in inspector.get_columns(table_name)]
+    return column_name in columns
+
+
 def upgrade():
     # Add tier column to store_items table
-    op.add_column('store_items', sa.Column('tier', sa.String(length=20), nullable=True))
+    if not column_exists('store_items', 'tier'):
+        op.add_column('store_items', sa.Column('tier', sa.String(length=20), nullable=True))
 
 
 def downgrade():
     # Remove tier column from store_items table
-    op.drop_column('store_items', 'tier')
+    if column_exists('store_items', 'tier'):
+        op.drop_column('store_items', 'tier')
