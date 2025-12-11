@@ -19,7 +19,7 @@ HELP_ARTICLES = {
                                 <li><strong>Add Manually:</strong> Add students one by one if you have a small class or a new student joins.</li>
                             </ul>
                         </li>
-                        <li><strong>Distribute Join Codes:</strong> Each period has a unique <strong>Join Code</strong> (visible on the Students page). Share this with your students so they can claim their accounts.</li>
+                        <li><strong>Distribute Join Codes:</strong> Each period has a unique <strong>Join Code</strong> (visible on the Students tab). Share this with your students so they can claim their accounts.</li>
                     </ol>
                     <div class="alert alert-info">
                         <strong>Tip:</strong> Students must "claim" their accounts using the Join Code and their Name/DOB before they can log in.
