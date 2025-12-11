@@ -623,6 +623,12 @@ def get_active_hall_passes():
     # Determine which teacher's data to show (optional)
     teacher_id = request.args.get('teacher_id', type=int)
 
+    # Start with base query
+    query = HallPassLog.query.filter(
+        HallPassLog.status.in_(['left', 'returned']),
+        HallPassLog.left_time.isnot(None)
+    )
+
     # If teacher_id is provided, validate and scope the query
     if teacher_id:
         # Validate teacher exists
@@ -660,19 +666,11 @@ def get_active_hall_passes():
             .subquery()
         )
 
-        # Get the last 10 students from this teacher who have left class
-        # SCOPED to this teacher's students
-        recent_passes = HallPassLog.query.filter(
-            HallPassLog.status.in_(['left', 'returned']),
-            HallPassLog.left_time.isnot(None),
-            HallPassLog.student_id.in_(student_ids_subquery)
-        ).order_by(HallPassLog.left_time.desc()).limit(10).all()
-    else:
-        # No teacher scoping - show all hall pass activity (backward compatible)
-        recent_passes = HallPassLog.query.filter(
-            HallPassLog.status.in_(['left', 'returned']),
-            HallPassLog.left_time.isnot(None)
-        ).order_by(HallPassLog.left_time.desc()).limit(10).all()
+        # Add teacher scoping filter
+        query = query.filter(HallPassLog.student_id.in_(student_ids_subquery))
+
+    # Get the last 10 students who have left class
+    recent_passes = query.order_by(HallPassLog.left_time.desc()).limit(10).all()
 
     # Helper function to ensure times are marked as UTC
     def format_utc_time(dt):
