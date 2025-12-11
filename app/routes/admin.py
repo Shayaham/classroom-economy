@@ -5859,9 +5859,17 @@ def api_economy_validate(feature):
             **validation_kwargs,
         )
 
+        # Determine status based on warnings
+        if warnings:
+            # Check if there are critical warnings
+            critical_warnings = [w for w in warnings if w.get('level') == 'critical']
+            status = 'error' if critical_warnings else 'warning'
+        else:
+            status = 'success'
+
         return jsonify({
-            'status': 'success',
-            'is_valid': len([w for w in warnings if w['level'] == 'critical']) == 0,
+            'status': status,
+            'is_valid': len([w for w in warnings if w.get('level') == 'critical']) == 0,
             'warnings': warnings,
             'recommendations': recommendations,
             'cwi': cwi,
