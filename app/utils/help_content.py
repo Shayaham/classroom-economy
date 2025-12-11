@@ -181,7 +181,7 @@ HELP_ARTICLES = {
                 "id": "manage_classes",
                 "title": "Joining Multiple Classes",
                 "content": """
-                    <p>Do you have the Classroom Economy in more than one class?</p>
+                    <p>Do you have Classroom Token Hub in more than one class?</p>
                     <ul>
                         <li><strong>Add Class:</strong> Click "Add New Class" in the sidebar and enter the <strong>Join Code</strong> from your other teacher.</li>
                         <li><strong>Switching:</strong> You can switch between your classes anytime using the "Switch Class" button on your dashboard.</li>
