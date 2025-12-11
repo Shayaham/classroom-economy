@@ -201,6 +201,82 @@ All deprecated Python and SQLAlchemy patterns have been updated:
 
 **Estimated Effort:** 12-18 weeks for full implementation
 
+#### 4. Jobs Feature (v1.5+)
+**Status:** Partially implemented, then removed; awaiting completion
+**Git History:** Started in commit `0800640`, removed in commit `a04b574` (2025-12-10)
+
+**Description:** Classroom job market system allowing teachers to create job opportunities for students, teaching work ethic and providing earning opportunities beyond attendance-based payroll.
+
+**Two Job Types:**
+
+1. **Employee Jobs** - Long-term positions with regular pay
+   - Application and approval process required
+   - Regular salary payments (daily/weekly/monthly)
+   - Multiple vacancy slots per job
+   - Job requirements and qualifications
+   - Termination system with notice periods, warnings, and penalties
+   - Teacher can fire employees with configurable consequences
+
+2. **Contract Jobs** - One-off bounties, first-come-first-served
+   - No application required; students claim available contracts
+   - Single bounty payment upon completion
+   - Quick turnaround for short-term tasks
+   - Teacher marks as complete to trigger payment
+
+**Database Models Created:**
+- `JobTemplate` - Reusable job definitions in the teacher's job bank
+- `Job` - Instance of a template assigned to a specific period/block
+- `JobApplication` - Student applications for employee positions
+- `JobEmployee` - Active employment relationships
+- `JobContract` - Contract job assignments and completions
+
+**Features Implemented Before Removal:**
+- Job bank management for teachers (create/edit templates)
+- Job assignment to specific class periods via join_code
+- Application system for employee positions
+- Contract claiming interface
+- Payment processing integration with transactions
+- Termination system with warnings and penalties
+- Comprehensive test coverage (test files removed with feature)
+- Admin routes (`app/routes/admin_jobs.py`, 514 lines)
+- Flask forms for all job operations
+
+**Use Cases:**
+- **Classroom Helper:** Student job as "Board Eraser" earning $5/week
+- **Technology Assistant:** "Chromebook Manager" earning $10/week
+- **Project Bounties:** "Design Class Poster" contract for $25 one-time
+- **Teaching Work Ethic:** Students learn reliability, job performance, consequences of termination
+- **Earning Diversity:** Income beyond attendance, rewarding contribution and responsibility
+
+**Why It Was Removed:**
+- Removed during feature cleanup (commit a04b574)
+- Only merge migration kept to maintain migration chain integrity
+- Code preserved in git history for future reimplementation
+
+**Remaining Work for Completion:**
+- [ ] Restore models from commit `0800640`
+- [ ] Restore admin routes from commit `e2de8bd`
+- [ ] Restore Flask forms from commit `c9378b7`
+- [ ] Restore test coverage from commit `8a1b0bd`
+- [ ] Update for current join_code scoping patterns
+- [ ] Add student-facing job board interface
+- [ ] Add application submission and tracking UI
+- [ ] Implement contract claiming interface
+- [ ] Add job performance tracking (optional: attendance link)
+- [ ] Create teacher analytics for job market health
+
+**Estimated Effort:** 6-8 weeks (restoration + modernization + UI polish)
+**Priority:** Medium (valuable feature, but not critical for 1.0)
+**Complexity:** High (payroll integration, multi-state workflows, termination rules)
+
+**Git References:**
+- `0800640` - Add jobs feature database models and migration
+- `c9378b7` - Add Flask forms for jobs feature
+- `e2de8bd` - Add admin routes for jobs feature (514 lines)
+- `8a1b0bd` - Add comprehensive tests and documentation for jobs feature
+- `a04b574` - Remove jobs feature code, keep only merge migration
+- `e7b38b9` - Fix migration chain: add stub for removed jobs feature migration
+
 ---
 
 ## Recently Completed Features
