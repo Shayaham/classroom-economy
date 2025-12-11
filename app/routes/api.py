@@ -13,7 +13,7 @@ from datetime import datetime, timedelta, timezone
 
 from flask import Blueprint, request, jsonify, session, current_app
 from sqlalchemy import func, or_
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 from werkzeug.security import check_password_hash
 
 from app.extensions import db
