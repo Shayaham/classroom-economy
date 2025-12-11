@@ -27,6 +27,22 @@ HELP_ARTICLES = {
                 """
             },
             {
+                "id": "managing_students",
+                "title": "Managing Students",
+                "content": """
+                    <p>Manage your classroom roster efficiently with these tools:</p>
+                    <ul>
+                        <li><strong>Add Students:</strong> Go to the <strong>Students</strong> tab and click "Add Student". Enter the student's name, date of birth, and assign them to a class period. You can add students individually or use the "Bulk Add" option to paste a list.</li>
+                        <li><strong>Edit Students:</strong> In the <strong>Students</strong> tab, find the student you wish to edit and click the "Edit" (pencil) icon. Update their information as needed and save your changes.</li>
+                        <li><strong>Delete Students:</strong> To remove a student, click the "Delete" (trash) icon next to their name. <span class="text-danger">Warning:</span> Deleting a student will permanently remove their account and all associated data.</li>
+                        <li><strong>Reset Join Codes:</strong> If a student is having trouble joining, you can reset their join code from the student's options menu.</li>
+                    </ul>
+                    <div class="alert alert-info">
+                        <strong>Tip:</strong> Encourage students to claim their accounts promptly using the join code and their personal details.
+                    </div>
+                """
+            },
+            {
                 "id": "running_payroll",
                 "title": "Running Payroll",
                 "content": """
