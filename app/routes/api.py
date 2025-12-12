@@ -1855,11 +1855,15 @@ def check_and_auto_tapout_if_limit_reached(student):
                         f"Auto-tapping out student {student.id} from {period_upper} - daily limit of {hours_limit} hours reached (total: {today_attendance/3600:.2f}h)"
                     )
 
-                    # Get join_code for this student-period combination
-                    join_code = get_join_code_for_student_period(student.id, period_upper)
+                    # Prioritize join_code from the active event we are closing
+                    join_code = latest_event.join_code
+                    if not join_code:
+                        # Fallback for legacy events without a join_code
+                        join_code = get_join_code_for_student_period(student.id, period_upper)
+
                     if not join_code:
                         current_app.logger.warning(
-                            f"Unable to resolve join_code for student {student.id} in period {period_upper} - skipping auto-tap-out"
+                            f"Unable to resolve join_code for student {student.id} in period {period_upper} for auto-tap-out. The active TapEvent ID is {latest_event.id}."
                         )
                         continue
 
