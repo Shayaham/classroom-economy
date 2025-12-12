@@ -2,7 +2,7 @@
 
 An interactive banking and classroom management platform for teaching students about money while tracking classroom participation.
 
-**Version:** 0.9.0 (Pre-Release) - Approaching 1.0!
+**Version:** 1.0.0
 
 ---
 
@@ -12,7 +12,7 @@ An interactive banking and classroom management platform for teaching students a
 
 **License:** [PolyForm Noncommercial License 1.0.0](https://polyformproject.org/licenses/noncommercial/1.0.0/) - Free for educational and nonprofit use, not for commercial applications.
 
-**Project Status:** Ready for version 1.0 release! All critical blockers resolved. The platform is feature-complete and actively used in classroom testing. See [DEVELOPMENT.md](DEVELOPMENT.md) for current priorities and roadmap.
+**Project Status:** Version 1.0.0 Released! The platform is feature-complete and actively used in classroom testing. See [DEVELOPMENT.md](DEVELOPMENT.md) for current priorities and roadmap.
 
 ---
 
@@ -20,7 +20,7 @@ An interactive banking and classroom management platform for teaching students a
 
 ### Core Features
 
-- **System Admin Portal** — Manage teachers, review error logs, and adjust student ownership
+- **System Admin Portal** — Manage teachers (including account recovery), review error logs, and adjust student ownership
 - **Teacher Dashboard** — Manage students, run payroll, configure rent/insurance/banking settings
 - **Student Portal** — View balances, redeem store items, track attendance, and manage hall passes
 - **Join-Code Rosters** — Upload rosters and let students self-claim seats securely
@@ -38,6 +38,7 @@ An interactive banking and classroom management platform for teaching students a
 
 - **PII Encryption** — All student names encrypted at rest
 - **TOTP for Admins** — Time-based one-time passwords required
+- **Admin Account Recovery** — System admins can securely reset teacher 2FA
 - **CSRF Protection** — Protection against cross-site request forgery
 - **Credential Hashing** — Salted and peppered password hashing
 - **Cloudflare Turnstile** — Bot protection on login forms
@@ -296,4 +297,4 @@ This project is licensed under the [PolyForm Noncommercial License 1.0.0](https:
 
 Built for educators and students to make learning about finance engaging and practical.
 
-**Last Updated:** 2025-12-11
+**Last Updated:** 2025-12-12
