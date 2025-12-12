@@ -35,7 +35,7 @@ from app.models import (
     StoreItemBlock, RentSettings, RentPayment, RentWaiver, InsurancePolicy, InsurancePolicyBlock,
     StudentInsurance, InsuranceClaim, HallPassLog, PayrollSettings, PayrollReward, PayrollFine,
     BankingSettings, TeacherBlock, DeletionRequest, DeletionRequestType, DeletionRequestStatus,
-    UserReport, FeatureSettings, TeacherOnboarding, StudentBlock
+    UserReport, FeatureSettings, TeacherOnboarding, StudentBlock, RecoveryRequest, StudentRecoveryCode
 )
 from app.auth import admin_required, get_admin_student_query, get_student_for_admin
 from forms import (
@@ -912,8 +912,8 @@ def signup():
 @admin_bp.route('/recover', methods=['GET', 'POST'])
 def recover():
     """
-    Teacher account recovery using student usernames + DOB sum.
-    Teacher must provide one student username from each class they teach.
+    Teacher account recovery - Step 1: Create recovery request.
+    Students must verify with passphrase to generate recovery codes.
     """
     form = AdminRecoveryForm()
     if form.validate_on_submit():
@@ -950,89 +950,162 @@ def recover():
             flash("No matching students found. Please check the usernames.", "error")
             return render_template("admin_recover.html", form=form)
 
-        # Find TeacherBlocks for these students and group by teacher
-        teacher_classes = {}  # teacher_id -> {join_code -> student_id}
+        # Find common teacher for all students
+        teacher_ids = set()
         for username, student in students_by_username.items():
-            # Find all TeacherBlocks for this student
-            teacher_blocks = TeacherBlock.query.filter_by(student_id=student.id, is_claimed=True).all()
-            for tb in teacher_blocks:
-                # Get the teacher_id from the join_code by finding the teacher who created it
-                # TeacherBlocks don't have teacher_id, so we need to find the teacher via student's teacher_id
-                if student.teacher_id:
-                    if student.teacher_id not in teacher_classes:
-                        teacher_classes[student.teacher_id] = {}
-                    if tb.join_code not in teacher_classes[student.teacher_id]:
-                        teacher_classes[student.teacher_id][tb.join_code] = []
-                    teacher_classes[student.teacher_id][tb.join_code].append(student.id)
+            if student.teacher_id:
+                teacher_ids.add(student.teacher_id)
 
-        # Find the teacher who has exactly one student per class matching the provided usernames
-        matching_teacher = None
-        for teacher_id, classes in teacher_classes.items():
-            # Verify that we have one student from each class the teacher teaches
-            teacher = Admin.query.get(teacher_id)
-            if not teacher or not teacher.dob_sum:
-                continue
-
-            # Get all classes this teacher teaches
-            all_teacher_classes = db.session.query(TeacherBlock.join_code).filter(
-                TeacherBlock.join_code.in_(
-                    db.session.query(Student.join_code).filter(Student.teacher_id == teacher_id).distinct()
-                )
-            ).distinct().all()
-            all_teacher_join_codes = {c[0] for c in all_teacher_classes}
-
-            # Check if the provided students cover all classes
-            provided_join_codes = set(classes.keys())
-            if provided_join_codes == all_teacher_join_codes and teacher.dob_sum == dob_sum:
-                # Verify each class has exactly one student
-                valid = True
-                for join_code, student_ids in classes.items():
-                    if len(student_ids) != 1:
-                        valid = False
-                        break
-                if valid:
-                    matching_teacher = teacher
-                    break
-
-        if not matching_teacher:
-            current_app.logger.warning(f"🛑 Admin recovery failed: no matching teacher found")
-            flash("Unable to verify your identity. Please ensure you provided one student username from EACH class you teach, and the correct DOB sum.", "error")
+        if len(teacher_ids) != 1:
+            flash("The provided students do not all belong to the same teacher.", "error")
             return render_template("admin_recover.html", form=form)
 
-        # Store teacher ID in session for password reset
-        session['recovery_teacher_id'] = matching_teacher.id
-        session['recovery_verified'] = True
-        current_app.logger.info(f"🔐 Admin recovery: identity verified for teacher {matching_teacher.id}")
+        teacher_id = teacher_ids.pop()
+        teacher = Admin.query.get(teacher_id)
 
-        return redirect(url_for('admin.reset_credentials'))
+        if not teacher or not teacher.dob_sum:
+            flash("Teacher account not configured for recovery.", "error")
+            return render_template("admin_recover.html", form=form)
+
+        if teacher.dob_sum != dob_sum:
+            current_app.logger.warning(f"🛑 Admin recovery failed: DOB sum mismatch for teacher {teacher_id}")
+            flash("Unable to verify your identity. Please check your DOB sum.", "error")
+            return render_template("admin_recover.html", form=form)
+
+        # Check for existing active recovery request
+        existing_request = RecoveryRequest.query.filter_by(
+            admin_id=teacher.id,
+            status='pending'
+        ).filter(
+            RecoveryRequest.expires_at > datetime.now(timezone.utc)
+        ).first()
+
+        if existing_request:
+            flash("You already have an active recovery request. Please check back or wait for it to expire.", "info")
+            session['recovery_request_id'] = existing_request.id
+            return redirect(url_for('admin.recovery_status'))
+
+        # Create recovery request (5-day expiration)
+        expires_at = datetime.now(timezone.utc) + timedelta(days=5)
+        recovery_request = RecoveryRequest(
+            admin_id=teacher.id,
+            dob_sum=dob_sum,
+            status='pending',
+            expires_at=expires_at
+        )
+        db.session.add(recovery_request)
+        db.session.flush()  # Get the ID
+
+        # Create student verification entries
+        for username, student in students_by_username.items():
+            student_code = StudentRecoveryCode(
+                recovery_request_id=recovery_request.id,
+                student_id=student.id
+            )
+            db.session.add(student_code)
+
+        db.session.commit()
+
+        session['recovery_request_id'] = recovery_request.id
+        current_app.logger.info(f"🔐 Admin recovery: request created for teacher {teacher.id}, expires {expires_at}")
+
+        flash(f"Recovery request created! Your students have been notified. You have 5 days to complete this process.", "success")
+        return redirect(url_for('admin.recovery_status'))
 
     return render_template("admin_recover.html", form=form)
+
+
+@admin_bp.route('/recovery-status', methods=['GET'])
+def recovery_status():
+    """
+    Show status of recovery request and collected codes.
+    """
+    recovery_request_id = session.get('recovery_request_id')
+    if not recovery_request_id:
+        flash("No active recovery request found.", "error")
+        return redirect(url_for('admin.recover'))
+
+    recovery_request = RecoveryRequest.query.get(recovery_request_id)
+    if not recovery_request:
+        flash("Recovery request not found.", "error")
+        session.pop('recovery_request_id', None)
+        return redirect(url_for('admin.recover'))
+
+    # Check if expired
+    if recovery_request.expires_at < datetime.now(timezone.utc):
+        recovery_request.status = 'expired'
+        db.session.commit()
+        flash("Your recovery request has expired. Please start a new recovery.", "error")
+        session.pop('recovery_request_id', None)
+        return redirect(url_for('admin.recover'))
+
+    # Get verification codes
+    codes = StudentRecoveryCode.query.filter_by(recovery_request_id=recovery_request.id).all()
+    verified_count = sum(1 for c in codes if c.code_hash is not None)
+    total_count = len(codes)
+
+    # Check if all verified
+    all_verified = verified_count == total_count and total_count > 0
+
+    return render_template("admin_recovery_status.html",
+                         recovery_request=recovery_request,
+                         codes=codes,
+                         verified_count=verified_count,
+                         total_count=total_count,
+                         all_verified=all_verified)
 
 
 @admin_bp.route('/reset-credentials', methods=['GET', 'POST'])
 def reset_credentials():
     """
-    Reset teacher username and TOTP after successful recovery verification.
+    Reset teacher username and TOTP after verifying student recovery codes.
     """
-    # Verify that recovery was successful
-    if not session.get('recovery_verified') or not session.get('recovery_teacher_id'):
-        flash("Please complete the account recovery verification first.", "error")
+    recovery_request_id = session.get('recovery_request_id')
+    if not recovery_request_id:
+        flash("No active recovery request found.", "error")
         return redirect(url_for('admin.recover'))
 
-    teacher_id = session.get('recovery_teacher_id')
-    teacher = Admin.query.get(teacher_id)
-    if not teacher:
-        flash("Invalid recovery session.", "error")
-        session.pop('recovery_verified', None)
-        session.pop('recovery_teacher_id', None)
+    recovery_request = RecoveryRequest.query.get(recovery_request_id)
+    if not recovery_request or recovery_request.status != 'pending':
+        flash("Invalid or expired recovery request.", "error")
         return redirect(url_for('admin.recover'))
 
     form = AdminResetCredentialsForm()
     if form.validate_on_submit():
+        recovery_codes_str = form.recovery_codes.data.strip()
         new_username = form.new_username.data.strip()
 
+        # Parse recovery codes
+        entered_codes = [c.strip() for c in recovery_codes_str.split(',') if c.strip()]
+
+        # Get all student recovery codes for this request
+        student_codes = StudentRecoveryCode.query.filter_by(
+            recovery_request_id=recovery_request.id
+        ).all()
+
+        # Verify all students have generated codes
+        if any(sc.code_hash is None for sc in student_codes):
+            flash("Not all students have verified yet. Please wait for all students to generate their recovery codes.", "error")
+            return redirect(url_for('admin.recovery_status'))
+
+        # Verify entered codes match (in any order)
+        from hash_utils import hash_hmac
+        entered_hashes = set()
+        for code in entered_codes:
+            # Hash the entered code (no salt for recovery codes - they're already random)
+            code_hash = hash_hmac(code.encode(), b'')
+            entered_hashes.add(code_hash)
+
+        stored_hashes = set(sc.code_hash for sc in student_codes)
+
+        if entered_hashes != stored_hashes:
+            current_app.logger.warning(f"🛑 Admin recovery: code mismatch for request {recovery_request.id}")
+            flash("Recovery codes do not match. Please check the codes and try again.", "error")
+            return render_template("admin_reset_credentials.html", form=form, show_qr=False)
+
         # Check username uniqueness
-        if Admin.query.filter_by(username=new_username).first():
+        existing_admin = Admin.query.filter_by(username=new_username).first()
+        if existing_admin and existing_admin.id != recovery_request.admin_id:
             flash("Username already exists. Please choose a different username.", "error")
             return render_template("admin_reset_credentials.html", form=form, show_qr=False)
 
@@ -1061,12 +1134,17 @@ def confirm_reset():
     """
     Confirm TOTP code and complete the account reset.
     """
-    if not session.get('recovery_verified') or not session.get('recovery_teacher_id'):
+    recovery_request_id = session.get('recovery_request_id')
+    if not recovery_request_id:
         flash("Invalid recovery session.", "error")
         return redirect(url_for('admin.recover'))
 
-    teacher_id = session.get('recovery_teacher_id')
-    teacher = Admin.query.get(teacher_id)
+    recovery_request = RecoveryRequest.query.get(recovery_request_id)
+    if not recovery_request:
+        flash("Invalid recovery session.", "error")
+        return redirect(url_for('admin.recover'))
+
+    teacher = Admin.query.get(recovery_request.admin_id)
     if not teacher:
         flash("Invalid recovery session.", "error")
         return redirect(url_for('admin.recover'))
@@ -1088,6 +1166,11 @@ def confirm_reset():
     # Update teacher account
     teacher.username = new_username
     teacher.totp_secret = totp_secret
+
+    # Mark recovery request as completed
+    recovery_request.status = 'verified'
+    recovery_request.completed_at = datetime.now(timezone.utc)
+
     db.session.commit()
 
     # Clear recovery session
