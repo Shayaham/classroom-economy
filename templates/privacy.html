@@ -16,7 +16,7 @@
       padding: 3rem;
       border-radius: 10px;
       box-shadow: 0 4px 20px rgba(0,0,0,0.1);
-      max-width: 900px;
+      max-width: 80%%
       margin: auto;
     }
     h1 {
@@ -35,7 +35,7 @@
       font-weight: 600;
       font-size: 1.5rem;
       margin-top: 2rem;
-      margin-bottom: 1rem;
+      margin-bottom: ;
       border-bottom: 2px solid #e9ecef;
       padding-bottom: 0.5rem;
     }
@@ -159,9 +159,8 @@
     </ul>
 
     <h2>Educational Activity Data</h2>
-    <div class="info-box">
-      <p><em>These records are not personal identifiers—they exist solely to power the in-class simulation and will never be used for external profiling.</em></p>
-    </div>
+      <p class="small">These data are generated, collected, and stored to facilitate the functioning of the classroom economy simulation and contains no personally identifiable information.</p>
+    
     <ul>
       <li><strong>Attendance Records</strong>: Tap-in/out timestamps and calculated active/inactive minutes; necessary to compute base pay and track participation.</li>
       <li><strong>Account Balances</strong>: Checking and savings balances, updated dynamically from transaction history.</li>
@@ -178,7 +177,8 @@
       <li><strong>State-of-the-Art Hashing</strong>: We use industry-leading algorithms to protect your credentials. Passwords and PINs are hashed using <strong>Argon2</strong>, a key derivation function that is highly resistant to brute-force and rainbow table attacks. Other sensitive identifiers are hashed using <strong>HMAC-SHA256</strong> with a per-record salt and a global pepper, ensuring that each hash is unique and secure.</li>
       <li><strong>Encrypted Transit</strong>: All data transmitted between your device and our servers is protected using HTTPS/TLS, preventing eavesdropping or tampering.</li>
       <li><strong>Secure Session Management</strong>: The application enforces idle timeouts and avoids persistent cookies to minimize the risk of unauthorized access from unattended devices.</li>
-      <li><strong>Irreversible Hashes</strong>: All hashing is one-way, meaning that original values cannot be recovered from the stored hashes by anyone, including administrators.</li>
+      <li><strong>Irreversible Hashes</strong>: All hashing is one-way, meaning that original values cannot be recovered from the stored hashes by anyone, including administrators. Any lost username, PIN, passphrases, and TOTP are not recoverable.</li>
+      <li><strong>Limited System Administrator Scope</strong>: System Administrators do not have access to any information about students except teacher username, class section labels, and total number of students enrolled. </li>
     </ul>
 
     <h2>Error Logging & Monitoring</h2>
@@ -209,8 +209,7 @@
     <p>This application adheres to FERPA (Family Educational Rights and Privacy Act), COPPA (Children's Online Privacy Protection Act), and relevant data privacy policies.</p>
 
     <h2>Contact Information</h2>
-    <p>For questions or concerns, contact:<br>
-       Timothy Chang: <a href="mailto:timothy.cs.chang@gmail.com">timothy.cs.chang@gmail.com</a>
+    <p>For questions or concerns, you may use the help and support page to open a support ticket.</a>
     </p>
 
     <a href="{{ url_for('student.login') }}" class="btn btn-secondary mt-4">← Back to Login</a>
