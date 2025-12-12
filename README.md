@@ -20,7 +20,7 @@ An interactive banking and classroom management platform for teaching students a
 
 ### Core Features
 
-- **System Admin Portal** — Manage teachers, review error logs, and adjust student ownership
+- **System Admin Portal** — Manage teachers (including account recovery), review error logs, and adjust student ownership
 - **Teacher Dashboard** — Manage students, run payroll, configure rent/insurance/banking settings
 - **Student Portal** — View balances, redeem store items, track attendance, and manage hall passes
 - **Join-Code Rosters** — Upload rosters and let students self-claim seats securely
@@ -38,6 +38,7 @@ An interactive banking and classroom management platform for teaching students a
 
 - **PII Encryption** — All student names encrypted at rest
 - **TOTP for Admins** — Time-based one-time passwords required
+- **Admin Account Recovery** — System admins can securely reset teacher 2FA
 - **CSRF Protection** — Protection against cross-site request forgery
 - **Credential Hashing** — Salted and peppered password hashing
 - **Cloudflare Turnstile** — Bot protection on login forms

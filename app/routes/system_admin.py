@@ -8,9 +8,12 @@ system logs, error monitoring, and debug/testing tools.
 import os
 import re
 import secrets
+import io
+import base64
+import qrcode
 from datetime import datetime, timedelta, timezone
 
-from flask import Blueprint, render_template, redirect, url_for, flash, request, session, current_app
+from flask import Blueprint, render_template, redirect, url_for, flash, request, session, current_app, jsonify
 from sqlalchemy import delete, or_, case
 from werkzeug.exceptions import BadRequest, Unauthorized, Forbidden, NotFound, ServiceUnavailable
 import pyotp
@@ -448,6 +451,48 @@ def manage_admins():
         admins=admin_data,
         current_page='sysadmin_admins'
     )
+
+
+@sysadmin_bp.route('/admins/<int:admin_id>/reset-totp', methods=['POST'])
+@system_admin_required
+def reset_teacher_totp(admin_id):
+    """
+    Reset a teacher's TOTP secret and return the new setup details (JSON).
+    This allows recovery of lost accounts.
+    """
+    admin = Admin.query.get_or_404(admin_id)
+
+    try:
+        # Generate new secret
+        new_secret = pyotp.random_base32()
+        admin.totp_secret = new_secret
+        db.session.commit()
+
+        # Generate QR code
+        totp_uri = pyotp.totp.TOTP(new_secret).provisioning_uri(
+            name=admin.username,
+            issuer_name="Classroom Economy Admin"
+        )
+
+        img = qrcode.make(totp_uri)
+        buf = io.BytesIO()
+        img.save(buf, format='PNG')
+        buf.seek(0)
+        qr_b64 = base64.b64encode(buf.read()).decode('utf-8')
+
+        current_app.logger.info(f"System Admin reset TOTP for teacher {admin.username}")
+
+        return jsonify({
+            "status": "success",
+            "message": f"TOTP secret reset for {admin.username}",
+            "totp_secret": new_secret,
+            "qr_code": qr_b64,
+            "username": admin.username
+        })
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Error resetting TOTP for admin {admin_id}: {str(e)}")
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 
 @sysadmin_bp.route('/admins/<int:admin_id>/delete', methods=['POST'])
