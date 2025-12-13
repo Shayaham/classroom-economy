@@ -7,6 +7,34 @@
 <!-- Server State for JS -->
 <div id="serverState" style="display:none;">{{ period_states_json|safe }}</div>
 
+<!-- Account Recovery Request -->
+{% if pending_recovery_code %}
+<div class="alert alert-info alert-dismissible fade show shadow-sm border-0 mb-4" role="alert">
+    <div class="d-flex align-items-start">
+        <span class="material-symbols-outlined fs-3 text-info me-3">security</span>
+        <div class="flex-grow-1">
+            <h5 class="alert-heading fw-bold mb-2">Account Recovery Request</h5>
+            <p class="mb-2">Your teacher is trying to recover their account and needs your help to verify their identity.</p>
+            <p class="mb-3 small text-muted">
+                <span class="material-symbols-outlined fs-6 align-text-bottom">schedule</span>
+                Expires on {{ pending_recovery_code.recovery_request.expires_at.strftime('%B %d, %Y at %I:%M %p') }}
+            </p>
+            <div class="d-flex gap-2">
+                <a href="{{ url_for('student.verify_recovery', code_id=pending_recovery_code.id) }}" class="btn btn-primary btn-sm">
+                    <span class="material-symbols-outlined fs-6 align-bottom me-1">verified_user</span>
+                    Help Verify Identity
+                </a>
+                <form method="POST" action="{{ url_for('student.dismiss_recovery', code_id=pending_recovery_code.id) }}" style="display: inline;">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="btn btn-outline-secondary btn-sm">Dismiss for now</button>
+                </form>
+            </div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+</div>
+{% endif %}
+
 {% if recent_deposit %}
 <div class="alert alert-success d-flex align-items-center mb-4 border-0 shadow-sm" role="alert">
     <span class="material-symbols-outlined me-2 fs-4">payments</span>

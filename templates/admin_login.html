@@ -114,10 +114,20 @@
 
                 <div class="text-center d-grid gap-2">
                     <a href="{{ url_for('admin.recover') }}" class="text-decoration-none small text-secondary">Forgot credentials? Recover account</a>
+                    <a href="{{ url_for('admin.resume_credentials') }}" class="text-decoration-none small text-secondary">Resume recovery</a>
                     <a href="{{ url_for('student.login') }}" class="btn btn-outline-primary btn-sm mt-2">
                         <span class="material-symbols-outlined fs-6 align-bottom me-1">school</span>
                         Student Login
                     </a>
+                    <a href="{{ url_for('admin.signup') }}" class="btn btn-outline-secondary btn-sm">
+                        <span class="material-symbols-outlined fs-6 align-bottom me-1">person_add</span>
+                        Set up teacher account
+                    </a>
+                </div>
+
+                <div class="text-center mt-3 pt-3 border-top">
+                    <a href="{{ url_for('main.privacy') }}" class="text-decoration-none small text-secondary me-3">Privacy</a>
+                    <a href="{{ url_for('main.terms') }}" class="text-decoration-none small text-secondary">Terms</a>
                 </div>
             </form>
         </div>
