@@ -45,6 +45,48 @@
 </div>
 {% endif %}
 
+<!-- Weekly Analytics Card -->
+<div class="card border-0 shadow-sm mb-4">
+    <div class="card-body p-4">
+        <div class="d-flex align-items-center mb-3">
+            <span class="material-symbols-outlined text-primary me-2">analytics</span>
+            <h5 class="fw-bold mb-0">Weekly Stats</h5>
+        </div>
+        <div class="row g-3">
+            <div class="col-6 col-md-3">
+                <div class="text-center p-3 bg-primary bg-opacity-10 rounded-3">
+                    <span class="material-symbols-outlined text-primary fs-3">event_available</span>
+                    <div class="h2 fw-bold text-primary mb-0 mt-2">{{ unique_days_tapped }}</div>
+                    <div class="small text-muted">Days Tapped In</div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="text-center p-3 bg-info bg-opacity-10 rounded-3">
+                    <span class="material-symbols-outlined text-info fs-3">schedule</span>
+                    <div class="h2 fw-bold text-info mb-0 mt-2">{{ total_minutes_this_week }}</div>
+                    <div class="small text-muted">Minutes This Week</div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="text-center p-3 bg-success bg-opacity-10 rounded-3">
+                    <span class="material-symbols-outlined text-success fs-3">trending_up</span>
+                    <div class="h2 fw-bold text-success mb-0 mt-2">${{ "%.0f"|format(earnings_this_week) }}</div>
+                    <div class="small text-muted">Earned This Week</div>
+                    <div class="small text-black-50">${{ "%.0f"|format(earnings_this_month) }} this month</div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="text-center p-3 bg-danger bg-opacity-10 rounded-3">
+                    <span class="material-symbols-outlined text-danger fs-3">trending_down</span>
+                    <div class="h2 fw-bold text-danger mb-0 mt-2">${{ "%.0f"|format(spending_this_week) }}</div>
+                    <div class="small text-muted">Spent This Week</div>
+                    <div class="small text-black-50">${{ "%.0f"|format(spending_this_month) }} this month</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Attendance Card -->
 {% if student_blocks %}
 <div class="card border-0 shadow-sm mb-4">
@@ -100,52 +142,80 @@
 </div>
 {% endif %}
 
-<!-- Balance Overview -->
-<div class="balance-card mb-4">
-    <div class="row align-items-center">
-        <div class="col-7">
-            <div class="text-white-50 small text-uppercase mb-1" style="letter-spacing: 1px;">Current Balance</div>
-            <div class="display-4 fw-bold mb-0">${{ "%.2f"|format(checking_balance) }}</div>
-        </div>
-        <div class="col-5 text-end">
-            <div class="bg-white bg-opacity-10 rounded-3 p-3 d-inline-block text-start" style="min-width: 120px;">
-                <div class="text-white-50 small mb-1">Savings</div>
-                <div class="h4 fw-bold mb-0 text-white">${{ "%.2f"|format(savings_balance) }}</div>
+<!-- Main Content Layout -->
+<div class="row">
+    <!-- Left Navigation Sidebar -->
+    <div class="col-md-3 mb-4">
+        <div class="card border-0 shadow-sm sticky-top" style="top: 1rem;">
+            <div class="card-body p-3">
+                <h6 class="text-muted text-uppercase small fw-bold mb-3 px-2">Navigation</h6>
+                <div class="list-group list-group-flush">
+                    <a href="{{ url_for('student.transfer') }}" class="list-group-item list-group-item-action border-0 rounded mb-2 d-flex align-items-center">
+                        <span class="material-symbols-outlined me-2 text-primary">account_balance_wallet</span>
+                        <div>
+                            <div class="fw-semibold">Accounts</div>
+                            <small class="text-muted">Checking & Savings</small>
+                        </div>
+                    </a>
+                    <a href="{{ url_for('student.shop') }}" class="list-group-item list-group-item-action border-0 rounded mb-2 d-flex align-items-center">
+                        <span class="material-symbols-outlined me-2 text-success">storefront</span>
+                        <div>
+                            <div class="fw-semibold">Store</div>
+                            <small class="text-muted">Buy items</small>
+                        </div>
+                    </a>
+                    <a href="{{ url_for('student.payroll') }}" class="list-group-item list-group-item-action border-0 rounded mb-2 d-flex align-items-center">
+                        <span class="material-symbols-outlined me-2 text-info">payments</span>
+                        <div>
+                            <div class="fw-semibold">Work & Pay</div>
+                            <small class="text-muted">Payslips & earnings</small>
+                        </div>
+                    </a>
+                    <a href="{{ url_for('student.rent') }}" class="list-group-item list-group-item-action border-0 rounded mb-2 d-flex align-items-center">
+                        <span class="material-symbols-outlined me-2 text-warning">receipt</span>
+                        <div>
+                            <div class="fw-semibold">Bills</div>
+                            <small class="text-muted">Rent & insurance</small>
+                        </div>
+                    </a>
+                    <a href="{{ url_for('student.student_insurance') }}" class="list-group-item list-group-item-action border-0 rounded d-flex align-items-center">
+                        <span class="material-symbols-outlined me-2 text-danger">shield</span>
+                        <div>
+                            <div class="fw-semibold">Insurance</div>
+                            <small class="text-muted">Get protected</small>
+                        </div>
+                    </a>
+                </div>
             </div>
         </div>
     </div>
 
-    <div class="mt-4 pt-3 border-top border-white border-opacity-10 d-flex gap-2">
-        <a href="{{ url_for('student.transfer') }}" class="btn btn-light rounded-pill px-4 fw-bold" style="color: var(--primary);">
-            <span class="material-symbols-outlined align-bottom fs-5 me-1">swap_horiz</span> Transfer
-        </a>
-        <a href="{{ url_for('student.payroll') }}" class="btn btn-outline-light rounded-pill px-4">
-            Payslips
-        </a>
-    </div>
-</div>
+    <!-- Main Content Area -->
+    <div class="col-md-9">
+        <!-- Balance Overview -->
+        <div class="balance-card mb-4">
+            <div class="row align-items-center">
+                <div class="col-7">
+                    <div class="text-white-50 small text-uppercase mb-1" style="letter-spacing: 1px;">Current Balance</div>
+                    <div class="display-4 fw-bold mb-0">${{ "%.2f"|format(checking_balance) }}</div>
+                </div>
+                <div class="col-5 text-end">
+                    <div class="bg-white bg-opacity-10 rounded-3 p-3 d-inline-block text-start" style="min-width: 120px;">
+                        <div class="text-white-50 small mb-1">Savings</div>
+                        <div class="h4 fw-bold mb-0 text-white">${{ "%.2f"|format(savings_balance) }}</div>
+                    </div>
+                </div>
+            </div>
 
-<!-- Quick Actions Grid -->
-<h5 class="fw-bold mb-3 px-1">Quick Actions</h5>
-<div class="action-grid mb-5">
-    <a href="{{ url_for('student.shop') }}" class="action-btn text-decoration-none">
-        <span class="material-symbols-outlined">storefront</span>
-        <span class="fw-bold">Store</span>
-        <small class="text-muted mt-1">Buy items</small>
-    </a>
-
-    <a href="{{ url_for('student.rent') }}" class="action-btn text-decoration-none">
-        <span class="material-symbols-outlined">home</span>
-        <span class="fw-bold">Rent</span>
-        <small class="text-muted mt-1">Pay bills</small>
-    </a>
-
-    <a href="{{ url_for('student.student_insurance') }}" class="action-btn text-decoration-none">
-        <span class="material-symbols-outlined">shield</span>
-        <span class="fw-bold">Insurance</span>
-        <small class="text-muted mt-1">Get protected</small>
-    </a>
-</div>
+            <div class="mt-4 pt-3 border-top border-white border-opacity-10 d-flex gap-2">
+                <a href="{{ url_for('student.transfer') }}" class="btn btn-light rounded-pill px-4 fw-bold" style="color: var(--primary);">
+                    <span class="material-symbols-outlined align-bottom fs-5 me-1">swap_horiz</span> Transfer
+                </a>
+                <a href="{{ url_for('student.payroll') }}" class="btn btn-outline-light rounded-pill px-4">
+                    Payslips
+                </a>
+            </div>
+        </div>
 
 <!-- Recent Transactions -->
 <div class="d-flex justify-content-between align-items-center mb-3 px-1">
@@ -186,6 +256,8 @@
                 No recent transactions
             </div>
         {% endif %}
+    </div>
+</div>
     </div>
 </div>
 
