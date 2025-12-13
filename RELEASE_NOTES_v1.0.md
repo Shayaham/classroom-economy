@@ -29,6 +29,7 @@ Classroom Token Hub enables teachers to create simulated classroom economies whe
 - Bulk roster uploads via CSV with secure join-code claiming system
 - Shared student management across multiple teachers
 - Customizable display names and class labels for personalized branding
+- Teacher account recovery via student-verified codes (no email/phone required)
 
 **Student Experience**
 - Intuitive student portal with real-time balance tracking
@@ -46,6 +47,12 @@ Classroom Token Hub enables teachers to create simulated classroom economies whe
 
 **Security & Authentication**
 - TOTP (Time-based One-Time Password) two-factor authentication for all admin accounts
+- **Teacher Account Recovery** — Student-verified recovery system where teachers verify their identity using their date-of-birth sum and student usernames.
+  - Multi-student verification requirement for enhanced security
+  - Unique 6-digit recovery codes per student
+  - 5-day expiration on recovery requests
+  - Comprehensive audit trail of recovery attempts
+- **Admin Account Recovery** — System administrators can securely reset teacher 2FA credentials
 - PII encryption at rest for all student names
 - CSRF protection on all forms
 - Salted and peppered password hashing
@@ -77,19 +84,73 @@ Classroom Token Hub enables teachers to create simulated classroom economies whe
 
 ---
 
+## Recent Enhancements (December 2025)
+
+### Account Recovery Systems
+
+**Teacher Self-Recovery (Added 2025-12-12)**
+- Implemented student-verified account recovery system for teachers who lose access to 2FA
+- Teachers initiate recovery by providing their date-of-birth sum and a list of their student usernames.
+- Students authenticate with their passphrase and generate unique 6-digit recovery codes
+- Teacher must collect all codes from all verified students to proceed
+- Live recovery status tracking with auto-refresh
+- Comprehensive security testing and audit trails
+- Routes: `/admin/recover`, `/admin/recovery-status`, `/student/verify-recovery/<code_id>`
+
+**System Admin Recovery Tools (Added 2025-12-12)**
+- System administrators can reset teacher TOTP credentials via admin panel
+- Added "Reset 2FA" functionality in teacher management interface
+- Secure confirmation workflow to prevent accidental resets
+- Complete audit logging of all recovery actions
+- Route: `/sysadmin/reset-teacher-totp`
+
+### Privacy & Legal Updates (2025-12-11)
+
+**Privacy Page Revamp**
+- Redesigned privacy policy page with improved UX and visual design
+- Enhanced clarity around data handling and encryption practices
+- Added detailed explanations of PII protection measures
+- Improved readability and user-friendly language
+
+**Terms of Service Revision**
+- Updated Terms of Service for clarity and privacy emphasis
+- Made ToS more accessible and user-friendly
+- Improved guidance on acceptable use and user responsibilities
+- Enhanced legal protections for educational use cases
+
+### Bug Fixes & Stability Improvements
+
+**Attendance System (2025-12-10)**
+- Fixed auto-tap-out bug where missing join_code prevented students from accumulating tokens
+- Improved join_code resolution for students with multiple teachers
+- Enhanced rate limiting to prevent false positives during legitimate classroom usage
+
+**Hall Pass System (2025-12-10)**
+- Fixed missing timestamp updates on hall pass verification
+- Added proper teacher scoping to hall pass queries
+- Resolved network error handling issues
+
+**Multi-Tenancy Refinements (2025-12-09)**
+- Fixed tap event scoping to ensure proper join_code association
+- Improved payroll data scoping for students in multiple class periods
+- Enhanced class-switching UI for multi-class students
+
+---
+
 ## Technical Improvements
 
 **Architecture**
 - Modular Flask Blueprint structure (refactored from 4,500-line monolithic `app.py`)
-- 34 SQLAlchemy models with comprehensive relationship mapping
-- 73 Alembic migrations managing schema evolution
+- 35 SQLAlchemy models with comprehensive relationship mapping (including new RecoveryRequest and StudentRecoveryCode models)
+- 83 Alembic migrations managing schema evolution
 - Scoped query helpers for tenant-aware data access
 
 **Testing**
-- 47 comprehensive test files covering core functionality
+- 55 comprehensive test files covering core functionality
 - Foreign key constraint testing enabled
 - Multi-tenancy validation tests
 - Legacy compatibility regression tests
+- Account recovery system tests (teacher and admin recovery flows)
 
 **Deployment**
 - GitHub Actions CI/CD pipeline
