@@ -113,8 +113,155 @@
                 <span class="fw-medium">Enforce Limits</span>
             </button>
         </div>
+        <div class="col-6 col-md-3">
+            <a href="{{ url_for('admin.insurance_management') }}" class="btn btn-white w-100 p-3 h-100 shadow-sm border-0 d-flex flex-column align-items-center gap-2">
+                <span class="material-symbols-outlined fs-3 text-success">shield</span>
+                <span class="fw-medium">Insurance</span>
+            </a>
+        </div>
+        <div class="col-6 col-md-3">
+            <a href="{{ url_for('admin.hall_pass') }}" class="btn btn-white w-100 p-3 h-100 shadow-sm border-0 d-flex flex-column align-items-center gap-2">
+                <span class="material-symbols-outlined fs-3 text-info">door_open</span>
+                <span class="fw-medium">Hall Passes</span>
+            </a>
+        </div>
     </div>
 </div>
+
+<!-- Pending Actions Section -->
+{% if total_pending_actions > 0 %}
+<div class="mb-4">
+    <div class="card border-0 shadow-sm">
+        <div class="card-header bg-transparent border-0 pt-4 px-4 pb-0">
+            <h5 class="fw-bold mb-0">
+                <span class="material-symbols-outlined align-middle me-2">notifications_active</span>
+                Pending Actions ({{ total_pending_actions }})
+            </h5>
+        </div>
+        <div class="card-body p-4">
+            <!-- Nav Pills for Pending Actions -->
+            <ul class="nav nav-pills nav-fill mb-3" id="pendingActionsTabs" role="tablist">
+                {% if pending_redemptions_count > 0 %}
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="redemptions-tab" data-bs-toggle="tab" data-bs-target="#redemptions" type="button" role="tab">
+                        <i class="bi bi-gift me-1"></i>Redemptions <span class="badge bg-danger ms-1">{{ pending_redemptions_count }}</span>
+                    </button>
+                </li>
+                {% endif %}
+                {% if pending_hall_passes_count > 0 %}
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link {% if pending_redemptions_count == 0 %}active{% endif %}" id="hall-passes-tab" data-bs-toggle="tab" data-bs-target="#hall-passes" type="button" role="tab">
+                        <i class="bi bi-door-open me-1"></i>Hall Passes <span class="badge bg-danger ms-1">{{ pending_hall_passes_count }}</span>
+                    </button>
+                </li>
+                {% endif %}
+                {% if pending_insurance_claims_count > 0 %}
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link {% if pending_redemptions_count == 0 and pending_hall_passes_count == 0 %}active{% endif %}" id="claims-tab" data-bs-toggle="tab" data-bs-target="#claims" type="button" role="tab">
+                        <i class="bi bi-shield-check me-1"></i>Claims <span class="badge bg-danger ms-1">{{ pending_insurance_claims_count }}</span>
+                    </button>
+                </li>
+                {% endif %}
+            </ul>
+
+            <div class="tab-content" id="pendingActionsTabContent">
+                <!-- Redemptions Tab -->
+                {% if pending_redemptions_count > 0 %}
+                <div class="tab-pane fade show active" id="redemptions" role="tabpanel">
+                    <div class="list-group list-group-flush" style="max-height: 300px; overflow-y: auto;">
+                        {% for req in recent_redemptions %}
+                        <div class="list-group-item px-0 d-flex justify-content-between align-items-center border-0 py-3">
+                            <div>
+                                <strong>{{ student_lookup.get(req.student_id).full_name if student_lookup.get(req.student_id) else 'Unknown' }}</strong>
+                                <br>
+                                <small class="text-muted">{{ req.store_item.name }}</small>
+                                {% if req.redemption_details %}
+                                    <br><div class="small text-muted">{{ req.redemption_details | markdown }}</div>
+                                {% endif %}
+                            </div>
+                            <button class="btn btn-sm btn-success approve-redemption-btn" data-student-item-id="{{ req.id }}">
+                                <i class="bi bi-check-circle me-1"></i>Approve
+                            </button>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% if pending_redemptions_count > 5 %}
+                        <div class="mt-2 text-center">
+                            <small class="text-muted">Showing 5 of {{ pending_redemptions_count }} pending redemptions</small>
+                        </div>
+                    {% endif %}
+                </div>
+                {% endif %}
+
+                <!-- Hall Passes Tab -->
+                {% if pending_hall_passes_count > 0 %}
+                <div class="tab-pane fade {% if pending_redemptions_count == 0 %}show active{% endif %}" id="hall-passes" role="tabpanel">
+                    <div class="list-group list-group-flush" style="max-height: 300px; overflow-y: auto;">
+                        {% for pass in recent_hall_passes %}
+                        <div class="list-group-item px-0 d-flex justify-content-between align-items-center border-0 py-3">
+                            <div>
+                                <strong>{{ student_lookup.get(pass.student_id).full_name if student_lookup.get(pass.student_id) else 'Unknown' }}</strong>
+                                <br>
+                                <small class="text-muted"><i class="bi bi-signpost me-1"></i>{{ pass.reason }}</small>
+                                <br>
+                                <small class="text-muted">
+                                    <span class="local-timestamp" data-timestamp="{{ pass.request_time.isoformat() }}Z"></span>
+                                </small>
+                            </div>
+                            <div>
+                                <a href="{{ url_for('admin.hall_pass') }}" class="btn btn-sm btn-primary">
+                                    <i class="bi bi-box-arrow-up-right"></i> View
+                                </a>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% if pending_hall_passes_count > 5 %}
+                        <div class="mt-2 text-center">
+                            <small class="text-muted">Showing 5 of {{ pending_hall_passes_count }} pending hall passes</small>
+                        </div>
+                    {% endif %}
+                </div>
+                {% endif %}
+
+                <!-- Insurance Claims Tab -->
+                {% if pending_insurance_claims_count > 0 %}
+                <div class="tab-pane fade {% if pending_redemptions_count == 0 and pending_hall_passes_count == 0 %}show active{% endif %}" id="claims" role="tabpanel">
+                    <div class="list-group list-group-flush" style="max-height: 300px; overflow-y: auto;">
+                        {% for claim in recent_insurance_claims %}
+                        <div class="list-group-item px-0 d-flex justify-content-between align-items-center border-0 py-3">
+                            <div>
+                                <strong>{{ student_lookup.get(claim.student_id).full_name if student_lookup.get(claim.student_id) else 'Unknown' }}</strong>
+                                <br>
+                                <small class="text-muted">{{ claim.description[:50] }}{% if claim.description|length > 50 %}...{% endif %}</small>
+                                {% if claim.claim_amount %}
+                                    <br><small class="text-success">${{ "%.2f"|format(claim.claim_amount) }}</small>
+                                {% endif %}
+                                <br>
+                                <small class="text-muted">
+                                    <span class="local-timestamp" data-timestamp="{{ claim.filed_date.isoformat() }}Z"></span>
+                                </small>
+                            </div>
+                            <div>
+                                <a href="{{ url_for('admin.insurance_management') }}" class="btn btn-sm btn-primary">
+                                    <i class="bi bi-box-arrow-up-right"></i> View
+                                </a>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% if pending_insurance_claims_count > 5 %}
+                        <div class="mt-2 text-center">
+                            <small class="text-muted">Showing 5 of {{ pending_insurance_claims_count }} pending claims</small>
+                        </div>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
 
 <div class="row g-4">
     <!-- Recent Activity -->
@@ -271,6 +418,103 @@
             btn.disabled = false;
             btn.innerHTML = originalContent;
         }
+    });
+
+    // Handle redemption approval
+    document.querySelectorAll(".approve-redemption-btn").forEach(button => {
+        button.addEventListener("click", () => {
+            const studentItemId = button.dataset.studentItemId;
+            const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+
+            // Disable button and show loading state
+            button.disabled = true;
+            button.innerHTML = '<i class="bi bi-hourglass-split"></i> Processing...';
+
+            fetch('/api/approve-redemption', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
+                },
+                body: JSON.stringify({ student_item_id: studentItemId })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    // Remove the item from the list with a fade effect
+                    const listItem = button.closest('.list-group-item');
+                    listItem.style.transition = 'opacity 0.3s';
+                    listItem.style.opacity = '0';
+                    setTimeout(() => {
+                        listItem.remove();
+
+                        // Update the pending actions stat card
+                        const pendingCard = document.querySelector('.icon-circle.bg-warning');
+                        if (pendingCard) {
+                            const statElement = pendingCard.closest('.card-body').querySelector('h2');
+                            if (statElement) {
+                                const currentCount = parseInt(statElement.textContent);
+                                statElement.textContent = currentCount - 1;
+                            }
+                        }
+
+                        // Update the redemptions tab badge
+                        const redemptionsTabBadge = document.querySelector('#redemptions-tab .badge');
+                        if (redemptionsTabBadge) {
+                            const currentRedCount = parseInt(redemptionsTabBadge.textContent);
+                            redemptionsTabBadge.textContent = currentRedCount - 1;
+
+                            if (currentRedCount - 1 === 0) {
+                                // Hide tab if no more redemptions
+                                document.querySelector('#redemptions-tab').closest('li').remove();
+                            }
+                        }
+
+                        // Show empty state if no more items in this tab
+                        const redemptionsTab = document.querySelector('#redemptions .list-group');
+                        if (redemptionsTab && redemptionsTab.children.length === 0) {
+                            document.querySelector('#redemptions').innerHTML = `
+                                <div class="text-center text-muted py-4">
+                                    <i class="bi bi-check-circle" style="font-size: 2rem;"></i>
+                                    <p class="mb-0 mt-2">No pending redemptions</p>
+                                </div>
+                            `;
+                        }
+
+                        // Show success toast
+                        const toastContainer = document.getElementById('flashToastContainer') || (() => {
+                            const container = document.createElement('div');
+                            container.id = 'flashToastContainer';
+                            container.className = 'position-fixed bottom-0 end-0 p-3';
+                            container.style.zIndex = '1050';
+                            document.body.appendChild(container);
+                            return container;
+                        })();
+
+                        const toastEl = document.createElement('div');
+                        toastEl.className = 'toast align-items-center text-bg-success border-0';
+                        toastEl.setAttribute('role', 'alert');
+                        toastEl.innerHTML = `
+                            <div class="d-flex">
+                                <div class="toast-body">Redemption approved successfully!</div>
+                                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+                            </div>`;
+                        toastContainer.appendChild(toastEl);
+                        new bootstrap.Toast(toastEl).show();
+                    }, 300);
+                } else {
+                    alert('Approval failed: ' + data.message);
+                    button.disabled = false;
+                    button.innerHTML = '<i class="bi bi-check-circle me-1"></i>Approve';
+                }
+            })
+            .catch(error => {
+                console.error('Approval error:', error);
+                alert('An unexpected error occurred.');
+                button.disabled = false;
+                button.innerHTML = '<i class="bi bi-check-circle me-1"></i>Approve';
+            });
+        });
     });
 </script>
 {% endblock %}
