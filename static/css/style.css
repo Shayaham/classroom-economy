@@ -174,11 +174,11 @@ a:hover {
     font-size: 1.25rem;
 }
 
-.nav-item {
+.sidebar .nav-item {
     margin-bottom: 0.25rem;
 }
 
-.nav-link {
+.sidebar .nav-link {
     display: flex;
     align-items: center;
     gap: 0.75rem;
@@ -189,12 +189,12 @@ a:hover {
     font-weight: 500;
 }
 
-.nav-link:hover, .nav-link.active {
+.sidebar .nav-link:hover, .sidebar .nav-link.active {
     background-color: rgba(255, 255, 255, 0.1);
     color: white;
 }
 
-.nav-link.active {
+.sidebar .nav-link.active {
     background-color: var(--secondary);
     color: var(--primary);
     font-weight: 600;
