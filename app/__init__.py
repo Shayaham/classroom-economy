@@ -349,6 +349,10 @@ def create_app():
             app.logger.debug(f"Could not add cache buster for {filename}: {exc}")
             return url_for('static', filename=filename)
 
+    # Make the helper available even in contexts where context processors
+    # might not run (e.g., background tasks rendering templates).
+    app.jinja_env.globals['static_url'] = build_static_url
+
     # -------------------- CONTEXT PROCESSORS --------------------
     @app.context_processor
     def inject_static_url():
