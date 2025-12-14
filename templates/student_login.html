@@ -8,7 +8,7 @@
     <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet">
-    <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
+    <link href="{{ static_url('css/style.css') }}" rel="stylesheet">
     <style>
         body {
             background-color: var(--background);
@@ -50,7 +50,7 @@
 <body>
     <div class="login-card">
         <div class="text-center mb-4">
-            <img src="{{ url_for('static', filename='images/student-logo.svg') }}" alt="Student Logo" width="80" height="80" class="mb-3">
+            <img src="{{ static_url('images/student-logo.svg') }}" alt="Student Logo" width="80" height="80" class="mb-3">
             <h1 class="h3 fw-bold mb-1 text-primary">Student Login</h1>
             <p class="text-secondary small">Access your classroom bank account</p>
         </div>

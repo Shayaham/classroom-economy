@@ -175,7 +175,7 @@ JavaScript class for real-time validation in forms.
 
 **1. Include the script:**
 ```html
-<script src="{{ url_for('static', filename='js/economy-balance.js') }}"></script>
+<script src="{{ static_url('js/economy-balance.js') }}"></script>
 ```
 
 **2. Add data attributes to inputs:**
