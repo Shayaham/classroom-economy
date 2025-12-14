@@ -8,7 +8,7 @@
     <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet">
-    <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
+    <link href="{{ static_url('css/style.css') }}" rel="stylesheet">
     <style>
         body {
             background-color: var(--background);
@@ -132,7 +132,7 @@
             </form>
         </div>
         <div class="login-right">
-            <img src="{{ url_for('static', filename='images/admin-logo.svg') }}" alt="Logo" class="logo-img">
+            <img src="{{ static_url('images/admin-logo.svg') }}" alt="Logo" class="logo-img">
             <h2 class="h3 fw-bold mb-3">Classroom Token Hub</h2>
             <p class="text-center opacity-75 px-4">Manage your classroom economy with ease. Track attendance, payroll, and more.</p>
         </div>

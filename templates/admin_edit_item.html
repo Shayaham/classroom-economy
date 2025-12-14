@@ -5,8 +5,8 @@
 
 {% block extra_head %}
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/easymde/dist/easymde.min.css">
-<script src="{{ url_for('static', filename='js/economy-balance.js') }}"></script>
-<script src="{{ url_for('static', filename='js/item-form-economy.js') }}"></script>
+<script src="{{ static_url('js/economy-balance.js') }}"></script>
+<script src="{{ static_url('js/item-form-economy.js') }}"></script>
 <style>
     .EasyMDEContainer .CodeMirror {
         min-height: 150px;

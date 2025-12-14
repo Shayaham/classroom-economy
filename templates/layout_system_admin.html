@@ -217,7 +217,7 @@
     <!-- Sidebar -->
     <div class="sidebar border-end p-3 d-flex flex-column" style="width: 260px; min-height: 100vh; position: sticky; top: 0; align-self: flex-start;">
         <div class="text-center mb-3">
-            <img src="{{ url_for('static', filename='images/sys-admin-logo.svg') }}" alt="System Admin Logo" style="max-width: 80%; height: auto; margin-bottom: 1rem;">
+            <img src="{{ static_url('images/sys-admin-logo.svg') }}" alt="System Admin Logo" style="max-width: 80%; height: auto; margin-bottom: 1rem;">
             <h5><span class="material-symbols-outlined lock-icon">lock</span> System Admin</h5>
             <small>Authorized Access Only</small>
         </div>
@@ -278,7 +278,7 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="{{ url_for('static', filename='js/timezone-utils.js') }}"></script>
+    <script src="{{ static_url('js/timezone-utils.js') }}"></script>
     <script>
         // Update time display
         function updateTime() {

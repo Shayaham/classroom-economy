@@ -12,7 +12,7 @@ import pytz
 from datetime import datetime, date, timezone
 from logging.handlers import RotatingFileHandler
 
-from flask import Flask, request, render_template, session, g
+from flask import Flask, request, render_template, session, g, url_for
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -336,7 +336,25 @@ def create_app():
 
         return None
 
+    def build_static_url(filename: str):
+        """Return static asset URLs with a cache-busting query parameter."""
+        if not filename:
+            return url_for('static', filename=filename)
+
+        file_path = os.path.join(app.static_folder, filename)
+        try:
+            version = int(os.stat(file_path).st_mtime)
+            return url_for('static', filename=filename, v=version)
+        except (OSError, TypeError) as exc:
+            app.logger.debug(f"Could not add cache buster for {filename}: {exc}")
+            return url_for('static', filename=filename)
+
     # -------------------- CONTEXT PROCESSORS --------------------
+    @app.context_processor
+    def inject_static_url():
+        """Expose cache-busted static URL helper to all templates."""
+        return {'static_url': build_static_url}
+
     @app.context_processor
     def inject_global_settings():
         """Inject global settings into all templates."""

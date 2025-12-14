@@ -14,6 +14,11 @@
 - **[Contributing Guide](CONTRIBUTING.md)** - How to contribute
 - **[Project History](PROJECT_HISTORY.md)** - Project evolution and philosophy
 
+## Static Assets and Cache Busting
+
+- Always reference CSS/JS/images in templates with `static_url('<path>')` so Flask appends a file timestamp query parameter.
+- Avoid hard-coding `/static/...` paths or `url_for('static', ...)` in templates; the helper prevents browsers/CDNs from serving stale assets after deployments.
+
 ---
 
 ## Version 1.0 Release Status
