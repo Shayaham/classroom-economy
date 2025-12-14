@@ -2877,8 +2877,7 @@ def verify_recovery(code_id):
                                  student=student)
 
         # Verify passphrase
-        import bcrypt
-        if not student.passphrase_hash or not bcrypt.checkpw(passphrase.encode('utf-8'), student.passphrase_hash.encode('utf-8')):
+        if not student.passphrase_hash or not check_password_hash(student.passphrase_hash, passphrase):
             current_app.logger.warning(f"🛑 Recovery verification failed: incorrect passphrase for student {student.id}")
             flash("Incorrect passphrase. Please try again.", "error")
             return render_template('student_verify_recovery.html',

@@ -355,11 +355,6 @@ def create_app():
 
     # -------------------- CONTEXT PROCESSORS --------------------
     @app.context_processor
-    def inject_static_url():
-        """Expose cache-busted static URL helper to all templates."""
-        return {'static_url': build_static_url}
-
-    @app.context_processor
     def inject_global_settings():
         """Inject global settings into all templates."""
         bypass_flag = getattr(g, 'maintenance_bypass_active', False)
