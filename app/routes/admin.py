@@ -3098,9 +3098,9 @@ def insurance_management():
             bundle_discount_percent=form.bundle_discount_percent.data,
             marketing_badge=form.marketing_badge.data if form.marketing_badge.data else None,
             tier_category_id=tier_category_id,
-            tier_name=form.tier_name.data if form.tier_name.data else None,
-            tier_color=form.tier_color.data if form.tier_color.data else None,
-            tier_level=form.tier_level.data if form.tier_level.data else None,
+            tier_name=form.tier_name.data or None,
+            tier_color=form.tier_color.data or None,
+            tier_level=form.tier_level.data or None,
             settings_mode=request.form.get('settings_mode', 'advanced'),
             is_active=form.is_active.data
         )
