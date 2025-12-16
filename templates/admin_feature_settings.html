@@ -102,7 +102,7 @@
                     <p class="text-muted mb-0">
                         Toggle features for the entire classroom economy. Changes here apply to all periods unless overridden.
                     </p>
-                    <button class="btn btn-outline-secondary btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#globalFeatureList" aria-expanded="true" aria-controls="globalFeatureList" id="toggleGlobalCards">
+                    <button class="btn btn-outline-secondary btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#globalFeatureList" aria-expanded="true" aria-controls="globalFeatureList" id="toggleGlobalCards" data-show-text="Show feature cards" data-hide-text="Hide feature cards">
                         Hide feature cards
                     </button>
                 </div>
@@ -125,7 +125,7 @@
                                     </div>
                                     <div class="form-check form-switch feature-toggle ms-0">
                                         <input class="form-check-input" type="checkbox" role="switch"
-                                               id="{{ feature_id }}" name="{{ feature_id }}"
+                                               id="{{ feature_id }}" name="{{ feature_id }}" aria-label="{{ feature_name }}"
                                                {% if global_settings[feature_id] %}checked{% endif %}
                                                onchange="updateFeatureCard(this)">
                                     </div>
@@ -199,7 +199,7 @@
                                 </div>
                                 <div class="form-check form-switch mb-0">
                                     <input class="form-check-input period-feature-toggle" type="checkbox"
-                                           id="period_{{ feature_id }}" data-feature="{{ feature_id.replace('_enabled', '') }}"
+                                           id="period_{{ feature_id }}" data-feature="{{ feature_id.replace('_enabled', '') }}" aria-label="{{ feature_name }}"
                                            onchange="updatePeriodFeature(this)">
                                 </div>
                             </div>
@@ -226,7 +226,7 @@
         {% if periods %}
         <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
             <h6 class="mb-0 text-muted">At-a-glance view of which features are on for each period.</h6>
-            <button class="btn btn-outline-secondary btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#periodSummary" aria-expanded="true" aria-controls="periodSummary" id="toggleSummaryCards">
+            <button class="btn btn-outline-secondary btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#periodSummary" aria-expanded="true" aria-controls="periodSummary" id="toggleSummaryCards" data-show-text="Show summary" data-hide-text="Hide summary">
                 Hide summary
             </button>
         </div>
@@ -417,8 +417,8 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
-    wireCollapseLabel('toggleGlobalCards', 'globalFeatureList', 'Show feature cards', 'Hide feature cards');
-    wireCollapseLabel('toggleSummaryCards', 'periodSummary', 'Show summary', 'Hide summary');
+    wireCollapseLabel('toggleGlobalCards', 'globalFeatureList');
+    wireCollapseLabel('toggleSummaryCards', 'periodSummary');
 });
 
 function updatePeriodFeature(toggle) {
@@ -515,15 +515,18 @@ function copySettings() {
     });
 }
 
-function wireCollapseLabel(buttonId, collapseId, showText, hideText) {
+function wireCollapseLabel(buttonId, collapseId) {
     const button = document.getElementById(buttonId);
     const collapseElement = document.getElementById(collapseId);
     if (!button || !collapseElement || typeof bootstrap === 'undefined') {
         return;
     }
 
+    const showText = button.dataset.showText || 'Show';
+    const hideText = button.dataset.hideText || 'Hide';
+
     const refreshLabel = () => {
-        const isOpen = collapseElement.classList.contains('show');
+        const isOpen = button.getAttribute('aria-expanded') === 'true';
         button.textContent = isOpen ? hideText : showText;
     };
 
