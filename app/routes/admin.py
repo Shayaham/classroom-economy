@@ -651,10 +651,38 @@ def give_bonus_all():
     amount = float(request.form.get('amount'))
     tx_type = request.form.get('type')
 
+    # Get current admin ID for teacher_id
+    current_admin_id = session.get('admin_id')
+
+    # Prefetch join_codes for all scoped students to avoid N+1 queries
+    students_query = _scoped_students()
+    student_ids_subquery = students_query.with_entities(Student.id).subquery()
+    teacher_blocks = (
+        TeacherBlock.query
+        .filter(
+            TeacherBlock.student_id.in_(student_ids_subquery),
+            TeacherBlock.teacher_id == current_admin_id,
+            TeacherBlock.is_claimed.is_(True)
+        )
+        .with_entities(TeacherBlock.student_id, TeacherBlock.join_code)
+        .all()
+    )
+    join_code_map = {student_id: join_code for student_id, join_code in teacher_blocks}
+
     # Stream students in batches to reduce memory usage
-    students = _scoped_students().yield_per(50)
+    students = students_query.yield_per(50)
     for student in students:
-        tx = Transaction(student_id=student.id, amount=amount, type=tx_type, description=title, account_type='checking')
+        join_code = join_code_map.get(student.id)
+
+        tx = Transaction(
+            student_id=student.id,
+            teacher_id=current_admin_id,  # CRITICAL: Add teacher_id for multi-tenancy
+            join_code=join_code,  # CRITICAL: Add join_code for period isolation
+            amount=amount,
+            type=tx_type,
+            description=title,
+            account_type='checking'
+        )
         db.session.add(tx)
 
     db.session.commit()
@@ -3652,9 +3680,14 @@ def process_claim(claim_id):
             if claim.transaction_id:
                 transaction_description += f" linked to transaction #{claim.transaction_id}"
 
+            # CRITICAL FIX: Get join_code from the student's insurance enrollment
+            student_insurance = StudentInsurance.query.get(claim.student_insurance_id)
+            join_code = student_insurance.join_code if student_insurance else None
+
             transaction = Transaction(
                 student_id=student.id,
                 teacher_id=claim.policy.teacher_id,
+                join_code=join_code,  # CRITICAL: Add join_code for period isolation
                 amount=approved_amount,
                 account_type='checking',
                 type='insurance_reimbursement',
@@ -4811,12 +4844,26 @@ def payroll_apply_reward(reward_id):
         if not student_ids:
             return jsonify({'success': False, 'message': 'Please select at least one student'}), 400
 
+        # Get current admin ID for teacher_id
+        current_admin_id = session.get('admin_id')
+
         count = 0
         for student_id in student_ids:
             student = _get_student_or_404(int(student_id))
             if student:
+                # CRITICAL FIX: Get join_code for this student-teacher pair
+                teacher_block = TeacherBlock.query.filter_by(
+                    student_id=student.id,
+                    teacher_id=current_admin_id,
+                    is_claimed=True
+                ).first()
+
+                join_code = teacher_block.join_code if teacher_block else None
+
                 transaction = Transaction(
                     student_id=student.id,
+                    teacher_id=current_admin_id,  # CRITICAL: Add teacher_id for multi-tenancy
+                    join_code=join_code,  # CRITICAL: Add join_code for period isolation
                     amount=reward.amount,
                     description=f"Reward: {reward.name}",
                     account_type='checking',
@@ -4845,12 +4892,26 @@ def payroll_apply_fine(fine_id):
         if not student_ids:
             return jsonify({'success': False, 'message': 'Please select at least one student'}), 400
 
+        # Get current admin ID for teacher_id
+        current_admin_id = session.get('admin_id')
+
         count = 0
         for student_id in student_ids:
             student = _get_student_or_404(int(student_id))
             if student:
+                # CRITICAL FIX: Get join_code for this student-teacher pair
+                teacher_block = TeacherBlock.query.filter_by(
+                    student_id=student.id,
+                    teacher_id=current_admin_id,
+                    is_claimed=True
+                ).first()
+
+                join_code = teacher_block.join_code if teacher_block else None
+
                 transaction = Transaction(
                     student_id=student.id,
+                    teacher_id=current_admin_id,  # CRITICAL: Add teacher_id for multi-tenancy
+                    join_code=join_code,  # CRITICAL: Add join_code for period isolation
                     amount=-abs(fine.amount),  # Negative for fine
                     description=f"Fine: {fine.name}",
                     account_type='checking',
@@ -4886,13 +4947,27 @@ def payroll_manual_payment():
             amount = form.amount.data
             account_type = form.account_type.data
 
+            # Get current admin ID for teacher_id
+            current_admin_id = session.get('admin_id')
+
             # Create transactions for each selected student
             count = 0
             for student_id in student_ids:
                 student = _get_student_or_404(int(student_id))
                 if student:
+                    # CRITICAL FIX: Get join_code for this student-teacher pair
+                    teacher_block = TeacherBlock.query.filter_by(
+                        student_id=student.id,
+                        teacher_id=current_admin_id,
+                        is_claimed=True
+                    ).first()
+
+                    join_code = teacher_block.join_code if teacher_block else None
+
                     transaction = Transaction(
                         student_id=student.id,
+                        teacher_id=current_admin_id,  # CRITICAL: Add teacher_id for multi-tenancy
+                        join_code=join_code,  # CRITICAL: Add join_code for period isolation
                         amount=amount,
                         description=f"Manual Payment: {description}",
                         account_type=account_type,
