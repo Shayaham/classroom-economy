@@ -361,98 +361,33 @@
             font-size: 0.95rem;
         }
 
-        .demo-launcher {
-            background: var(--bg-white);
-            border-radius: 1rem;
-            box-shadow: var(--shadow);
-            padding: 1.75rem 2rem;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 1.5rem;
-            margin-bottom: 2.5rem;
-            flex-wrap: wrap;
+        .phone-frame {
+            background: #1a1a1a;
+            border-radius: 2.5rem;
+            padding: 1rem 0.75rem;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            margin: 0 auto;
+            max-width: 320px;
+            position: relative;
         }
 
-        .demo-launcher .demo-text {
-            max-width: 560px;
-            color: var(--text-dark);
-            line-height: 1.5;
+        .phone-frame::before {
+            content: '';
+            position: absolute;
+            top: 0.5rem;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 60px;
+            height: 6px;
+            background: #333;
+            border-radius: 3px;
         }
 
-        .demo-launcher .demo-note {
-            color: var(--text-light);
-            font-size: 0.95rem;
-            margin-top: 0.35rem;
-        }
-
-        .demo-buttons {
-            display: flex;
-            gap: 0.75rem;
-            flex-wrap: wrap;
-        }
-
-        .todo-note {
-            background: #fff7e6;
-            color: #8a5a12;
-            border: 1px solid #f3d19c;
-            border-radius: 0.75rem;
-            padding: 0.85rem 1rem;
-            font-size: 0.95rem;
-            box-shadow: var(--shadow);
-            margin-top: 0.5rem;
-        }
-
-        .demo-embeds {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
-            gap: 1.5rem;
-            margin: 1rem 0 2.5rem 0;
-        }
-
-        .demo-embed-card {
-            background: var(--bg-white);
-            border-radius: 1rem;
-            box-shadow: var(--shadow);
-            overflow: hidden;
-            display: flex;
-            flex-direction: column;
-            gap: 0.75rem;
-            padding: 1.25rem;
-        }
-
-        .demo-embed-header {
-            display: flex;
-            justify-content: space-between;
-            gap: 0.75rem;
-            align-items: flex-start;
-            flex-wrap: wrap;
-        }
-
-        .demo-label {
-            font-weight: 700;
-            color: var(--text-dark);
-        }
-
-        .demo-iframe-wrapper {
-            border: 1px solid var(--border-color);
-            border-radius: 0.75rem;
-            overflow: hidden;
-            background: var(--bg-light);
-        }
-
-        .demo-iframe {
-            width: 100%;
-            height: 520px;
-            border: none;
+        .phone-frame img {
+            border-radius: 2rem;
             display: block;
-        }
-
-        .demo-fallback {
-            padding: 1rem;
-            color: var(--text-light);
-            text-align: center;
-            font-size: 0.95rem;
+            width: 100%;
+            height: auto;
         }
 
         /* Stats */
@@ -721,56 +656,6 @@
         <!-- Screenshots Section -->
         <section id="screenshots" class="section">
             <h2 class="section-title">See It In Action</h2>
-            <div class="demo-launcher">
-                <div class="demo-text">
-                    <strong>Interactive demo (read-only)</strong>
-                    <p class="demo-note">Explore the interface and get a feel for how the app works. All demo data is simulated and changes won't be saved.</p>
-                </div>
-                <div class="demo-buttons">
-                    <a class="btn btn-primary" href="demo-teacher.html" target="_blank" rel="noopener">Launch Teacher Demo</a>
-                    <a class="btn btn-secondary" href="demo-student.html" target="_blank" rel="noopener">Launch Student Demo</a>
-                </div>
-            </div>
-            <div class="demo-embeds" role="group" aria-label="Interactive demo previews">
-                <div class="demo-embed-card">
-                    <div class="demo-embed-header">
-                        <div>
-                            <p class="demo-label">Teacher Demo (read-only)</p>
-                            <p class="demo-note">Inline preview. Click elements to see interactive features.</p>
-                        </div>
-                        <a class="btn btn-secondary" href="demo-teacher.html" target="_blank" rel="noopener">Open in new tab</a>
-                    </div>
-                    <div class="demo-iframe-wrapper">
-                        <iframe
-                            class="demo-iframe"
-                            title="Teacher demo"
-                            src="demo-teacher.html"
-                            sandbox="allow-same-origin allow-scripts allow-forms"
-                            loading="lazy">
-                        </iframe>
-                        <div class="demo-fallback">If this preview is blocked by browser settings, use the "Open in new tab" link.</div>
-                    </div>
-                </div>
-                <div class="demo-embed-card">
-                    <div class="demo-embed-header">
-                        <div>
-                            <p class="demo-label">Student Demo (read-only)</p>
-                            <p class="demo-note">Inline preview. Click elements to see interactive features.</p>
-                        </div>
-                        <a class="btn btn-secondary" href="demo-student.html" target="_blank" rel="noopener">Open in new tab</a>
-                    </div>
-                    <div class="demo-iframe-wrapper">
-                        <iframe
-                            class="demo-iframe"
-                            title="Student demo"
-                            src="demo-student.html"
-                            sandbox="allow-same-origin allow-scripts allow-forms"
-                            loading="lazy">
-                        </iframe>
-                        <div class="demo-fallback">If this preview is blocked by browser settings, use the "Open in new tab" link.</div>
-                    </div>
-                </div>
-            </div>
             <div class="screenshots-grid">
                 <div class="screenshot-card" role="button" tabindex="0" aria-label="Open Teacher Dashboard screenshot" data-img="../static/images/teacher_dashboard.png" data-title="Teacher Dashboard" data-description="Manage your classroom economy with an intuitive interface. Run payroll, track students, and configure all settings in one place.">
                     <div class="screenshot-placeholder"> <img src="../static/images/teacher_dashboard.png" alt="Teacher Dashboard Screenshot"></div>
@@ -792,7 +677,9 @@
 
                 <div class="screenshot-card" role="button" tabindex="0" aria-label="Open Mobile-Optimized screenshot" data-img="../static/images/classroomtokenhub.com_admin_(Pixel 7).png" data-title="Mobile-Optimized" data-description="Progressive Web App design means students can install the app on their phones and access it like any native mobile application.">
                     <div class="screenshot-placeholder">
-                        <img src="../static/images/classroomtokenhub.com_admin_(Pixel 7).png" alt="Mobile-Optimized Screenshot">
+                        <div class="phone-frame">
+                            <img src="../static/images/classroomtokenhub.com_admin_(Pixel 7).png" alt="Mobile-Optimized Screenshot">
+                        </div>
                     </div>
                     <div class="caption">
                         <h3>Mobile-Optimized</h3>
