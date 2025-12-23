@@ -367,7 +367,8 @@
             padding: 1rem 0.75rem;
             box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
             margin: 0 auto;
-            max-width: 320px;
+            width: 100%;
+            max-width: 260px;
             position: relative;
         }
 
@@ -388,6 +389,12 @@
             display: block;
             width: 100%;
             height: auto;
+        }
+
+        .screenshot-card:has(.phone-frame) .screenshot-placeholder {
+            align-items: flex-start;
+            padding-top: 2rem;
+            min-height: 500px;
         }
 
         /* Stats */
