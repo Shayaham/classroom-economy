@@ -8,7 +8,29 @@ and this project follows semantic versioning principles.
 
 ## [Unreleased]
 
-_No unreleased changes yet._
+### Security
+- **CRITICAL: Fixed PromptPwnd AI Prompt Injection Vulnerability** - Disabled vulnerable `summary.yml` GitHub Actions workflow
+  - Workflow used AI inference (`actions/ai-inference@v1`) with untrusted user input from issue titles/bodies
+  - Attack vector: Any user could create an issue with malicious prompt injection to leak `GITHUB_TOKEN` or manipulate workflows
+  - Remediation: Disabled workflow by renaming to `summary.yml.DISABLED`
+  - Impact: No exploitation detected - vulnerability fixed proactively
+  - Documentation: See `docs/security/PROMPTPWND_REMEDIATION.md` for full details
+  - Reference: [Aikido Security PromptPwnd Disclosure](https://www.aikido.dev/blog/promptpwnd-ai-prompt-injection-in-github-actions) (December 2025)
+- **Comprehensive Attack Surface Security Audit Completed** - Full security review of codebase, CI/CD, and infrastructure
+  - Audited: GitHub Actions workflows, authentication, authorization, encryption, multi-tenancy, dependencies, and API security
+  - Findings: 16 total findings (2 critical, 2 high, 3 medium, 4 low, 5 informational)
+  - Critical issues: AI prompt injection (fixed), SSH host key verification disabled (open)
+  - Strengths: Excellent CSRF protection, SQL injection prevention, XSS mitigation, PII encryption, multi-tenancy isolation
+  - Recommendations: Enable SSH host key verification, update cryptography package, improve secrets management
+  - Documentation: See `docs/security/COMPREHENSIVE_ATTACK_SURFACE_AUDIT_2025.md` for complete report
+
+### Added
+- **Security Remediation Tools and Documentation** - Complete implementation guides and fixed workflow files
+  - Step-by-step remediation guide: `docs/security/SECURITY_REMEDIATION_GUIDE.md`
+  - Fixed workflow files with SSH host key verification: `.github/workflows/*.FIXED`
+  - Automated SSH security setup script: `scripts/setup-ssh-security.sh`
+  - Includes fixes for: SSH MITM vulnerability, secrets management hardening, dependency updates
+  - Ready-to-use workflow files with improved security posture
 
 ## [1.2.1] - 2025-12-21
 
