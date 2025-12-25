@@ -159,6 +159,10 @@
             // Step 3: Perform WebAuthn registration
             const result = await p.register(token);
 
+            console.log('Passkey registration result:', result);
+            console.log('Result type:', typeof result);
+            console.log('Result keys:', result ? Object.keys(result) : 'null/undefined');
+
             if (!result) {
                 throw new Error('Registration was cancelled or failed');
             }
@@ -171,6 +175,28 @@
 
             button.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Saving...';
 
+            // The passwordless.dev register() method typically returns an object, e.g.:
+            //   { token: string }  // primary expected format
+            // or, in some cases, an object containing a credentialId, or even a raw string.
+            // To keep this robust and explicit, we extract the credential ID with type checks.
+            let credentialId = null;
+
+            if (result && typeof result === 'object') {
+                if (typeof result.credentialId === 'string' && result.credentialId) {
+                    credentialId = result.credentialId;
+                } else if (typeof result.token === 'string' && result.token) {
+                    credentialId = result.token;
+                }
+            } else if (typeof result === 'string' && result) {
+                credentialId = result;
+            }
+            console.log('Extracted credentialId:', credentialId);
+            console.log('credentialId type:', typeof credentialId);
+
+            if (!credentialId) {
+                throw new Error('Failed to get credential ID from registration result');
+            }
+
             // Step 5: Save to backend
             const finishResponse = await fetch('{{ url_for("admin.passkey_register_finish") }}', {
                 method: "POST",
@@ -179,7 +205,7 @@
                     'X-CSRFToken': csrfToken
                 },
                 body: JSON.stringify({
-                    credentialId: result.credentialId,
+                    credentialId: credentialId,
                     authenticatorName: friendlyName
                 })
             });
