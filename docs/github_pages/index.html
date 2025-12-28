@@ -128,7 +128,7 @@
         .hero {
             background: var(--primary-dark);
             color: white;
-            padding: 2rem 2rem;
+            padding: 0rem 0rem 2rem 0rem;
             text-align: center;
         }
 
@@ -151,27 +151,7 @@
             margin-right: auto;
         }
 
-        .hero-buttons {
-            display: flex;
-            gap: 1rem;
-            justify-content: center;
-            flex-wrap: wrap;
-        }
-
-        .hero-buttons .btn {
-            font-size: 1.1rem;
-            padding: 1rem 2rem;
-        }
-
-        .hero-buttons .btn-secondary {
-            background-color: white;
-            color: var(--secondary-color);
-            border: none;
-        }
-
-        .hero-buttons .btn-secondary:hover {
-            background-color: var(--bg-light);
-        }
+      
 
         /* Badge */
         .badge {
@@ -255,12 +235,9 @@
             overflow: hidden;
             box-shadow: var(--shadow);
             transition: transform 0.3s;
-            cursor: pointer;
         }
 
-        .screenshot-card:hover {
-            transform: scale(1.02);
-        }
+       
 
         .screenshot-card img {
             width: 100%;
@@ -557,7 +534,9 @@
                 <a href="#features">Features</a>
                 <a href="#designs">Designs</a>
 
-                <a href="https://github.com/timwonderer/classroom-economy" target="_blank" rel="noopener">GitHub Repo<span class="material-symbols-outlined" style="vertical-align:middle;color:#236960">outbound</span> </a>
+                <a href="https://status.classroomtokenhub.com" target="_blank" rel="noopener">Status <span class="material-symbols-outlined" style="vertical-align:middle;color:var(--secondary-color)">monitor_heart</span> </a>
+
+                <a href="https://github.com/timwonderer/classroom-economy" target="_blank" rel="noopener">GitHub Repo <span class="material-symbols-outlined" style="vertical-align:middle;color:var(--secondary-color)">graph_8</span> </a>
             </div>
         </div>
     </nav>
@@ -566,7 +545,7 @@
     <section class="hero">
         <div class="hero-container">
            <br>
-            <div class="alert alert-success mb-3" style="width:fit-content;margin:auto;" role="alert"><span class="material-symbols-outlined" style="vertical-align:middle">passkey</span> Passkey Authentication now available for Teacher and System Admin users with v.1.3.0</div>
+            <div class="alert alert-success mb-5 text-center" role="alert" style="width:fit-content; margin:auto;"><span class="material-symbols-outlined" style="vertical-align:middle">passkey</span> v1.4.0 is now available and live with classroom announcements and less cluttered dashboard!</div>
             <h2>Classroom Economy System, <span style="font-weight:600; color:#f9d004">Reimagined.</span></strong></h2>
             <p>New approach to behavioral management that promotes student engagement, personal responsibility, and financial literacy.</p>
 
@@ -579,21 +558,32 @@
             <div class="stats">
                 <div class="stats-grid">
                     <div class="stat">
+                    <span class="material-symbols-outlined" style="font-size:50pt; color:#c6a70d">database</span>
                     <h4>PostgreSQL <span style="font-weight:300;">powered</span></h4>
+                    <p>Big class? Bring it.</p>
                     <p>Normalized schema plus materialized views tuned for classroom-scale workloads.</p>
+                    
                     </div>
                     <div class="stat">
+                    <span class="material-symbols-outlined" style="font-size:50pt; color:#c6a70d">mobile_arrow_down</span>
                     <h4>Continously <span style="font-weight:300;">available</span></h4>
-                    <p>Service workers keep the app usable when hallway Wi-Fi drops.</p>
+                    <p>No signals? No sweat.</p>
+                    <p>Progressive Web App with Caching means you can use it anywhere.</p>
+                    
                     </div>
                     <div class="stat">
+                     <span class="material-symbols-outlined" style="font-size:50pt; color:#c6a70d">visibility_off</span>
                     <h4>Privacy <span style="font-weight:300;">centered</span></h4>
+                    <p>We literally don't know you.</p>
                     <p>Minimal personal information by design to minimize data exposure.</p>
+                    
                     </div>
                     <div class="stat">
+                    <span class="material-symbols-outlined" style="font-size:50pt; color:#c6a70d">shield_lock</span>
                     <h4>Security<span style="font-weight:300;"> focused</span></h4>
-
+                    <p>More protected than your bank.</p>
                     <p>Passkey authentication, TOTP 2FA, CSRF protection, and encrypted PII across the stack.</p>
+                    
                     </div>
                 </div>
             </div>
@@ -664,7 +654,7 @@
         <section id="designs" class="section">
             <h2 class="section-title"><span style="font-weight:300;">Another Hard to Learn App?</span> Not Us.</h2>
             <div class="screenshots-grid">
-                <div class="screenshot-card" role="button" tabindex="0" aria-label="Open Teacher Dashboard screenshot" data-img="../static/images/teacher_dashboard.png" data-title="Teacher Dashboard" data-description="Manage your classroom economy with an intuitive interface. Run payroll, track students, and configure all settings in one place.">
+                <div class="screenshot-card" >
                     <div class="screenshot-placeholder"> <img src="teacher_dashboard.png" alt="Teacher Dashboard Screenshot"></div>
                     <div class="caption">
                         <h3>Teacher Dashboard</h3>
@@ -672,7 +662,7 @@
                     </div>
                 </div>
 
-                <div class="screenshot-card" role="button" tabindex="0" aria-label="Open Student Portal screenshot" data-img="../student_dashboard.png" data-title="Student Portal" data-description="Students view their balances, redeem store items, manage accounts, and track their financial progress throughout the semester.">
+                <div class="screenshot-card">
                     <div class="screenshot-placeholder">
                         <img src="student_dashboard.png" alt="Student Dashboard Screenshot">
                     </div>
@@ -682,7 +672,7 @@
                     </div>
                 </div>
 
-                <div class="screenshot-card" role="button" tabindex="0" aria-label="Open Mobile-Optimized screenshot" data-img="../static/images/classroomtokenhub.com_admin_(Pixel 7).png" data-title="Mobile-Optimized" data-description="Progressive Web App design means students can install the app on their phones and access it like any native mobile application.">
+                <div class="screenshot-card" >
                     <div class="screenshot-placeholder">
                         <div class="phone-frame">
                             <img src="classroomtokenhub.com_admin_(Pixel 7).png" alt="Mobile-Optimized Screenshot">
@@ -694,7 +684,7 @@
                     </div>
                 </div>
 
-                <div class="screenshot-card" role="button" tabindex="0" aria-label="Open Classroom Store screenshot" data-img="store_promo.png" data-title="Classroom Store" data-description="Set up virtual and physical items, manage inventory, track redemptions, and create bundles to engage students.">
+                <div class="screenshot-card">
                     <div class="screenshot-placeholder">
                         <img src="store_promo.png" alt="Classroom Store Screenshot">
                     </div>
@@ -736,7 +726,7 @@
                         <strong>Security:</strong> WebAuthn/FIDO2 Passkeys, TOTP Authentication, PII Encryption, CSRF Protection, Join Code-Based Scoping
                     </p>
                     <p style="font-size: 1.1rem; margin-bottom: 2rem; color: var(--text-light);">
-                        <strong>Future Features: </strong>CSV Exporting, Classroom Announcements and Messaging, Job Board, CWI Auto Balancing Tool
+                        <strong>Future Features: </strong>CSV Exporting, Improved Technical Support Flow, Job Board, CWI Auto Balancing Tool
                     </p>
                 </div>
             </div>
@@ -775,50 +765,6 @@
         </div>
     </footer>
 
-    <script>
-        const modal = document.getElementById('screenshotModal');
-        const modalImage = document.getElementById('screenshotModalImage');
-        const modalTitle = document.getElementById('screenshotModalTitle');
-        const modalDescription = document.getElementById('screenshotModalDescription');
-        const modalClose = document.getElementById('screenshotModalClose');
 
-        function openModal(card) {
-            modalImage.src = card.dataset.img;
-            modalImage.alt = card.dataset.title + ' full preview';
-            modalTitle.textContent = card.dataset.title;
-            modalDescription.textContent = card.dataset.description;
-            modal.classList.add('open');
-            modal.setAttribute('aria-hidden', 'false');
-            modalClose.focus();
-            document.body.style.overflow = 'hidden';
-        }
-
-        function closeModal() {
-            modal.classList.remove('open');
-            modal.setAttribute('aria-hidden', 'true');
-            document.body.style.overflow = '';
-        }
-
-        document.querySelectorAll('.screenshot-card').forEach(card => {
-            const activate = () => openModal(card);
-            card.addEventListener('click', activate);
-            card.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    activate();
-                }
-            });
-        });
-
-        modalClose.addEventListener('click', closeModal);
-        modal.addEventListener('click', (e) => {
-            if (e.target === modal) closeModal();
-        });
-        window.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape' && modal.classList.contains('open')) {
-                closeModal();
-            }
-        });
-    </script>
 </body>
 </html>
