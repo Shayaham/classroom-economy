@@ -31,7 +31,7 @@ from forms import (
 )
 
 # Import utility functions
-from app.utils.helpers import generate_anonymous_code, is_safe_url, render_template_with_fallback as render_template
+from app.utils.helpers import generate_anonymous_code, is_safe_url, format_utc_iso, render_template_with_fallback as render_template
 from app.utils.constants import THEME_PROMPTS
 from app.utils.turnstile import verify_turnstile_token
 from app.utils.demo_sessions import cleanup_demo_student_data
@@ -2955,7 +2955,8 @@ def help_support():
                          current_page='help',
                          page_title='Help & Support',
                          my_issues=my_issues,
-                         help_content=HELP_ARTICLES['student'])
+                         help_content=HELP_ARTICLES['student'],
+                         format_utc_iso=format_utc_iso)
 
 
 @student_bp.route('/help-support/submit-issue', methods=['GET', 'POST'])
@@ -2977,7 +2978,7 @@ def submit_general_issue():
     form = StudentIssueSubmissionForm()
 
     # Populate category choices
-    form.category_id.choices = [('', 'Select an issue type...')] + get_active_categories('general')
+    form.category_id.choices = [(0, 'Select an issue type...')] + get_active_categories('general')
 
     if form.validate_on_submit():
         try:
@@ -3030,7 +3031,7 @@ def report_transaction_issue(transaction_id):
     form = TransactionIssueSubmissionForm()
 
     # Populate category choices
-    form.category_id.choices = [('', 'Select an issue type...')] + get_active_categories('transaction')
+    form.category_id.choices = [(0, 'Select an issue type...')] + get_active_categories('transaction')
 
     if form.validate_on_submit():
         try:

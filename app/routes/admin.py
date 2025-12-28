@@ -7346,8 +7346,10 @@ def passkey_settings():
     admin_id = session.get('admin_id')
     admin = Admin.query.get_or_404(admin_id)
 
+
     # Get all passkeys for this teacher
     credentials = AdminCredential.query.filter_by(admin_id=admin_id).order_by(AdminCredential.created_at.desc()).all()
+
 
     return render_template('admin_passkey_settings.html',
                          admin=admin,
@@ -7396,7 +7398,8 @@ def issues_queue():
                          page_title='Student Issues',
                          pending_issues=pending_issues,
                          resolved_issues=resolved_issues,
-                         escalated_issues=escalated_issues)
+                         escalated_issues=escalated_issues,
+                         format_utc_iso=format_utc_iso)
 
 
 @admin_bp.route('/issues/<int:issue_id>')
