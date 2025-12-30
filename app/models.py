@@ -412,6 +412,31 @@ class SystemAdmin(db.Model):
     totp_secret = db.Column(db.String(200), nullable=False)  # Stores base64-encoded encrypted TOTP secret
 
 
+class SystemAdminCredential(db.Model):
+    """
+    Passkey credentials for system admin authentication.
+    Stores metadata for passkeys registered via passwordless.dev.
+    """
+    __tablename__ = 'system_admin_credentials'
+
+    id = db.Column(db.Integer, primary_key=True)
+    sysadmin_id = db.Column(db.Integer, db.ForeignKey('system_admins.id', ondelete='CASCADE'), nullable=False)
+
+    # Credential metadata
+    credential_id = db.Column(db.String(255), unique=True, nullable=False, index=True)
+    authenticator_name = db.Column(db.String(100))  # User-friendly name
+
+    # Timestamps (UTC)
+    created_at = db.Column(db.DateTime, default=_utc_now, nullable=False)
+    last_used = db.Column(db.DateTime)
+
+    # Relationships
+    sysadmin = db.relationship('SystemAdmin', backref=db.backref('credentials', lazy='dynamic', cascade='all, delete-orphan'))
+
+    def __repr__(self):
+        return f'<SystemAdminCredential {self.authenticator_name or "Unnamed"} for SysAdmin {self.sysadmin_id}>'
+
+
 class Transaction(db.Model):
     __tablename__ = 'transaction'
     id = db.Column(db.Integer, primary_key=True)
@@ -1138,6 +1163,31 @@ class Admin(db.Model):
     def get_display_name(self):
         """Return display_name if set, otherwise fall back to username"""
         return self.display_name if self.display_name else self.username
+
+
+class AdminCredential(db.Model):
+    """
+    Passkey credentials for teacher authentication.
+    Stores metadata for passkeys registered via passwordless.dev.
+    """
+    __tablename__ = 'admin_credentials'
+
+    id = db.Column(db.Integer, primary_key=True)
+    admin_id = db.Column(db.Integer, db.ForeignKey('admins.id', ondelete='CASCADE'), nullable=False)
+
+    # Credential metadata
+    credential_id = db.Column(db.String(255), unique=True, nullable=False, index=True)
+    authenticator_name = db.Column(db.String(100))  # User-friendly name
+
+    # Timestamps (UTC)
+    created_at = db.Column(db.DateTime, default=_utc_now, nullable=False)
+    last_used = db.Column(db.DateTime)
+
+    # Relationships
+    admin = db.relationship('Admin', backref=db.backref('credentials', lazy='dynamic', cascade='all, delete-orphan'))
+
+    def __repr__(self):
+        return f'<AdminCredential {self.authenticator_name or "Unnamed"} for Admin {self.admin_id}>'
 
 
 # ---- Account Recovery Models ----
