@@ -14,9 +14,28 @@ from logging.handlers import RotatingFileHandler
 
 from flask import Flask, request, render_template, session, g, url_for
 from dotenv import load_dotenv
+from pathlib import Path
 
-# Load environment variables
-load_dotenv()
+# Load environment variables from project root
+# Explicitly specify path to ensure .env is found regardless of working directory
+project_root = Path(__file__).parent.parent
+dotenv_path = project_root / '.env'
+load_dotenv(dotenv_path=dotenv_path)
+
+# TEMPORARY DIAGNOSTIC: Log passwordless.dev environment variables
+import logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+passwordless_key = os.getenv("PASSWORDLESS_API_KEY")
+passwordless_public = os.getenv("PASSWORDLESS_API_PUBLIC")
+if passwordless_key:
+    logger.info(f"✓ PASSWORDLESS_API_KEY loaded (length: {len(passwordless_key)})")
+else:
+    logger.warning("⚠ PASSWORDLESS_API_KEY is NOT loaded")
+if passwordless_public:
+    logger.info(f"✓ PASSWORDLESS_API_PUBLIC loaded (length: {len(passwordless_public)})")
+else:
+    logger.warning("⚠ PASSWORDLESS_API_PUBLIC is NOT loaded")
 
 
 # Validate required environment variables

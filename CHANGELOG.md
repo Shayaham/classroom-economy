@@ -10,9 +10,12 @@ and this project follows semantic versioning principles.
 
 ### Fixed
 - **Content Security Policy** - Restored `'unsafe-eval'` directive to `script-src` CSP policy as it is required by passwordless.dev library's minified build (uses `new Function()` internally)
-- **Passkey Authentication** - Fixed environment variables not loading in production by ensuring gunicorn systemd service has `EnvironmentFile` directive to load `.env` file
+- **Passkey Authentication** - Fixed environment variables not loading by specifying explicit path to `.env` file in `load_dotenv()` call - ensures environment is loaded regardless of gunicorn working directory
 - **Passkey Authentication** - Fixed token destructuring in `signinWithDiscoverable()` to properly handle error responses from passwordless.dev SDK
 - **Deployment** - Added verification steps to confirm environment variables are properly written to `.env` and loaded by systemd service
+
+### Added
+- **Diagnostic Logging** - Temporary logging in app initialization to verify passwordless.dev API keys are loaded at runtime
 
 ## [1.5.0] - 2025-12-29
 
