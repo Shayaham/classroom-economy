@@ -1,7 +1,7 @@
 :root {
     --primary: #1a4d47;
     --primary-hover: #2a5d57;
-    --secondary: #ac8255;
+    --secondary: #D3AF37;
     --secondary-hover: #c49564;
     --background: #f5f5f3;
     --surface: #fafaf8;
@@ -36,7 +36,7 @@ body.student-theme {
     --border-color: #DDE2E8;
     --success: #4A8B6C;
     --info: #5B8DBE;
-    --warning: #E8A756;
+    --warning: #c9970f;
     --danger: #D97070;
 }
 
@@ -137,6 +137,17 @@ a:hover {
     color: var(--primary);
 }
 
+.dashboard-greeting {
+    font-size: 2rem;
+}
+
+.dashboard-greeting-info {
+    border-radius: 1rem;
+    padding: 3px;
+    background-color: var(--primary);
+    color: white;
+}
+
 /* Cards */
 .card {
     background: var(--surface);
@@ -154,18 +165,16 @@ a:hover {
 }
 
 /* Ensure readable header text on dark backgrounds */
-.card-header[class*="bg-"]:not(.bg-light):not(.bg-white):not(.bg-primary-subtle):not(.bg-success-subtle):not(.bg-info-subtle):not(.bg-warning-subtle):not(.bg-danger-subtle):not(.bg-secondary-subtle):not(.bg-dark-subtle) {
+.card-header:is([class*="bg-"]:not(.bg-light):not(.bg-white):not(.bg-warning):not(.bg-primary-subtle):not(.bg-success-subtle):not(.bg-info-subtle):not(.bg-warning-subtle):not(.bg-danger-subtle):not(.bg-secondary-subtle):not(.bg-dark-subtle)) {
     color: #ffffff;
 }
-.card-header[class*="bg-"]:not(.bg-light):not(.bg-white):not(.bg-primary-subtle):not(.bg-success-subtle):not(.bg-info-subtle):not(.bg-warning-subtle):not(.bg-danger-subtle):not(.bg-secondary-subtle):not(.bg-dark-subtle) h1,
-.card-header[class*="bg-"]:not(.bg-light):not(.bg-white):not(.bg-primary-subtle):not(.bg-success-subtle):not(.bg-info-subtle):not(.bg-warning-subtle):not(.bg-danger-subtle):not(.bg-secondary-subtle):not(.bg-dark-subtle) h2,
-.card-header[class*="bg-"]:not(.bg-light):not(.bg-white):not(.bg-primary-subtle):not(.bg-success-subtle):not(.bg-info-subtle):not(.bg-warning-subtle):not(.bg-danger-subtle):not(.bg-secondary-subtle):not(.bg-dark-subtle) h3,
-.card-header[class*="bg-"]:not(.bg-light):not(.bg-white):not(.bg-primary-subtle):not(.bg-success-subtle):not(.bg-info-subtle):not(.bg-warning-subtle):not(.bg-danger-subtle):not(.bg-secondary-subtle):not(.bg-dark-subtle) h4,
-.card-header[class*="bg-"]:not(.bg-light):not(.bg-white):not(.bg-primary-subtle):not(.bg-success-subtle):not(.bg-info-subtle):not(.bg-warning-subtle):not(.bg-danger-subtle):not(.bg-secondary-subtle):not(.bg-dark-subtle) h5,
-.card-header[class*="bg-"]:not(.bg-light):not(.bg-white):not(.bg-primary-subtle):not(.bg-success-subtle):not(.bg-info-subtle):not(.bg-warning-subtle):not(.bg-danger-subtle):not(.bg-secondary-subtle):not(.bg-dark-subtle) h6,
-.card-header[class*="bg-"]:not(.bg-light):not(.bg-white):not(.bg-primary-subtle):not(.bg-success-subtle):not(.bg-info-subtle):not(.bg-warning-subtle):not(.bg-danger-subtle):not(.bg-secondary-subtle):not(.bg-dark-subtle) .card-title,
-.card-header[class*="bg-"]:not(.bg-light):not(.bg-white):not(.bg-primary-subtle):not(.bg-success-subtle):not(.bg-info-subtle):not(.bg-warning-subtle):not(.bg-danger-subtle):not(.bg-secondary-subtle):not(.bg-dark-subtle) .fw-bold {
-    color: #ffffff;
+.card-header:is([class*="bg-"]:not(.bg-light):not(.bg-white):not(.bg-warning):not(.bg-primary-subtle):not(.bg-success-subtle):not(.bg-info-subtle):not(.bg-warning-subtle):not(.bg-danger-subtle):not(.bg-secondary-subtle):not(.bg-dark-subtle)) :is(h1, h2, h3, h4, h5, h6, .card-title, .fw-bold) {
+    color: inherit;
+}
+
+.bill-icon {
+    vertical-align: middle;
+    font-size: 26pt;
 }
 
 /* Student Layout */
@@ -411,6 +420,49 @@ a:hover {
     letter-spacing: 0.05em;
     color: rgba(255, 255, 255, 0.5);
     margin: 1.5rem 0 0.5rem 1rem;
+}
+
+/* Accordion Navigation Styles */
+.nav-accordion-btn {
+    background-color: transparent;
+    color: rgba(255, 255, 255, 0.8);
+    border: none;
+    padding: 0.75rem 1rem;
+    font-weight: 500;
+    border-radius: var(--radius-sm);
+    transition: all 0.2s;
+    box-shadow: none;
+}
+
+.nav-accordion-btn:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+    color: white;
+}
+
+.nav-accordion-btn:not(.collapsed) {
+    background-color: rgba(255, 255, 255, 0.15);
+    color: white;
+    box-shadow: none;
+}
+
+.nav-accordion-btn:focus {
+    box-shadow: none;
+    border: none;
+}
+
+.nav-accordion-btn::after {
+    filter: brightness(0) invert(1);
+    opacity: 0.8;
+}
+
+.nav-sub-link {
+    padding-left: 3rem !important;
+    font-size: 0.9rem;
+}
+
+.accordion-body {
+    padding-top: 0.25rem;
+    padding-bottom: 0.25rem;
 }
 
 .main-content {

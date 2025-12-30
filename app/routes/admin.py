@@ -25,6 +25,7 @@ from flask import (
 )
 from urllib.parse import urlparse
 from sqlalchemy import desc, text, or_, func
+from sqlalchemy.orm import joinedload
 from sqlalchemy.exc import SQLAlchemyError
 import sqlalchemy as sa
 import pyotp
@@ -37,7 +38,7 @@ from app.models import (
     StudentInsurance, InsuranceClaim, HallPassLog, PayrollSettings, PayrollReward, PayrollFine,
     BankingSettings, TeacherBlock, DeletionRequest, DeletionRequestType, DeletionRequestStatus,
     UserReport, FeatureSettings, TeacherOnboarding, StudentBlock, RecoveryRequest, StudentRecoveryCode,
-    DemoStudent
+    DemoStudent, AdminCredential, Announcement
 )
 from app.auth import admin_required, get_admin_student_query, get_student_for_admin
 from forms import (
@@ -57,6 +58,8 @@ from app.utils.claim_credentials import (
 from app.utils.ip_handler import get_real_ip
 from app.utils.name_utils import hash_last_name_parts, verify_last_name_parts
 from app.utils.help_content import HELP_ARTICLES
+from app.utils.passwordless_client import get_passwordless_client, decode_credential_id
+from app.utils.encryption import encrypt_totp, decrypt_totp
 from hash_utils import get_random_salt, hash_hmac, hash_username, hash_username_lookup
 from payroll import calculate_payroll
 from attendance import get_last_payroll_time, calculate_unpaid_attendance_seconds, get_join_code_for_student_period
@@ -256,10 +259,11 @@ def _get_students_needing_transaction_backfill(teacher_id):
         return []
     
     affected_student_ids = [tx.student_id for tx in transactions_needing_backfill]
-    
-    # Get the student objects
-    students = Student.query.filter(Student.id.in_(affected_student_ids)).all()
-    
+
+    # SECURITY FIX: Get the student objects using scoped query for defense-in-depth
+    # While the IDs are already from scoped students, this ensures consistency
+    students = _scoped_students().filter(Student.id.in_(affected_student_ids)).all()
+
     return students
 
 
@@ -803,7 +807,9 @@ def login():
         totp_code = form.totp_code.data.strip()
         admin = Admin.query.filter_by(username=username).first()
         if admin:
-            totp = pyotp.TOTP(admin.totp_secret)
+            # Decrypt TOTP secret (handles both encrypted and legacy plaintext)
+            decrypted_secret = decrypt_totp(admin.totp_secret)
+            totp = pyotp.TOTP(decrypted_secret)
             if totp.verify(totp_code, valid_window=1):
                 # Update last login timestamp
                 admin.last_login = datetime.now(timezone.utc)
@@ -812,13 +818,11 @@ def login():
                 session["is_admin"] = True
                 session["admin_id"] = admin.id
                 session["last_activity"] = datetime.now(timezone.utc).isoformat()
-                current_app.logger.info(f"✅ Admin login success for {username}")
                 flash("Admin login successful.")
                 next_url = request.args.get("next")
                 if not is_safe_url(next_url):
                     return redirect(url_for("admin.dashboard"))
                 return redirect(next_url or url_for("admin.dashboard"))
-        current_app.logger.warning(f"🔑 Admin login failed for {username}")
         flash("Invalid credentials or TOTP code.", "error")
         return redirect(url_for("admin.login", next=request.args.get("next")))
     return render_template("admin_login.html", form=form)
@@ -828,15 +832,48 @@ def login():
 def signup():
     """
     TOTP-only admin registration. Requires valid invite code.
-    Uses AdminSignupForm for CSRF and validation.
+    Uses AdminSignupForm for initial signup, AdminTOTPConfirmForm for TOTP confirmation.
     """
     is_json = request.is_json or request.headers.get("X-Requested-With") == "XMLHttpRequest"
-    form = AdminSignupForm()
+
+    # Check if this is TOTP confirmation (has totp_code field)
+    is_totp_submission = 'totp_code' in request.form
+
+    # Use appropriate form based on submission type
+    if is_totp_submission:
+        form = AdminTOTPConfirmForm()
+    else:
+        form = AdminSignupForm()
+
+    # Debug logging
+    if request.method == 'POST':
+        current_app.logger.info(f"📥 Signup POST request received (TOTP submission: {is_totp_submission})")
+        current_app.logger.info(f"   Form data: username={request.form.get('username')}, invite_code={repr(request.form.get('invite_code'))}")
+
     if form.validate_on_submit():
-        username = form.username.data.strip()
-        invite_code = form.invite_code.data.strip()
-        dob_input = form.dob_sum.data
-        totp_code = request.form.get("totp_code", "").strip()
+        current_app.logger.info(f"✅ Form validation passed")
+
+        # Get form data
+        if is_totp_submission:
+            # TOTP form has all fields as strings
+            username = form.username.data.strip()
+            invite_code = form.invite_code.data.strip()
+            dob_string = form.dob_sum.data  # This is a string from hidden field
+            totp_code = form.totp_code.data.strip()
+            # Parse the date string
+            try:
+                dob_input = datetime.strptime(dob_string, "%Y-%m-%d").date()
+            except (ValueError, TypeError):
+                current_app.logger.warning(f"🛑 TOTP submission failed: invalid DOB string")
+                msg = "Invalid date of birth. Please try again."
+                flash(msg, "error")
+                return redirect(url_for('admin.signup'))
+        else:
+            # Initial signup form
+            username = form.username.data.strip()
+            invite_code = form.invite_code.data.strip()
+            dob_input = form.dob_sum.data
+            totp_code = ""
 
         # Validate and parse DOB sum
         try:
@@ -852,12 +889,13 @@ def signup():
             flash(msg, "error")
             return redirect(url_for('admin.signup'))
         # Step 1: Validate invite code
+        current_app.logger.info(f"🔍 Validating invite code: {repr(invite_code)}")
         code_row = db.session.execute(
-            text("SELECT * FROM admin_invite_codes WHERE code = :code"),
+            text("SELECT * FROM admin_invite_codes WHERE TRIM(code) = :code"),
             {"code": invite_code}
         ).fetchone()
         if not code_row:
-            current_app.logger.warning(f"🛑 Admin signup failed: invalid invite code")
+            current_app.logger.warning(f"🛑 Admin signup failed: invalid invite code {repr(invite_code)}")
             msg = "Invalid invite code."
             if is_json:
                 return jsonify(status="error", message=msg), 400
@@ -870,13 +908,23 @@ def signup():
                 return jsonify(status="error", message=msg), 400
             flash(msg, "error")
             return redirect(url_for('admin.signup'))
-        if code_row.expires_at and code_row.expires_at < datetime.now(timezone.utc):
-            current_app.logger.warning(f"🛑 Admin signup failed: invite code expired")
-            msg = "Invite code expired."
-            if is_json:
-                return jsonify(status="error", message=msg), 400
-            flash(msg, "error")
-            return redirect(url_for('admin.signup'))
+        if code_row.expires_at:
+            # Handle both datetime objects and strings (SQLite quirk)
+            if isinstance(code_row.expires_at, str):
+                from dateutil import parser
+                expires_dt = parser.parse(code_row.expires_at)
+            else:
+                expires_dt = code_row.expires_at
+
+            # Database stores UTC times as naive, make them aware for comparison
+            expires_aware = expires_dt.replace(tzinfo=timezone.utc) if expires_dt.tzinfo is None else expires_dt
+            if expires_aware < datetime.now(timezone.utc):
+                current_app.logger.warning(f"🛑 Admin signup failed: invite code expired")
+                msg = "Invite code expired."
+                if is_json:
+                    return jsonify(status="error", message=msg), 400
+                flash(msg, "error")
+                return redirect(url_for('admin.signup'))
         # Step 2: Check username uniqueness
         if Admin.query.filter_by(username=username).first():
             current_app.logger.warning(f"🛑 Admin signup failed: username already exists")
@@ -891,9 +939,11 @@ def signup():
             session["admin_totp_secret"] = totp_secret
             session["admin_totp_username"] = username
             session["admin_dob_sum"] = dob_sum
+            session["admin_dob_string"] = dob_input.strftime("%Y-%m-%d")  # Store original date string
         else:
             totp_secret = session["admin_totp_secret"]
             dob_sum = session.get("admin_dob_sum", dob_sum)
+            dob_input = datetime.strptime(session.get("admin_dob_string"), "%Y-%m-%d").date()
         totp_uri = pyotp.totp.TOTP(totp_secret).provisioning_uri(name=username, issuer_name="Classroom Economy Admin")
         # Step 4: If no TOTP code submitted yet, show QR
         if not totp_code:
@@ -903,21 +953,24 @@ def signup():
             img.save(buf, format='PNG')
             buf.seek(0)
             img_b64 = base64.b64encode(buf.read()).decode('utf-8')
-            current_app.logger.info(f"🔐 Admin signup: showing QR for {username}")
-            form = AdminTOTPConfirmForm()
+            # Populate form with data
+            totp_form = AdminTOTPConfirmForm()
+            totp_form.username.data = username
+            totp_form.invite_code.data = invite_code
+            totp_form.dob_sum.data = dob_input.strftime("%Y-%m-%d")
             return render_template(
                 "admin_signup_totp.html",
-                form=form,
-                username=username,
-                invite_code=invite_code,
-                dob_sum=dob_sum,
+                form=totp_form,
                 qr_b64=img_b64,
                 totp_secret=totp_secret
             )
         # Step 5: Validate entered TOTP code
+        current_app.logger.info(f"🔐 TOTP code submitted (length: {len(totp_code)})")
         totp = pyotp.TOTP(totp_secret)
-        if not totp.verify(totp_code):
-            current_app.logger.warning(f"🛑 Admin signup failed: invalid TOTP code for {username}")
+        is_valid = totp.verify(totp_code)
+        current_app.logger.info(f"🔐 TOTP verification result: {is_valid}")
+        if not is_valid:
+            current_app.logger.warning(f"🛑 TOTP verification failed for user: {username}")
             msg = "Invalid TOTP code. Please try again."
             if is_json:
                 return jsonify(status="error", message=msg), 400
@@ -929,42 +982,48 @@ def signup():
             img.save(buf, format='PNG')
             buf.seek(0)
             img_b64 = base64.b64encode(buf.read()).decode('utf-8')
+            # Populate form with data
+            totp_form = AdminTOTPConfirmForm()
+            totp_form.username.data = username
+            totp_form.invite_code.data = invite_code
+            totp_form.dob_sum.data = dob_input.strftime("%Y-%m-%d")
             return render_template(
                 "admin_signup_totp.html",
-                form=form,
-                username=username,
-                invite_code=invite_code,
-                dob_sum=dob_sum,
+                form=totp_form,
                 qr_b64=img_b64,
                 totp_secret=totp_secret
             )
         # Step 6: Create admin account and mark invite as used
-        # Log the TOTP secret being saved for debug
-        current_app.logger.info(f"🎯 Admin signup: TOTP secret being saved for {username}")
-
+        current_app.logger.info(f"✅ TOTP verified! Creating admin account for: {username}")
         # Hash DOB sum
         salt = get_random_salt()
         dob_sum_str = str(dob_sum).encode()
         dob_sum_hash = hash_hmac(dob_sum_str, salt)
 
-        new_admin = Admin(username=username, totp_secret=totp_secret, dob_sum_hash=dob_sum_hash, salt=salt)
+        # Encrypt TOTP secret before storing
+        encrypted_totp_secret = encrypt_totp(totp_secret)
+        new_admin = Admin(username=username, totp_secret=encrypted_totp_secret, dob_sum_hash=dob_sum_hash, salt=salt)
         db.session.add(new_admin)
         db.session.execute(
             text("UPDATE admin_invite_codes SET used = TRUE WHERE code = :code"),
             {"code": invite_code}
         )
         db.session.commit()
+        current_app.logger.info(f"✅ Admin account created successfully: {username}")
         # Clear session
         session.pop("admin_totp_secret", None)
         session.pop("admin_totp_username", None)
         session.pop("admin_dob_sum", None)
-        current_app.logger.info(f"🎉 Admin signup: {username} created successfully via invite")
+        session.pop("admin_dob_string", None)
         msg = "Admin account created successfully! Please log in using your authenticator app."
         if is_json:
             return jsonify(status="success", message=msg)
         flash(msg, "success")
         return redirect(url_for("admin.login"))
     # GET or invalid POST: render signup form with form instance (for CSRF)
+    if request.method == 'POST':
+        current_app.logger.warning(f"❌ Form validation failed")
+        current_app.logger.warning(f"   Form errors: {form.errors}")
     return render_template("admin_signup.html", form=form)
 
 
@@ -1312,7 +1371,7 @@ def confirm_reset():
 
     # Update teacher account
     teacher.username = new_username
-    teacher.totp_secret = totp_secret
+    teacher.totp_secret = encrypt_totp(totp_secret)  # Encrypt before storing
 
     # Mark recovery request as completed
     recovery_request.status = 'verified'
@@ -1324,7 +1383,6 @@ def confirm_reset():
     session.pop('reset_totp_secret', None)
     session.pop('reset_new_username', None)
 
-    current_app.logger.info(f"🎉 Admin recovery: account reset successful for {new_username}")
     flash("Your account has been successfully reset! Please log in with your new username and TOTP.", "success")
     return redirect(url_for('admin.login'))
 
@@ -1491,7 +1549,7 @@ def settings():
         admin=admin,
         blocks=blocks,
         current_page='settings',
-        page_title='Account Settings'
+        page_title='Account Personalization'
     )
 
 
@@ -2710,8 +2768,32 @@ def store_management():
         .count()
     )
 
+    # Get pending redemption requests (items awaiting teacher approval)
+    pending_redemptions = (
+        StudentItem.query
+        .options(joinedload(StudentItem.student), joinedload(StudentItem.store_item))
+        .join(Student, StudentItem.student_id == Student.id)
+        .filter(Student.id.in_(student_ids_subq))
+        .filter(StudentItem.status == 'processing')
+        .order_by(StudentItem.redemption_date.desc())
+        .limit(10)
+        .all()
+    )
+
+    # Get recent purchases (all statuses, ordered by purchase date)
+    recent_purchases = (
+        StudentItem.query
+        .options(joinedload(StudentItem.student), joinedload(StudentItem.store_item))
+        .join(Student, StudentItem.student_id == Student.id)
+        .filter(Student.id.in_(student_ids_subq))
+        .order_by(StudentItem.purchase_date.desc())
+        .limit(10)
+        .all()
+    )
+
     return render_template('admin_store.html', form=form, items=items, current_page="store",
-                         total_items=total_items, active_items=active_items, total_purchases=total_purchases)
+                         total_items=total_items, active_items=active_items, total_purchases=total_purchases,
+                         pending_redemptions=pending_redemptions, recent_purchases=recent_purchases)
 
 
 @admin_bp.route('/store/edit/<int:item_id>', methods=['GET', 'POST'])
@@ -5138,7 +5220,6 @@ def upload_students():
                     break
 
             if existing_seat:
-                current_app.logger.info(f"Seat for {first_name} {last_name} (DOB sum: {dob_sum}) already exists in block {block}, skipping.")
                 duplicated += 1
                 continue
 
@@ -6210,6 +6291,266 @@ def copy_feature_settings():
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
 
+# -------------------- ANNOUNCEMENTS --------------------
+
+@admin_bp.route('/announcements')
+@admin_required
+def announcements():
+    """
+    Manage class announcements across all class periods.
+
+    Teachers can view, filter, and manage announcements for all their class periods.
+    No period selection required - shows all announcements with period filtering.
+    """
+    admin_id = session.get('admin_id')
+
+    # Get unique teacher blocks (class periods) by join_code
+    # TeacherBlock has one row per student seat, so we need to get distinct periods
+    teacher_blocks_query = TeacherBlock.query.filter_by(
+        teacher_id=admin_id
+    ).order_by(TeacherBlock.block).all()
+
+    # Deduplicate by join_code to get unique periods
+    seen_join_codes = set()
+    teacher_blocks = []
+    for tb in teacher_blocks_query:
+        if tb.join_code not in seen_join_codes:
+            seen_join_codes.add(tb.join_code)
+            teacher_blocks.append(tb)
+
+    # Create a mapping of join_code to block info
+    blocks_by_join_code = {
+        tb.join_code: {
+            'block': tb.block,
+            'label': f"{tb.get_class_label()} (Period {tb.block})",
+            'join_code': tb.join_code
+        }
+        for tb in teacher_blocks
+    }
+
+    # Get all announcements for this teacher (across all periods)
+    # Exclude system admin announcements
+    from app.models import Announcement
+    announcements_list = Announcement.query.filter_by(
+        teacher_id=admin_id,
+        system_admin_id=None  # Only teacher-created announcements
+    ).order_by(Announcement.created_at.desc()).all()
+
+    # Attach block info to each announcement
+    for announcement in announcements_list:
+        announcement.block_info = blocks_by_join_code.get(announcement.join_code, {
+            'block': 'Unknown',
+            'label': 'Unknown Period',
+            'join_code': announcement.join_code
+        })
+
+    return render_template(
+        'admin_announcements.html',
+        announcements=announcements_list,
+        teacher_blocks=teacher_blocks,
+        blocks_by_join_code=blocks_by_join_code
+    )
+
+
+@admin_bp.route('/announcements/create', methods=['GET', 'POST'])
+@admin_required
+def announcement_create():
+    """Create a new announcement for selected class periods."""
+    from forms import AnnouncementForm
+    from app.models import Announcement
+
+    admin_id = session.get('admin_id')
+
+    # Get unique teacher blocks (class periods) by join_code
+    # TeacherBlock has one row per student seat, so we need to get distinct periods
+    teacher_blocks_query = TeacherBlock.query.filter_by(
+        teacher_id=admin_id
+    ).order_by(TeacherBlock.block).all()
+
+    # Deduplicate by join_code to get unique periods
+    seen_join_codes = set()
+    teacher_blocks = []
+    for tb in teacher_blocks_query:
+        if tb.join_code not in seen_join_codes:
+            seen_join_codes.add(tb.join_code)
+            teacher_blocks.append(tb)
+
+    if not teacher_blocks:
+        flash('You need to set up class periods before creating announcements.', 'warning')
+        return redirect(url_for('admin.dashboard'))
+
+    # Create form and populate period choices
+    form = AnnouncementForm()
+    form.periods.choices = [
+        (tb.join_code, f"{tb.get_class_label()} (Period {tb.block})")
+        for tb in teacher_blocks
+    ]
+
+    if form.validate_on_submit():
+        try:
+            selected_join_codes = form.periods.data
+            created_count = 0
+
+            # Create an announcement for each selected period
+            for join_code in selected_join_codes:
+                announcement = Announcement(
+                    teacher_id=admin_id,
+                    join_code=join_code,
+                    title=form.title.data,
+                    message=form.message.data,
+                    priority=form.priority.data,
+                    is_active=form.is_active.data,
+                    expires_at=form.expires_at.data
+                )
+                db.session.add(announcement)
+                created_count += 1
+
+            db.session.commit()
+
+            if created_count == 1:
+                flash(f'Announcement "{form.title.data}" created successfully!', 'success')
+            else:
+                flash(f'Announcement "{form.title.data}" posted to {created_count} class periods!', 'success')
+
+            return redirect(url_for('admin.announcements'))
+
+        except Exception as e:
+            db.session.rollback()
+            current_app.logger.error(f"Error creating announcement: {e}")
+            flash('An error occurred while creating the announcement.', 'danger')
+
+    return render_template(
+        'admin_announcement_form.html',
+        form=form,
+        action='Create',
+        teacher_blocks=teacher_blocks
+    )
+
+
+@admin_bp.route('/announcements/edit/<int:announcement_id>', methods=['GET', 'POST'])
+@admin_required
+def announcement_edit(announcement_id):
+    """Edit an existing announcement."""
+    from forms import AnnouncementForm
+    from app.models import Announcement
+
+    admin_id = session.get('admin_id')
+
+    # Get announcement and verify ownership
+    announcement = Announcement.query.filter_by(
+        id=announcement_id,
+        teacher_id=admin_id
+    ).first()
+
+    if not announcement:
+        flash('Announcement not found or access denied.', 'danger')
+        return redirect(url_for('admin.announcements'))
+
+    # Get the block info for this announcement
+    teacher_block = TeacherBlock.query.filter_by(
+        teacher_id=admin_id,
+        join_code=announcement.join_code
+    ).first()
+
+    form = AnnouncementForm(obj=announcement)
+    # Don't need periods field for editing - it's locked to one period
+    del form.periods
+
+    if form.validate_on_submit():
+        try:
+            announcement.title = form.title.data
+            announcement.message = form.message.data
+            announcement.priority = form.priority.data
+            announcement.is_active = form.is_active.data
+            announcement.expires_at = form.expires_at.data
+            announcement.updated_at = datetime.now(timezone.utc)
+
+            db.session.commit()
+
+            flash(f'Announcement "{announcement.title}" updated successfully!', 'success')
+            return redirect(url_for('admin.announcements'))
+
+        except Exception as e:
+            db.session.rollback()
+            current_app.logger.error(f"Error updating announcement: {e}")
+            flash('An error occurred while updating the announcement.', 'danger')
+
+    return render_template(
+        'admin_announcement_form.html',
+        form=form,
+        announcement=announcement,
+        teacher_block=teacher_block,
+        action='Edit'
+    )
+
+
+@admin_bp.route('/announcements/delete/<int:announcement_id>', methods=['POST'])
+@admin_required
+def announcement_delete(announcement_id):
+    """Delete an announcement."""
+    from app.models import Announcement
+
+    admin_id = session.get('admin_id')
+
+    # Get announcement and verify ownership
+    announcement = Announcement.query.filter_by(
+        id=announcement_id,
+        teacher_id=admin_id
+    ).first()
+
+    if not announcement:
+        flash('Announcement not found or access denied.', 'danger')
+        return redirect(url_for('admin.announcements'))
+
+    try:
+        title = announcement.title
+        db.session.delete(announcement)
+        db.session.commit()
+
+        flash(f'Announcement "{title}" deleted successfully!', 'success')
+
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Error deleting announcement: {e}")
+        flash('An error occurred while deleting the announcement.', 'danger')
+
+    return redirect(url_for('admin.announcements'))
+
+
+@admin_bp.route('/announcements/toggle/<int:announcement_id>', methods=['POST'])
+@admin_required
+def announcement_toggle(announcement_id):
+    """Toggle announcement active status."""
+    from app.models import Announcement
+
+    admin_id = session.get('admin_id')
+
+    # Get announcement and verify ownership
+    announcement = Announcement.query.filter_by(
+        id=announcement_id,
+        teacher_id=admin_id
+    ).first()
+
+    if not announcement:
+        return jsonify({'status': 'error', 'message': 'Announcement not found'}), 404
+
+    try:
+        announcement.is_active = not announcement.is_active
+        announcement.updated_at = datetime.now(timezone.utc)
+        db.session.commit()
+
+        return jsonify({
+            'status': 'success',
+            'is_active': announcement.is_active,
+            'message': f'Announcement {"activated" if announcement.is_active else "deactivated"}'
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Error toggling announcement: {e}")
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
 # -------------------- TEACHER ONBOARDING --------------------
 
 @admin_bp.route('/onboarding')
@@ -6710,3 +7051,506 @@ def api_economy_validate(feature):
     except Exception as e:
         current_app.logger.error(f"Error validating {feature}: {e}")
         return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+# ==================== PASSKEY AUTHENTICATION ROUTES ====================
+
+@admin_bp.route('/passkey/register/start', methods=['POST'])
+@admin_required
+@limiter.limit("10 per minute")
+def passkey_register_start():
+    """
+    Generate a passkey registration token from passwordless.dev.
+    
+    This is called when a teacher wants to add a new passkey from their account settings.
+    Returns a registration token that the frontend uses to initiate the WebAuthn ceremony.
+    """
+    try:
+        admin_id = session.get('admin_id')
+        admin = Admin.query.get_or_404(admin_id)
+        
+        # Get passwordless.dev client
+        client = get_passwordless_client()
+        
+        # Generate registration token
+        # userId format: "admin_{id}" to distinguish from system admins
+        user_id = f"admin_{admin.id}"
+        username = admin.username
+        displayname = admin.get_display_name()
+        
+        token = client.register_token(
+            user_id=user_id,
+            username=username,
+            displayname=displayname
+        )
+        
+        return jsonify({
+            "token": token,
+            "apiKey": client.get_public_key()
+        }), 200
+        
+    except ValueError as e:
+        current_app.logger.error(f"Passwordless.dev configuration error: {e}")
+        return jsonify({"error": "Passkey service not configured"}), 503
+        
+    except Exception as e:
+        current_app.logger.error(f"Error starting passkey registration: {e}")
+        return jsonify({"error": "Failed to start registration"}), 500
+
+
+@admin_bp.route('/passkey/register/finish', methods=['POST'])
+@admin_required
+@limiter.limit("10 per minute")
+def passkey_register_finish():
+    """
+    Finish passkey registration and save credential to database.
+    
+    After the frontend completes the WebAuthn ceremony, this endpoint
+    saves the credential metadata to the database.
+    
+    Expected JSON payload:
+        {
+            "credentialId": "base64url-encoded credential ID",
+            "authenticatorName": "User-friendly name for the authenticator"
+        }
+    """
+    try:
+        admin_id = session.get('admin_id')
+        data = request.get_json()
+
+        if not data or 'credentialId' not in data:
+            return jsonify({"error": "Missing credential ID"}), 400
+        
+        # Get authenticator name (optional)
+        authenticator_name = data.get('authenticatorName', 'Unnamed Passkey')
+
+        # Decode credential ID from base64url
+        credential_id = decode_credential_id(data['credentialId'])
+        
+        # Check if this credential already exists
+        existing = AdminCredential.query.filter_by(credential_id=credential_id).first()
+        if existing:
+            return jsonify({"error": "This credential is already registered"}), 409
+        
+        # Create new credential record
+        # Note: With passwordless.dev, we don't store the public key locally
+        credential = AdminCredential(
+            admin_id=admin_id,
+            credential_id=credential_id,
+            public_key=b'',  # Empty for passwordless.dev
+            sign_count=0,
+            authenticator_name=authenticator_name
+            # created_at is set automatically by the model default
+        )
+        
+        db.session.add(credential)
+        db.session.commit()
+        
+        flash("Passkey registered successfully!", "success")
+        return jsonify({"success": True, "message": "Passkey registered"}), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Error finishing passkey registration: {e}")
+        return jsonify({"error": "Failed to register passkey"}), 500
+
+
+@admin_bp.route('/passkey/auth/start', methods=['POST'])
+@limiter.limit("20 per minute")
+def passkey_auth_start():
+    """
+    Start passkey authentication by providing the public API key.
+    
+    This is called from the login page when a teacher clicks "Sign in with Passkey".
+    Returns the public API key needed for the frontend to initiate WebAuthn.
+    
+    Expected JSON payload:
+        {
+            "username": "teacher username"
+        }
+    """
+    try:
+        data = request.get_json()
+        
+        if not data or 'username' not in data:
+            return jsonify({"error": "Missing username"}), 400
+        
+        username = data['username'].strip()
+        
+        # Look up admin by username
+        admin = Admin.query.filter_by(username=username).first()
+        if not admin:
+            # Don't reveal if user exists
+            return jsonify({"error": "Invalid credentials"}), 401
+
+        # Check if user has any passkeys registered
+        has_passkeys = AdminCredential.query.filter_by(admin_id=admin.id).first() is not None
+        if not has_passkeys:
+            # Use generic error message to prevent username enumeration
+            return jsonify({"error": "Invalid credentials"}), 401
+        
+        # Get passwordless.dev client
+        client = get_passwordless_client()
+        
+        return jsonify({
+            "apiKey": client.get_public_key(),
+            "userId": f"admin_{admin.id}"
+        }), 200
+        
+    except ValueError as e:
+        current_app.logger.error(f"Passwordless.dev configuration error: {e}")
+        return jsonify({"error": "Passkey service not configured"}), 503
+        
+    except Exception as e:
+        current_app.logger.error(f"Error starting passkey authentication: {e}")
+        return jsonify({"error": "Authentication failed"}), 500
+
+
+@admin_bp.route('/passkey/auth/finish', methods=['POST'])
+@limiter.limit("20 per minute")
+def passkey_auth_finish():
+    """
+    Finish passkey authentication and create session.
+    
+    After the frontend completes the WebAuthn ceremony, this endpoint
+    verifies the authentication token with passwordless.dev and creates
+    a session for the teacher.
+    
+    Expected JSON payload:
+        {
+            "token": "token from passwordless.dev frontend"
+        }
+    
+    Returns:
+        {
+            "success": true,
+            "redirect": "/admin/dashboard"
+        }
+    """
+    try:
+        data = request.get_json()
+        
+        if not data or 'token' not in data:
+            return jsonify({"error": "Missing token"}), 400
+        
+        token = data['token']
+        
+        # Verify token with passwordless.dev
+        client = get_passwordless_client()
+        verification = client.verify_signin(token)
+        
+        if not verification.get('success'):
+            return jsonify({"error": "Authentication failed"}), 401
+        
+        # Extract user ID (format: "admin_{id}")
+        user_id = verification.get('userId')
+        if not user_id or not user_id.startswith('admin_'):
+            return jsonify({"error": "Invalid user ID"}), 401
+        
+        # Parse admin ID with error handling for malformed IDs
+        try:
+            admin_id = int(user_id.replace('admin_', ''))
+        except ValueError:
+            current_app.logger.error(f"Invalid userId format from passwordless.dev: {user_id}")
+            return jsonify({"error": "Invalid user ID format"}), 401
+        
+        # Verify admin exists
+        admin = Admin.query.get(admin_id)
+        if not admin:
+            return jsonify({"error": "Admin not found"}), 401
+        
+        # Update credential last_used timestamp and admin last_login
+        now = datetime.now(timezone.utc)
+        credential_id_b64 = verification.get('credentialId')
+        if credential_id_b64:
+            credential_id = decode_credential_id(credential_id_b64)
+            credential = AdminCredential.query.filter_by(credential_id=credential_id).first()
+            if credential:
+                credential.last_used = now
+            else:
+                # Log a warning if verification succeeds but no matching credential record is found
+                current_app.logger.warning(
+                    "Passwordless login for admin_id=%s used unknown credentialId=%s",
+                    admin.id,
+                    verification.get('credentialId'),
+                )
+        
+        admin.last_login = now
+        db.session.commit()
+        session.clear()
+        session['admin_id'] = admin.id
+        session['is_admin'] = True
+        session['username'] = admin.username
+        session['last_activity'] = datetime.now(timezone.utc).isoformat()
+        session.permanent = True
+        
+        return jsonify({
+            "success": True,
+            "redirect": url_for('admin.dashboard')
+        }), 200
+        
+    except Exception as e:
+        current_app.logger.error(f"Error finishing passkey authentication: {e}")
+        return jsonify({"error": "Authentication failed"}), 401
+
+
+@admin_bp.route('/passkey/list', methods=['GET'])
+@admin_required
+def passkey_list():
+    """List all passkeys for the current teacher."""
+    try:
+        admin_id = session.get('admin_id')
+        credentials = AdminCredential.query.filter_by(admin_id=admin_id).order_by(AdminCredential.created_at.desc()).all()
+        
+        return jsonify({
+            "passkeys": [{
+                "id": cred.id,
+                "name": cred.authenticator_name or "Unnamed Passkey",
+                "created_at": cred.created_at.isoformat() if cred.created_at else None,
+                "last_used": cred.last_used.isoformat() if cred.last_used else None
+            } for cred in credentials]
+        }), 200
+        
+    except Exception as e:
+        current_app.logger.error(f"Error listing passkeys: {e}")
+        return jsonify({"error": "Failed to list passkeys"}), 500
+
+
+@admin_bp.route('/passkey/<int:passkey_id>/delete', methods=['DELETE'])
+@admin_required
+@limiter.limit("10 per minute")
+def passkey_delete(passkey_id):
+    """Delete a passkey for the current teacher."""
+    try:
+        admin_id = session.get('admin_id')
+        credential = AdminCredential.query.filter_by(id=passkey_id, admin_id=admin_id).first()
+        
+        if not credential:
+            return jsonify({"error": "Passkey not found"}), 404
+        
+        # Check if this is the only credential
+        total_credentials = AdminCredential.query.filter_by(admin_id=admin_id).count()
+        if total_credentials <= 1:
+            # Still allow deletion - teacher can use TOTP as backup
+            pass
+        
+        db.session.delete(credential)
+        db.session.commit()
+        
+        flash("Passkey deleted successfully", "success")
+        return jsonify({"success": True, "message": "Passkey deleted"}), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Error deleting passkey: {e}")
+        return jsonify({"error": "Failed to delete passkey"}), 500
+
+
+@admin_bp.route('/passkey/settings')
+@admin_required
+def passkey_settings():
+    """Passkey management page for teachers."""
+    admin_id = session.get('admin_id')
+    admin = Admin.query.get_or_404(admin_id)
+
+
+    # Get all passkeys for this teacher
+    credentials = AdminCredential.query.filter_by(admin_id=admin_id).order_by(AdminCredential.created_at.desc()).all()
+
+
+    return render_template('admin_passkey_settings.html',
+                         admin=admin,
+                         credentials=credentials)
+
+
+# ==================== ISSUE RESOLUTION SYSTEM - TEACHER ROUTES ====================
+
+@admin_bp.route('/issues')
+@admin_required
+def issues_queue():
+    """
+    Teacher issue review queue.
+    Shows all student-submitted issues for this teacher's classes.
+    """
+    from app.models import Issue
+    from app.utils.issue_categories import init_default_categories
+
+    admin_id = session.get('admin_id')
+    join_code = session.get('join_code')
+
+    # Initialize default categories if they don't exist
+    init_default_categories()
+
+    # Filter by join code if one is selected, otherwise show all issues for this teacher
+    if join_code:
+        issues_query = Issue.query.filter_by(teacher_id=admin_id, join_code=join_code)
+    else:
+        issues_query = Issue.query.filter_by(teacher_id=admin_id)
+
+    # Get issues by status
+    pending_issues = issues_query.filter(
+        Issue.status.in_(['submitted', 'teacher_review'])
+    ).order_by(Issue.submitted_at.desc()).all()
+
+    resolved_issues = issues_query.filter_by(
+        status='teacher_resolved'
+    ).order_by(Issue.teacher_resolved_at.desc()).limit(20).all()
+
+    escalated_issues = issues_query.filter(
+        Issue.status.in_(['elevated', 'developer_review', 'developer_resolved'])
+    ).order_by(Issue.escalated_at.desc()).all()
+
+    return render_template('admin_issues_queue.html',
+                         current_page='issues',
+                         page_title='Student Issues',
+                         pending_issues=pending_issues,
+                         resolved_issues=resolved_issues,
+                         escalated_issues=escalated_issues,
+                         format_utc_iso=format_utc_iso)
+
+
+@admin_bp.route('/issues/<int:issue_id>')
+@admin_required
+def view_issue(issue_id):
+    """View detailed information about a specific issue."""
+    from app.models import Issue
+
+    admin_id = session.get('admin_id')
+
+    # Get the issue and verify it belongs to this teacher
+    issue = Issue.query.filter_by(id=issue_id, teacher_id=admin_id).first_or_404()
+
+    # Mark as being reviewed if still in submitted status
+    if issue.status == 'submitted':
+        from app.utils.issue_helpers import update_issue_status
+        update_issue_status(issue, 'teacher_review', 'teacher', admin_id)
+        issue.teacher_reviewed_at = datetime.now(timezone.utc)
+        db.session.commit()
+
+    return render_template('admin_view_issue.html',
+                         current_page='issues',
+                         page_title=f'Issue #{issue.id}',
+                         issue=issue,
+                         format_utc_iso=format_utc_iso)
+
+
+@admin_bp.route('/issues/<int:issue_id>/resolve', methods=['POST'])
+@admin_required
+def resolve_issue(issue_id):
+    """
+    Resolve an issue at the teacher level.
+    Can apply various resolution actions depending on issue type.
+    """
+    from app.models import Issue, Transaction
+    from app.utils.issue_helpers import update_issue_status, record_resolution_action
+
+    admin_id = session.get('admin_id')
+
+    # Get the issue and verify it belongs to this teacher
+    issue = Issue.query.filter_by(id=issue_id, teacher_id=admin_id).first_or_404()
+
+    action_type = request.form.get('action_type')
+    teacher_notes = request.form.get('teacher_notes', '').strip()
+
+    try:
+        # Apply resolution based on action type
+        if action_type == 'reverse_transaction' and issue.related_transaction_id:
+            # Void the transaction
+            transaction = Transaction.query.get(issue.related_transaction_id)
+            if transaction and transaction.student_id == issue.student_id:
+                before_value = f"is_void={transaction.is_void}"
+                transaction.is_void = True
+                after_value = f"is_void={transaction.is_void}"
+
+                record_resolution_action(
+                    issue, 'reverse_transaction', 'teacher', admin_id,
+                    action_description=f"Voided transaction #{transaction.id}",
+                    related_transaction_id=transaction.id,
+                    before_value=before_value,
+                    after_value=after_value
+                )
+
+                issue.teacher_resolution = 'Transaction Reversed'
+
+        elif action_type == 'manual_adjustment':
+            # Teacher handles manually (no automatic action)
+            issue.teacher_resolution = 'Manual Adjustment'
+            record_resolution_action(
+                issue, 'manual_adjustment', 'teacher', admin_id,
+                action_description=teacher_notes
+            )
+
+        elif action_type == 'deny_issue':
+            # Deny the issue
+            denial_reason = request.form.get('denial_reason', '').strip()
+            issue.teacher_resolution = 'Denied'
+            teacher_notes = denial_reason  # Reassign to preserve denial reason
+            record_resolution_action(
+                issue, 'deny_issue', 'teacher', admin_id,
+                action_description=denial_reason
+            )
+
+        # Update issue status
+        update_issue_status(issue, 'teacher_resolved', 'teacher', admin_id, notes=teacher_notes)
+        issue.teacher_resolved_at = datetime.now(timezone.utc)
+        issue.teacher_notes = teacher_notes
+        issue.closed_at = datetime.now(timezone.utc)
+        issue.closed_by_type = 'teacher'
+
+        db.session.commit()
+
+        flash("Issue resolved successfully.", "success")
+        return redirect(url_for('admin.issues_queue'))
+
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Error resolving issue: {str(e)}")
+        flash("An error occurred while resolving the issue. Please try again.", "error")
+        return redirect(url_for('admin.view_issue', issue_id=issue_id))
+
+
+@admin_bp.route('/issues/<int:issue_id>/escalate', methods=['POST'])
+@admin_required
+def escalate_issue(issue_id):
+    """
+    Escalate an issue to sysadmin (developer).
+    Teacher marks the issue for developer investigation.
+    """
+    from app.models import Issue
+    from app.utils.issue_helpers import update_issue_status
+
+    admin_id = session.get('admin_id')
+
+    # Get the issue and verify it belongs to this teacher
+    issue = Issue.query.filter_by(id=issue_id, teacher_id=admin_id).first_or_404()
+
+    escalation_reason = request.form.get('escalation_reason', '').strip()
+    diagnostic_note = request.form.get('diagnostic_note', '').strip()
+    share_class_name = request.form.get('share_class_name') == 'on'
+    eligible_for_reward = request.form.get('eligible_for_reward') == 'on'
+
+    if not escalation_reason:
+        flash("Please provide an escalation reason.", "error")
+        return redirect(url_for('admin.view_issue', issue_id=issue_id))
+
+    try:
+        # Update issue with escalation details
+        issue.escalation_reason = escalation_reason
+        issue.teacher_diagnostic_note = diagnostic_note
+        issue.share_class_name_with_sysadmin = share_class_name
+        issue.eligible_for_reward = eligible_for_reward
+        issue.escalated_at = datetime.now(timezone.utc)
+
+        # Update status
+        update_issue_status(issue, 'elevated', 'teacher', admin_id, notes=f"Escalated: {escalation_reason}")
+
+        db.session.commit()
+
+        flash("Issue escalated to developer successfully.", "success")
+        return redirect(url_for('admin.issues_queue'))
+
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Error escalating issue: {str(e)}")
+        flash("An error occurred while escalating the issue. Please try again.", "error")
+        return redirect(url_for('admin.view_issue', issue_id=issue_id))
