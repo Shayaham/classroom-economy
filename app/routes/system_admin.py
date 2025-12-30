@@ -21,7 +21,7 @@ import pyotp
 
 from app.extensions import db, limiter
 from app.models import (
-    SystemAdmin, Admin, Student, AdminInviteCode, ErrorLog,
+    SystemAdmin, SystemAdminCredential, Admin, Student, AdminInviteCode, ErrorLog,
     Transaction, TapEvent, HallPassLog, StudentItem, RentPayment,
     StudentInsurance, InsuranceClaim, StudentTeacher, DeletionRequest,
     DeletionRequestType, DeletionRequestStatus, TeacherBlock, StudentBlock, UserReport,
@@ -35,6 +35,11 @@ from forms import SystemAdminLoginForm, SystemAdminInviteForm
 # Import utility functions
 from app.utils.helpers import is_safe_url, format_utc_iso
 from app.utils.encryption import encrypt_totp, decrypt_totp
+from app.utils.passwordless_client import (
+    create_register_token,
+    verify_signin_token,
+    get_public_api_key
+)
 
 # Create blueprint
 sysadmin_bp = Blueprint('sysadmin', __name__, url_prefix='/sysadmin')
@@ -212,6 +217,246 @@ def logout():
     # Intentionally DO NOT remove maintenance_global_bypass so admin can test other roles.
     flash("Logged out.")
     return redirect(url_for("sysadmin.login"))
+
+
+# -------------------- PASSKEY AUTHENTICATION (Official SDK Implementation) --------------------
+
+@sysadmin_bp.route('/passkey/register/start', methods=['POST'])
+@system_admin_required
+@limiter.limit("10 per minute")
+def passkey_register_start():
+    """
+    Start passkey registration - Generate registration token.
+
+    Official SDK Pattern: Create RegisterToken and get token from passwordless.dev
+    """
+    try:
+        sysadmin_id = session.get("sysadmin_id")
+        admin = SystemAdmin.query.get_or_404(sysadmin_id)
+
+        # Generate registration token using official SDK
+        user_id = f"sysadmin_{admin.id}"
+        username = admin.username
+        displayname = f"System Admin: {admin.username}"
+
+        token = create_register_token(user_id, username, displayname)
+
+        return jsonify({
+            "token": token,
+            "apiKey": get_public_api_key()
+        }), 200
+
+    except ValueError as e:
+        current_app.logger.error(f"Passwordless.dev configuration error: {e}")
+        return jsonify({"error": "Passkey service not configured"}), 503
+    except Exception as e:
+        current_app.logger.error(f"Error starting passkey registration: {e}")
+        return jsonify({"error": "Failed to start registration"}), 500
+
+
+@sysadmin_bp.route('/passkey/register/finish', methods=['POST'])
+@system_admin_required
+@limiter.limit("10 per minute")
+def passkey_register_finish():
+    """
+    Finish passkey registration - Save credential metadata.
+
+    After frontend completes WebAuthn ceremony, store credential metadata.
+    """
+    try:
+        sysadmin_id = session.get("sysadmin_id")
+        data = request.get_json()
+
+        if not data or 'token' not in data:
+            return jsonify({"error": "Missing token"}), 400
+
+        # Extract credential ID from token
+        credential_id = data['token']
+        authenticator_name = data.get('authenticatorName', 'Unnamed Passkey')
+
+        # Check if credential already exists
+        existing = SystemAdminCredential.query.filter_by(credential_id=credential_id).first()
+        if existing:
+            return jsonify({"error": "This credential is already registered"}), 409
+
+        # Save credential metadata
+        credential = SystemAdminCredential(
+            sysadmin_id=sysadmin_id,
+            credential_id=credential_id,
+            authenticator_name=authenticator_name
+        )
+
+        db.session.add(credential)
+        db.session.commit()
+
+        flash("Passkey registered successfully!", "success")
+        return jsonify({"success": True}), 200
+
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Error finishing passkey registration: {e}")
+        return jsonify({"error": "Failed to register passkey"}), 500
+
+
+@sysadmin_bp.route('/passkey/auth/start', methods=['POST'])
+@limiter.limit("20 per minute")
+def passkey_auth_start():
+    """
+    Start passkey authentication - Return public API key.
+
+    Official SDK Pattern: Frontend needs public API key to initiate signin
+    """
+    try:
+        data = request.get_json()
+
+        if not data or 'username' not in data:
+            return jsonify({"error": "Missing username"}), 400
+
+        username = data['username'].strip()
+
+        # Verify user exists
+        admin = SystemAdmin.query.filter_by(username=username).first()
+        if not admin:
+            return jsonify({"error": "Invalid credentials"}), 401
+
+        # Check if user has passkeys
+        has_passkeys = SystemAdminCredential.query.filter_by(sysadmin_id=admin.id).first() is not None
+        if not has_passkeys:
+            return jsonify({"error": "Invalid credentials"}), 401
+
+        return jsonify({
+            "apiKey": get_public_api_key()
+        }), 200
+
+    except ValueError as e:
+        current_app.logger.error(f"Passwordless.dev configuration error: {e}")
+        return jsonify({"error": "Passkey service not configured"}), 503
+    except Exception as e:
+        current_app.logger.error(f"Error starting passkey authentication: {e}")
+        return jsonify({"error": "Authentication failed"}), 500
+
+
+@sysadmin_bp.route('/passkey/auth/finish', methods=['POST'])
+@limiter.limit("20 per minute")
+def passkey_auth_finish():
+    """
+    Finish passkey authentication - Verify token and create session.
+
+    Official SDK Pattern: Verify signin token and create authenticated session
+    """
+    try:
+        data = request.get_json()
+
+        if not data or 'token' not in data:
+            return jsonify({"error": "Missing token"}), 400
+
+        # Verify token using official SDK
+        verified_user = verify_signin_token(data['token'])
+
+        # Extract sysadmin ID from user_id (format: "sysadmin_{id}")
+        user_id = verified_user.user_id
+        if not user_id or not user_id.startswith('sysadmin_'):
+            return jsonify({"error": "Invalid user ID"}), 401
+
+        try:
+            sysadmin_id = int(user_id.replace('sysadmin_', ''))
+        except ValueError:
+            current_app.logger.error(f"Invalid userId format: {user_id}")
+            return jsonify({"error": "Invalid user ID format"}), 401
+
+        # Verify system admin exists
+        admin = SystemAdmin.query.get(sysadmin_id)
+        if not admin:
+            return jsonify({"error": "Admin not found"}), 401
+
+        # Update credential last_used timestamp
+        now = datetime.now(timezone.utc)
+        credential_id = verified_user.credential_id
+        if credential_id:
+            credential = SystemAdminCredential.query.filter_by(credential_id=credential_id).first()
+            if credential:
+                credential.last_used = now
+
+        db.session.commit()
+
+        # Create session
+        session["is_system_admin"] = True
+        session["sysadmin_id"] = admin.id
+        session['last_activity'] = now.isoformat()
+        session['maintenance_global_bypass'] = True
+
+        # Determine redirect URL
+        next_url = request.args.get("next")
+        if not is_safe_url(next_url):
+            redirect_url = url_for("sysadmin.dashboard")
+        else:
+            redirect_url = next_url or url_for("sysadmin.dashboard")
+
+        return jsonify({
+            "success": True,
+            "redirect": redirect_url
+        }), 200
+
+    except Exception as e:
+        current_app.logger.error(f"Error finishing passkey authentication: {e}")
+        return jsonify({"error": "Authentication failed"}), 401
+
+
+@sysadmin_bp.route('/passkey/list', methods=['GET'])
+@system_admin_required
+def passkey_list():
+    """List all passkeys for current system admin."""
+    try:
+        sysadmin_id = session.get("sysadmin_id")
+        credentials = SystemAdminCredential.query.filter_by(sysadmin_id=sysadmin_id).order_by(SystemAdminCredential.created_at.desc()).all()
+
+        return jsonify([{
+            "id": cred.id,
+            "name": cred.authenticator_name or "Unnamed Passkey",
+            "created_at": cred.created_at.isoformat() if cred.created_at else None,
+            "last_used": cred.last_used.isoformat() if cred.last_used else None
+        } for cred in credentials]), 200
+
+    except Exception as e:
+        current_app.logger.error(f"Error listing passkeys: {e}")
+        return jsonify({"error": "Failed to list passkeys"}), 500
+
+
+@sysadmin_bp.route('/passkey/<int:credential_id>/delete', methods=['POST'])
+@system_admin_required
+@limiter.limit("10 per minute")
+def passkey_delete(credential_id):
+    """Delete a passkey."""
+    try:
+        sysadmin_id = session.get("sysadmin_id")
+        credential = SystemAdminCredential.query.filter_by(id=credential_id, sysadmin_id=sysadmin_id).first()
+
+        if not credential:
+            return jsonify({"error": "Passkey not found"}), 404
+
+        db.session.delete(credential)
+        db.session.commit()
+
+        flash("Passkey deleted successfully.", "success")
+        return jsonify({"success": True}), 200
+
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Error deleting passkey: {e}")
+        return jsonify({"error": "Failed to delete passkey"}), 500
+
+
+@sysadmin_bp.route('/passkey/settings')
+@system_admin_required
+def passkey_settings():
+    """Passkey management page."""
+    sysadmin_id = session.get("sysadmin_id")
+    admin = SystemAdmin.query.get_or_404(sysadmin_id)
+    credentials = SystemAdminCredential.query.filter_by(sysadmin_id=sysadmin_id).order_by(SystemAdminCredential.created_at.desc()).all()
+
+    return render_template("system_admin_passkey_settings.html",
+                         admin=admin,
+                         credentials=credentials)
 
 
 # -------------------- DASHBOARD --------------------

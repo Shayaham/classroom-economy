@@ -151,8 +151,12 @@
                 </div>
                 {% endif %}
 
-                <div class="d-grid mb-4">
+                <div class="d-grid gap-2 mb-4">
                     {{ form.submit(class="btn btn-primary btn-lg") }}
+                    <button type="button" id="usePasskeyBtn" class="btn btn-outline-primary btn-lg">
+                        <span class="material-symbols-outlined align-middle me-2" style="font-size: 1.5rem;">fingerprint</span>
+                        Sign in with Passkey
+                    </button>
                 </div>
 
                 <div class="text-center d-grid gap-2">
@@ -205,6 +209,20 @@
                 tipTextId: 'tipText',
                 minimumDisplayTime: 2500,
                 rotationInterval: 4000
+            });
+        });
+    </script>
+
+    <!-- Passwordless.dev SDK (Official UMD build) -->
+    <script src="https://cdn.passwordless.dev/dist/1.1.0/umd/passwordless.umd.min.js" crossorigin="anonymous"></script>
+    <script src="{{ static_url('js/passkey.js') }}"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            setupPasskeySignin({
+                buttonId: 'usePasskeyBtn',
+                usernameFieldId: 'usernameField',
+                startUrl: '{{ url_for("admin.passkey_auth_start") }}',
+                finishUrl: '{{ url_for("admin.passkey_auth_finish") }}'
             });
         });
     </script>

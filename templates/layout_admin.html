@@ -175,6 +175,9 @@
                             <a href="{{ url_for('admin.settings') }}" class="nav-link nav-sub-link d-flex align-items-center gap-2 {% if current_page == 'settings' %}active{% endif %}">
                                 <span class="material-symbols-outlined">style</span> Personalization
                             </a>
+                            <a href="{{ url_for('admin.passkey_settings') }}" class="nav-link nav-sub-link d-flex align-items-center gap-2 {% if current_page == 'passkey_settings' %}active{% endif %}">
+                                <span class="material-symbols-outlined">fingerprint</span> Passkey
+                            </a>
                             <a href="{{ url_for('admin.feature_settings') }}" class="nav-link nav-sub-link d-flex align-items-center gap-2 {% if current_page == 'feature_settings' %}active{% endif %}">
                                 <span class="material-symbols-outlined">tune</span> Features
                             </a>
