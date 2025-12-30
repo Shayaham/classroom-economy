@@ -9,6 +9,9 @@ and this project follows semantic versioning principles.
 ## [Unreleased]
 
 ### Fixed
+- **Transaction Issue Reporting** - Added report buttons to all transaction tables in Banking/Finances page (Checking and Savings tabs), allowing students to report issues on any visible transaction (up to 50 most recent), not just the 5 shown on dashboard
+- **Issue Resolution Display** - Fixed `developer_resolved` status showing as "Escalated" instead of "Resolved by Developer" in teacher view
+- **Issue Context Snapshot** - Fixed incorrect balance calculation in context_snapshot by using Student model's `get_checking_balance()` and `get_savings_balance()` methods instead of non-existent `get_balances()` function
 - **Passkey Authentication** - Fixed missing username parameter in passkey authentication start request causing 500 error
 - **Passkey Registration** - Fixed credential ID extraction from passwordless.dev SDK response by using correct destructuring pattern `{ token, error }`
 - **Content Security Policy** - Added `https://static.cloudflareinsights.com` to `connect-src` directive to allow Cloudflare analytics
@@ -22,7 +25,6 @@ and this project follows semantic versioning principles.
   - Displays plaintext secret for manual entry backup
   - Auto-clears terminal after user confirmation for security
   - Secret remains encrypted in database after initial display
-  - **Content Security Policy** - Removed unnecessary `'unsafe-eval'` directive from `script-src` to strengthen XSS protection (passwordless.dev library does not require dynamic code execution)
 
 
 ### Added
@@ -67,13 +69,10 @@ and this project follows semantic versioning principles.
     - Student: `/student/help-support`, `/student/help-support/submit-issue`, `/student/help-support/transaction/<id>/report`
     - Teacher: `/admin/issues`, `/admin/issues/<id>`, `/admin/issues/<id>/resolve`, `/admin/issues/<id>/escalate`
 
-### Changed
-
-### Fixed
-
 ### Security
 - Enhanced privacy protection in issue resolution system through opaque student references
 - Teacher-controlled data disclosure to sysadmins (optional class name sharing)
+- **Content Security Policy** - Removed unnecessary `'unsafe-eval'` directive from `script-src` to strengthen XSS protection (passwordless.dev library does not require dynamic code execution)
 
 ## [1.4.0] - 2025-12-27
 
