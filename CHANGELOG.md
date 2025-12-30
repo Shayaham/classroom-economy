@@ -8,6 +8,8 @@ and this project follows semantic versioning principles.
 
 ## [Unreleased]
 
+## [1.5.0] - 2025-12-29
+
 ### Security
 - **CRITICAL: Fixed PromptPwnd AI Prompt Injection Vulnerability** - Disabled vulnerable `summary.yml` GitHub Actions workflow
   - Workflow used AI inference (`actions/ai-inference@v1`) with untrusted user input from issue titles/bodies
@@ -31,6 +33,24 @@ and this project follows semantic versioning principles.
   - Automated SSH security setup script: `scripts/setup-ssh-security.sh`
   - Includes fixes for: SSH MITM vulnerability, secrets management hardening, dependency updates
   - Ready-to-use workflow files with improved security posture
+- Attendance issue reporting for students and teachers
+- Issue resolution and escalation workflows for students and teachers
+
+### Changed
+- Issue resolution UI refresh and workflow refinements
+- Issue management and reporting refactor
+- Standardized UTC timestamp formatting
+
+### Fixed
+- System Admin announcements form `ValueError` by adding a custom `coerce` for the `target_teacher` field
+
+### Documentation
+- Reorganized documentation structure for improved navigation
+
+### Dependencies
+- Bump `requests` from 2.32.4 to 2.32.5
+- Bump `markdown` from 3.7 to 3.10
+- Bump `webfactory/ssh-agent` from 0.9.0 to 0.9.1
 
 ## [1.2.1] - 2025-12-21
 
