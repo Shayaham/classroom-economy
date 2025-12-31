@@ -567,13 +567,25 @@ def create_app():
         # Content Security Policy (CSP)
         # Restricts resource loading to prevent XSS attacks
         # Adjusted for Google Fonts, Material Icons, Cloudflare Turnstile, jsdelivr CDN, Font Awesome, and Passwordless.dev
+        passwordless_script_src = "https://cdn.passwordless.dev"
+        passwordless_connect_src = "https://cdn.passwordless.dev https://v4.passwordless.dev"
         csp_directives = [
             "default-src 'self'",
-            "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://challenges.cloudflare.com https://cdn.jsdelivr.net https://static.cloudflareinsights.com https://cdn.passwordless.dev",
+            (
+                "script-src 'self' 'unsafe-inline' 'unsafe-eval' "
+                "https://challenges.cloudflare.com https://cdn.jsdelivr.net "
+                "https://static.cloudflareinsights.com "
+                f"{passwordless_script_src}"
+            ),
             "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com",
             "font-src 'self' https://fonts.gstatic.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com",
             "img-src 'self' data: https:",
-            "connect-src 'self' https://challenges.cloudflare.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://static.cloudflareinsights.com https://cdn.passwordless.dev https://v4.passwordless.dev",
+            (
+                "connect-src 'self' https://challenges.cloudflare.com "
+                "https://cdn.jsdelivr.net https://cdnjs.cloudflare.com "
+                "https://static.cloudflareinsights.com "
+                f"{passwordless_connect_src}"
+            ),
             "frame-src https://challenges.cloudflare.com",
             "worker-src 'self' blob:",
             "base-uri 'self'",
