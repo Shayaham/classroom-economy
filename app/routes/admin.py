@@ -331,8 +331,12 @@ def _check_onboarding_redirect():
     """
     Check if the current admin needs onboarding and should be redirected.
 
+    NOTE: As of the widget-based onboarding redesign, we no longer force redirect
+    teachers to the onboarding wizard. Instead, they see the Getting Started widget
+    in the bottom-right corner of the dashboard.
+
     Returns:
-        None if no redirect needed, otherwise a redirect response
+        None - onboarding redirect disabled in favor of floating widget
     """
     admin_id = session.get('admin_id')
     if not admin_id:
@@ -358,15 +362,11 @@ def _check_onboarding_redirect():
             db.session.commit()
             return None
 
-        # New teacher needs onboarding
-        return redirect(url_for('admin.onboarding'))
-
-    # If onboarding exists and is completed or skipped, no redirect needed
-    if onboarding.is_completed or onboarding.is_skipped:
+        # New teacher - no redirect, they'll see the Getting Started widget
         return None
 
-    # Teacher has incomplete onboarding - redirect them
-    return redirect(url_for('admin.onboarding'))
+    # No redirect - widget-based onboarding is now used instead
+    return None
 
 
 def _normalize_claim_credentials_for_admin(admin_id: int) -> int:
@@ -6211,7 +6211,7 @@ def update_period_feature_settings(period):
     except Exception as e:
         db.session.rollback()
         current_app.logger.error(f"Error updating period feature settings: {e}")
-        return jsonify({'status': 'error', 'message': str(e)}), 500
+        return jsonify({'status': 'error', 'message': 'An internal error occurred.'}), 500
 
 
 @admin_bp.route('/feature-settings/copy', methods=['POST'])
@@ -6565,10 +6565,9 @@ def onboarding():
 
     Guides new teachers through initial setup:
     1. Welcome & Overview
-    2. Feature Selection
-    3. Period Setup
-    4. Roster Upload
-    5. Quick Settings
+    2. Roster Upload (students/periods)
+    3. Feature Selection
+    4. Feature Setup (payroll required, other features based on selection)
     """
     admin_id = session.get('admin_id')
 
@@ -6583,7 +6582,7 @@ def onboarding():
     # Get admin info
     admin = Admin.query.get(admin_id)
 
-    # Define steps
+    # Define steps (new order: welcome, roster, features, settings)
     steps = [
         {
             'id': 'welcome',
@@ -6592,28 +6591,22 @@ def onboarding():
             'description': 'Get started with Classroom Economy'
         },
         {
-            'id': 'features',
-            'title': 'Select Features',
-            'icon': 'tune',
-            'description': 'Choose which features to enable'
-        },
-        {
-            'id': 'periods',
-            'title': 'Set Up Periods',
-            'icon': 'calendar_today',
-            'description': 'Configure your class periods'
-        },
-        {
             'id': 'roster',
             'title': 'Upload Roster',
             'icon': 'upload_file',
             'description': 'Add your students'
         },
         {
+            'id': 'features',
+            'title': 'Select Features',
+            'icon': 'tune',
+            'description': 'Choose which features to enable'
+        },
+        {
             'id': 'settings',
-            'title': 'Quick Settings',
+            'title': 'Feature Setup',
             'icon': 'settings',
-            'description': 'Configure basic settings'
+            'description': 'Configure your features'
         }
     ]
 
@@ -6658,19 +6651,25 @@ def onboarding_step(step_name):
                 global_settings = FeatureSettings(teacher_id=admin_id, block=None)
                 db.session.add(global_settings)
 
+            # Payroll is mandatory, always enable it
+            global_settings.payroll_enabled = True
+
+            # Enable other features based on selection
             for feature, enabled in features_data.items():
-                feature_column = f"{feature}_enabled"
-                if hasattr(global_settings, feature_column):
-                    setattr(global_settings, feature_column, bool(enabled))
+                if feature != 'payroll':  # Skip payroll as it's already forced to True
+                    feature_column = f"{feature}_enabled"
+                    if hasattr(global_settings, feature_column):
+                        setattr(global_settings, feature_column, bool(enabled))
 
             global_settings.updated_at = datetime.now(timezone.utc)
 
-        elif step_name == 'periods':
-            # Periods are set up via the regular student upload flow
+        elif step_name == 'roster':
+            # Roster upload handled by upload_students route
+            # This just marks the step as completed
             pass
 
-        # Advance to next step
-        step_order = ['welcome', 'features', 'periods', 'roster', 'settings']
+        # Advance to next step (new order: welcome, roster, features, settings)
+        step_order = ['welcome', 'roster', 'features', 'settings']
         try:
             current_index = step_order.index(step_name)
             if current_index < len(step_order) - 1:
@@ -6774,6 +6773,144 @@ def onboarding_reset():
         db.session.rollback()
         current_app.logger.error(f"Error resetting onboarding: {e}")
         return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@admin_bp.route('/onboarding/status', methods=['GET'])
+@admin_required
+def onboarding_status():
+    """Get onboarding task completion status for the Getting Started widget."""
+    admin_id = session.get('admin_id')
+    join_code = session.get('current_join_code')
+
+    try:
+        # First, get the TeacherBlock to retrieve the block identifier
+        teacher_block = TeacherBlock.query.filter_by(
+            teacher_id=admin_id,
+            join_code=join_code
+        ).first()
+
+        if not teacher_block:
+            return jsonify({
+                'status': 'error',
+                'message': 'Class period not found'
+            }), 404
+
+        block = teacher_block.block
+
+        # Get teacher's feature settings using teacher_id and block
+        feature_settings = FeatureSettings.query.filter_by(
+            teacher_id=admin_id,
+            block=block
+        ).first()
+
+        # Initialize completion status
+        completion = {
+            'roster': False,
+            'payroll': False,
+            'store': False,
+            'banking': False,
+            'rent': False,
+            'insurance': False,
+            'hall_pass': False,
+            'personalization': False,
+            'passkey': False
+        }
+
+        # Check roster: has at least one student
+        student_count = StudentBlock.query.filter_by(
+            join_code=join_code
+        ).count()
+        completion['roster'] = student_count > 0
+
+        # Check payroll: has payroll settings configured
+        payroll_settings = PayrollSettings.query.filter_by(
+            teacher_id=admin_id,
+            block=block
+        ).first()
+        completion['payroll'] = payroll_settings is not None
+
+        # Check store: has at least one store item for this block
+        if feature_settings and feature_settings.store_enabled:
+            store_items = StoreItemBlock.query.filter_by(block=block).count()
+            completion['store'] = store_items > 0
+
+        # Check banking: has banking settings configured
+        if feature_settings and feature_settings.banking_enabled:
+            banking_settings = BankingSettings.query.filter_by(
+                teacher_id=admin_id,
+                block=block
+            ).first()
+            completion['banking'] = banking_settings is not None
+
+        # Check rent: has rent settings configured
+        if feature_settings and feature_settings.rent_enabled:
+            rent_settings = RentSettings.query.filter_by(
+                teacher_id=admin_id,
+                block=block
+            ).first()
+            completion['rent'] = rent_settings is not None
+
+        # Check insurance: has at least one insurance policy for this block
+        if feature_settings and feature_settings.insurance_enabled:
+            insurance_policies = InsurancePolicyBlock.query.filter_by(block=block).count()
+            completion['insurance'] = insurance_policies > 0
+
+        # Check hall pass: always available (mark as complete if they've accessed it)
+        # For now, we'll mark it as incomplete until they configure it
+        completion['hall_pass'] = False
+
+        # Check personalization: check if class_label is set on TeacherBlock
+        completion['personalization'] = (
+            teacher_block.class_label and
+            teacher_block.class_label.strip() != ''
+        )
+
+        # Passkey is always incomplete (to be revamped)
+        completion['passkey'] = False
+
+        return jsonify({
+            'status': 'success',
+            'completion': completion
+        })
+
+    except Exception as e:
+        current_app.logger.error(f"Error checking onboarding status: {e}")
+        return jsonify({'status': 'error', 'message': 'Failed to retrieve onboarding status'}), 500
+
+
+@admin_bp.route('/onboarding/skip-task', methods=['POST'])
+@admin_required
+def onboarding_skip_task():
+    """Mark an optional onboarding task as skipped."""
+    admin_id = session.get('admin_id')
+
+    try:
+        data = request.get_json()
+        task_name = data.get('task')
+
+        if not task_name:
+            return jsonify({'status': 'error', 'message': 'Task name required'}), 400
+
+        # Get or create onboarding record
+        onboarding_record = TeacherOnboarding.query.filter_by(teacher_id=admin_id).first()
+        if not onboarding_record:
+            onboarding_record = TeacherOnboarding(teacher_id=admin_id)
+            db.session.add(onboarding_record)
+
+        # Mark task as skipped using the existing method (store as True to indicate it's "completed" via skip)
+        onboarding_record.mark_step_completed(task_name)
+
+        db.session.commit()
+
+        return jsonify({
+            'status': 'success',
+            'message': f'Task "{task_name}" marked as skipped'
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Error skipping task: {e}")
+        return jsonify({'status': 'error', 'message': 'Failed to skip task'}), 500
 
 
 # ==================== ECONOMY BALANCE CHECKER API ====================
