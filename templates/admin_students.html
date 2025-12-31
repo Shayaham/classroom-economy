@@ -17,8 +17,9 @@
         padding: 0.25rem 0.5rem;
         font-size: 0.875rem;
     }
-    .
+    
 </style>
+<link href="{{ static_url('css/style.css') }}" rel="stylesheet">
 {% endblock %}
 
 {% block page_header_actions %}
@@ -545,13 +546,17 @@
       <div class="card-body">
         <div class="row">
           <div class="col-lg-6 mb-4">
-            <div class="card border-primary h-100">
-                <div class="card-header bg-primary bg-opacity-10">
+            <div class="card h-100" style="border: 2px solid var(--primary);">
+                <div class="card-header bg-primary bg-opacity-10" style="background-color: var(--primary); color: #fff;">
                   <h6 class="mb-0 text-white"><span class="material-symbols-outlined me-2 align-middle">info</span>Instructions</h6>
                 </div>
               <div class="card-body">
                 <ol class="mb-3">
                   <li class="mb-2">Download the CSV template using the button below</li>
+                    <a href="{{ url_for('admin.download_csv_template') }}" class="btn btn-outline-primary">
+                      <span class="material-symbols-outlined me-2" style="vertical-align: middle;">download</span>Download Template
+                    </a>
+
                   <li class="mb-2">Fill in student information (First Name, Last Name, Date of Birth in MM/DD/YYYY format, Class/Block)</li>
                   <li class="mb-2">Save the file as CSV format</li>
                   <li class="mb-2">Upload the completed file</li>
@@ -568,11 +573,11 @@
             </div>
           </div>
           <div class="col-lg-6 mb-4">
-            <div class="card border-success h-100">
-              <div class="card-header bg-success bg-opacity-10">
-                <h6 class="mb-0 text-success"><span class="material-symbols-outlined me-2" style="vertical-align: middle;">cloud_upload</span>Upload File</h6>
+            <div class="card h-100">
+              <div class="card-header text-muted" style="background-color: var(--secondary);border-color: var(--secondary); border-style:solid; border-width:2px;">
+                <h6 class="mb-0 text-muted"><span class="material-symbols-outlined me-2" style="vertical-align: middle;">cloud_upload</span>Upload File</h6>
               </div>
-              <div class="card-body">
+              <div class="card-body" style="border-color: var(--secondary); border-style:solid; border-width: 2px;">
                 <form action="{{ url_for('admin.upload_students') }}" method="post" enctype="multipart/form-data">
                   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                   <div class="mb-3">
@@ -586,9 +591,6 @@
                     <div class="form-text">Only .csv files are accepted</div>
                   </div>
                   <div class="d-grid gap-2">
-                    <a href="{{ url_for('admin.download_csv_template') }}" class="btn btn-outline-primary">
-                      <span class="material-symbols-outlined me-2" style="vertical-align: middle;">download</span>Download Template
-                    </a>
                     <button type="submit" class="btn btn-success btn-lg">
                       <span class="material-symbols-outlined me-2" style="vertical-align: middle;">cloud_upload</span>Upload Students
                     </button>
