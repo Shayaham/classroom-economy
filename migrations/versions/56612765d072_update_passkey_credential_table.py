@@ -25,7 +25,6 @@ def upgrade():
                existing_type=sa.VARCHAR(length=255),
                type_=sa.Text(),
                nullable=True)
-        # Index was never created, so we don't drop it
 
     with op.batch_alter_table('system_admin_credentials', schema=None) as batch_op:
         batch_op.add_column(sa.Column('sysadmin_id', sa.Integer(), nullable=False))
@@ -33,7 +32,6 @@ def upgrade():
                existing_type=sa.VARCHAR(length=255),
                type_=sa.Text(),
                nullable=True)
-        # Index was never created, so we don't drop it
         batch_op.drop_constraint(batch_op.f('system_admin_credentials_system_admin_id_fkey'), type_='foreignkey')
         batch_op.create_foreign_key(None, 'system_admins', ['sysadmin_id'], ['id'], ondelete='CASCADE')
         batch_op.drop_column('system_admin_id')
@@ -49,7 +47,6 @@ def downgrade():
         batch_op.add_column(sa.Column('system_admin_id', sa.INTEGER(), autoincrement=False, nullable=False))
         batch_op.drop_constraint(None, type_='foreignkey')
         batch_op.create_foreign_key(batch_op.f('system_admin_credentials_system_admin_id_fkey'), 'system_admins', ['system_admin_id'], ['id'], ondelete='CASCADE')
-        # Don't create index that was never in original schema
         batch_op.alter_column('credential_id',
                existing_type=sa.Text(),
                type_=sa.VARCHAR(length=255),
@@ -57,7 +54,6 @@ def downgrade():
         batch_op.drop_column('sysadmin_id')
 
     with op.batch_alter_table('admin_credentials', schema=None) as batch_op:
-        # Don't create index that was never in original schema
         batch_op.alter_column('credential_id',
                existing_type=sa.Text(),
                type_=sa.VARCHAR(length=255),
