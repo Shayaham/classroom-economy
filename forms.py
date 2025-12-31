@@ -87,7 +87,7 @@ class StoreItemForm(FlaskForm):
 class AdminSignupForm(FlaskForm):
     username = StringField('Username', validators=[DataRequired()])
     invite_code = StringField('Invite Code', validators=[DataRequired()])
-    dob_sum = StringField('Date of Birth Sum (MM+DD+YYYY)', validators=[DataRequired()])
+    dob_sum = DateField('Date of Birth', format='%Y-%m-%d', validators=[DataRequired()])
 
 class AdminTOTPConfirmForm(FlaskForm):
     totp_code = StringField('TOTP Code', validators=[DataRequired()])
@@ -97,7 +97,7 @@ class AdminTOTPConfirmForm(FlaskForm):
 
 class AdminRecoveryForm(FlaskForm):
     student_usernames = StringField('Student Usernames (comma-separated, one from each class)', validators=[DataRequired()])
-    dob_sum = StringField('Date of Birth Sum (MM+DD+YYYY)', validators=[DataRequired()])
+    dob_sum = DateField('Date of Birth', format='%Y-%m-%d', validators=[DataRequired()])
     submit = SubmitField('Verify Identity')
 
 class AdminResetCredentialsForm(FlaskForm):
@@ -120,7 +120,7 @@ class StudentClaimAccountForm(FlaskForm):
     join_code = StringField('Join Code (from your teacher)', validators=[DataRequired()])
     first_initial = StringField('First Initial (e.g., J)', validators=[DataRequired(), Length(min=1, max=1)])
     last_name = StringField('Last Name', validators=[DataRequired()])
-    dob_sum = StringField('DOB Sum (MM + DD + YYYY)', validators=[DataRequired()])
+    dob_sum = DateField('Birthday', format='%Y-%m-%d', validators=[DataRequired()])
     submit = SubmitField('Claim Account')
 
 class StudentCreateUsernameForm(FlaskForm):
@@ -220,6 +220,12 @@ class InsurancePolicyForm(FlaskForm):
         ('danger', 'Red (Danger)'),
         ('secondary', 'Gray (Secondary)'),
         ('dark', 'Dark')
+    ], validators=[Optional()])
+    tier_level = SelectField('Tier Level within Group', choices=[
+        ('', 'Select level (optional)'),
+        ('basic', 'Basic'),
+        ('mid', 'Mid-tier'),
+        ('premium', 'Premium')
     ], validators=[Optional()])
 
     # Settings mode
@@ -347,7 +353,7 @@ class StudentAddClassForm(FlaskForm):
     join_code = StringField('Join Code (from your teacher)', validators=[DataRequired()])
     first_initial = StringField('First Initial (e.g., J)', validators=[DataRequired(), Length(min=1, max=1)])
     last_name = StringField('Last Name', validators=[DataRequired()])
-    dob_sum = StringField('DOB Sum (MM + DD + YYYY)', validators=[DataRequired()])
+    dob_sum = DateField('Date of Birth', format='%Y-%m-%d', validators=[DataRequired()])
     submit = SubmitField('Add Class')
 
 
@@ -365,3 +371,81 @@ class StudentCompleteProfileForm(FlaskForm):
     dob_day = StringField('Day (1-31)', validators=[DataRequired(), Length(min=1, max=2)])
     dob_year = StringField('Year (4 digits)', validators=[DataRequired(), Length(min=4, max=4)])
     submit = SubmitField('Complete Profile')
+
+
+# -------------------- ANNOUNCEMENT FORMS --------------------
+class AnnouncementForm(FlaskForm):
+    """Form for creating and editing teacher class announcements."""
+    periods = SelectMultipleField('Post to Class Periods', choices=[], validators=[DataRequired()])
+    title = StringField('Announcement Title', validators=[DataRequired(), Length(min=1, max=200)])
+    message = TextAreaField('Message', validators=[DataRequired()])
+    priority = SelectField('Priority', choices=[
+        ('low', 'Low - General Information'),
+        ('normal', 'Normal - Standard Announcement'),
+        ('high', 'High - Important Notice'),
+        ('urgent', 'Urgent - Critical Alert')
+    ], default='normal', validators=[DataRequired()])
+    is_active = BooleanField('Display to Students', default=True)
+    expires_at = DateField('Expiration Date (optional)', format='%Y-%m-%d', validators=[Optional()])
+    submit = SubmitField('Save Announcement')
+
+
+class SystemAdminAnnouncementForm(FlaskForm):
+    """Form for creating system-wide announcements."""
+    audience_type = SelectField('Audience', choices=[
+        ('system_wide', 'Everyone (System-Wide)'),
+        ('all_students', 'All Students'),
+        ('all_teachers', 'All Teachers'),
+        ('teacher_all_classes', 'All Classes of Specific Teacher')
+    ], validators=[DataRequired()])
+
+    # Custom coerce function to handle empty string (when "-- Select Teacher --" is chosen)
+    @staticmethod
+    def _coerce_teacher_id(value):
+        """Coerce teacher ID, treating empty string as None."""
+        if value == '' or value is None:
+            return None
+        return int(value)
+
+    target_teacher = SelectField('Target Teacher', choices=[], validators=[Optional()], coerce=_coerce_teacher_id)
+    title = StringField('Announcement Title', validators=[DataRequired(), Length(min=1, max=200)])
+    message = TextAreaField('Message', validators=[DataRequired()])
+    priority = SelectField('Priority', choices=[
+        ('low', 'Low - General Information'),
+        ('normal', 'Normal - Standard Announcement'),
+        ('high', 'High - Important Notice'),
+        ('urgent', 'Urgent - Critical Alert')
+    ], default='normal', validators=[DataRequired()])
+    is_active = BooleanField('Display Immediately', default=True)
+    expires_at = DateField('Expiration Date (optional)', format='%Y-%m-%d', validators=[Optional()])
+    submit = SubmitField('Post Announcement')
+
+
+# ---- Issue Resolution Forms ----
+
+class StudentIssueSubmissionForm(FlaskForm):
+    """Form for students to submit general (non-transaction) issues."""
+    category_id = SelectField('Issue Type', coerce=int, validators=[DataRequired(message="Please select an issue type.")])
+    explanation = TextAreaField('What happened?', validators=[
+        DataRequired(message="Please describe what happened."),
+        Length(max=1000, message="Description must be 1000 characters or less.")
+    ])
+    expected_outcome = TextAreaField('What did you expect to happen?', validators=[
+        Optional(),
+        Length(max=500, message="Expected outcome must be 500 characters or less.")
+    ])
+    submit = SubmitField('Submit Issue')
+
+
+class TransactionIssueSubmissionForm(FlaskForm):
+    """Form for students to report transaction-specific issues."""
+    category_id = SelectField('Issue Type', coerce=int, validators=[DataRequired(message="Please select an issue type.")])
+    explanation = TextAreaField('What\'s wrong with this transaction?', validators=[
+        DataRequired(message="Please explain the issue."),
+        Length(max=1000, message="Explanation must be 1000 characters or less.")
+    ])
+    expected_outcome = TextAreaField('What should it be instead?', validators=[
+        Optional(),
+        Length(max=500, message="Expected outcome must be 500 characters or less.")
+    ])
+    submit = SubmitField('Submit Issue')

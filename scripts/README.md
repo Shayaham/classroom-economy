@@ -2,6 +2,33 @@
 
 This directory contains utility scripts for development, operations, and maintenance of the Classroom Token Hub application.
 
+## Account & Admin Utilities
+
+#### `create_admin.py`
+Creates teacher or system admin accounts.
+
+**Usage:**
+```bash
+python scripts/create_admin.py admin <username>
+python scripts/create_admin.py sysadmin <username>
+```
+
+#### `manage_invites.py`
+Create, list, or expire admin invite codes.
+
+**Usage:**
+```bash
+python scripts/manage_invites.py --help
+```
+
+#### `cleanup_invite_codes.py`
+Normalizes existing invite codes by trimming whitespace.
+
+**Usage:**
+```bash
+python scripts/cleanup_invite_codes.py
+```
+
 ## Operational Scripts
 
 ### Firewall Management
@@ -61,8 +88,29 @@ python scripts/cleanup_duplicates_flask.py --delete  # Remove duplicates
 #### `cleanup_duplicates.py`
 Legacy cleanup script (simpler version). Use `cleanup_duplicates_flask.py` for production as it properly handles data migration.
 
+#### `comprehensive_legacy_migration.py` ⭐ **RECOMMENDED**
+Complete, all-in-one migration of legacy accounts to the new multi-tenancy system. This is the **recommended approach** for migrating production databases.
+
+**What it does:**
+- Migrates legacy students (creates StudentTeacher + TeacherBlock entries)
+- Backfills join_codes for all TeacherBlock entries
+- Backfills join_codes for transactions, tap events, and related tables
+- Provides comprehensive verification and error reporting
+- Supports dry-run mode for safe preview before applying changes
+
+**Usage:**
+```bash
+# Preview changes (recommended first)
+python scripts/comprehensive_legacy_migration.py --dry-run
+
+# Run migration
+python scripts/comprehensive_legacy_migration.py
+```
+
+**Documentation:** [Legacy Account Migration Guide](../docs/operations/LEGACY_ACCOUNT_MIGRATION.md)
+
 #### `migrate_legacy_students.py`
-Migrates legacy students (pre-join-code system) to use proper `StudentTeacher` associations and `TeacherBlock` entries.
+Migrates legacy students (pre-join-code system) to use proper `StudentTeacher` associations and `TeacherBlock` entries. **Note:** For production use, consider using `comprehensive_legacy_migration.py` instead.
 
 **Usage:**
 ```bash
@@ -72,11 +120,19 @@ python scripts/migrate_legacy_students.py
 **Note:** Also available as Flask CLI command: `flask migrate-legacy-students`
 
 #### `backfill_join_codes.py`
-Backfills join codes for teacher-block combinations that are missing them.
+Backfills join codes for teacher-block combinations that are missing them. **Note:** For production use, consider using `comprehensive_legacy_migration.py` instead.
 
 **Usage:**
 ```bash
 python scripts/backfill_join_codes.py
+```
+
+#### `fix_missing_student_teacher_associations.py`
+Creates StudentTeacher records for students missing them. **Note:** For production use, consider using `comprehensive_legacy_migration.py` instead.
+
+**Usage:**
+```bash
+python scripts/fix_missing_student_teacher_associations.py
 ```
 
 ---
@@ -99,6 +155,14 @@ Finds insurance policies with NULL teacher_id that won't show up in any teacher'
 python scripts/check_orphaned_insurance.py
 ```
 
+#### `prompt_insurance_tier_upgrade.py`
+Flags teachers who still have legacy insurance policies so they see a one-time dashboard prompt to migrate to the new tiered design.
+
+**Usage:**
+```bash
+python scripts/prompt_insurance_tier_upgrade.py
+```
+
 #### `debug_student_state.py`
 Diagnostic script to inspect student and TeacherBlock state in the database.
 
@@ -110,6 +174,46 @@ python scripts/debug_student_state.py
 ---
 
 ## Development Scripts
+
+### `setup_jules.sh`
+Bootstrap helper for local development environments.
+
+**Usage:**
+```bash
+bash scripts/setup_jules.sh
+```
+
+### `seed_dummy_students.py`
+Seeds the database with sample students for development and demos.
+
+**Usage:**
+```bash
+python scripts/seed_dummy_students.py
+```
+
+### `check_syntax.py`
+Validates Python syntax across migration files.
+
+**Usage:**
+```bash
+python scripts/check_syntax.py
+```
+
+### `generate_revision_id.py`
+Generates a unique Alembic-style migration revision ID.
+
+**Usage:**
+```bash
+python scripts/generate_revision_id.py
+```
+
+### `add_join_code_column.py`
+SQLite-only helper to add `join_code` to `student_blocks`.
+
+**Usage:**
+```bash
+python scripts/add_join_code_column.py
+```
 
 ### `setup-hooks.sh`
 Installs git hooks for migration safety checks. **Run this after cloning the repository!**
@@ -180,9 +284,9 @@ When adding new scripts to this directory:
 ## Related Documentation
 
 - **[Operations Guides](../docs/operations/)** - Operational procedures using these scripts
-- **[Contributing Guide](../CONTRIBUTING.md)** - Development workflow and git hooks
+- **[Contributing Guide](../.github/CONTRIBUTING.md)** - Development workflow and git hooks
 - **[Deployment Guide](../docs/DEPLOYMENT.md)** - Production deployment procedures
 
 ---
 
-**Last Updated:** 2025-11-28
+**Last Updated:** 2025-12-19

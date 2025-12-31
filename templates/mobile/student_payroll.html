@@ -39,14 +39,14 @@
                 <div class="list-group-item d-flex justify-content-between">
                     <div>
                         {% if event.status == 'active' %}
-                            <span class="badge bg-success">Tap In</span>
+                            <span class="badge bg-success">Start Work</span>
                         {% else %}
-                            <span class="badge bg-danger">Tap Out</span>
+                            <span class="badge bg-danger">Break / Done</span>
                         {% endif %}
                     </div>
                     <small class="text-muted">
                         {% if event.timestamp %}
-                            <span class="local-timestamp" data-timestamp="{{ event.timestamp.isoformat() }}Z"></span>
+                            <span class="local-timestamp" data-timestamp="{{ format_utc_iso(event.timestamp) }}"></span>
                         {% else %}
                             N/A
                         {% endif %}

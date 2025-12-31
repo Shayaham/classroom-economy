@@ -1,12 +1,13 @@
 :root {
     --primary: #1a4d47;
     --primary-hover: #2a5d57;
-    --secondary: #d4a574;
+    --secondary: #D3AF37;
     --secondary-hover: #c49564;
     --background: #f5f5f3;
     --surface: #fafaf8;
     --text-primary: #2c2c2c;
     --text-secondary: #6c757d;
+    --text-secondary-contrast: #b38650;
     --border-color: #e5e5e3;
     --sidebar-width: 260px;
     --radius-sm: 8px;
@@ -21,17 +22,21 @@
 body.student-shell,
 body.student-theme {
     --primary: #2F4F7F;
-    --primary-hover: #3F5F8F;
-    --secondary: #E89B6D;
+    --primary-hover: #202b3b;
+    --primary-hover-home-icon-bill: #ffd900;
+    --primary-hover-home-icon-store: #00ffbf;
+    --primary-hover-home-icon-stock: #ff6c7d;
+    --secondary: #ac8255;
     --secondary-hover: #D88B5D;
-    --background: #F4F6F9;
+    --background: #f5f5f3;
     --surface: #FFFFFF;
     --text-primary: #2c2c2c;
     --text-secondary: #6c757d;
+    --text-secondary-contrast: #b38650;
     --border-color: #DDE2E8;
     --success: #4A8B6C;
     --info: #5B8DBE;
-    --warning: #E8A756;
+    --warning: #c9970f;
     --danger: #D97070;
 }
 
@@ -61,7 +66,9 @@ a:hover {
 
 /* Utilities */
 .text-primary { color: var(--primary) !important; }
-.text-secondary { color: var(--secondary) !important; }
+/* Override text-secondary to use a darker shade for better contrast on light backgrounds */
+/* Using a darkened version of gold/orange for text */
+.text-secondary { color: var(--text-secondary-contrast) !important; }
 .bg-primary { background-color: var(--primary) !important; }
 .bg-secondary { background-color: var(--secondary) !important; }
 .bg-background { background-color: var(--background) !important; }
@@ -130,18 +137,23 @@ a:hover {
     color: var(--primary);
 }
 
+.dashboard-greeting {
+    font-size: 2rem;
+}
+
+.dashboard-greeting-info {
+    border-radius: 1rem;
+    padding: 3px;
+    background-color: var(--primary);
+    color: white;
+}
+
 /* Cards */
 .card {
     background: var(--surface);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-md);
     box-shadow: var(--shadow-sm);
-    transition: transform 0.2s, box-shadow 0.2s;
-}
-
-.card-hover:hover {
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-md);
 }
 
 .card-header {
@@ -153,25 +165,23 @@ a:hover {
 }
 
 /* Ensure readable header text on dark backgrounds */
-.card-header[class*="bg-"]:not(.bg-light):not(.bg-white):not(.bg-primary-subtle):not(.bg-success-subtle):not(.bg-info-subtle):not(.bg-warning-subtle):not(.bg-danger-subtle):not(.bg-secondary-subtle):not(.bg-dark-subtle) {
+.card-header:is([class*="bg-"]:not(.bg-light):not(.bg-white):not(.bg-warning):not(.bg-primary-subtle):not(.bg-success-subtle):not(.bg-info-subtle):not(.bg-warning-subtle):not(.bg-danger-subtle):not(.bg-secondary-subtle):not(.bg-dark-subtle)) {
     color: #ffffff;
 }
-.card-header[class*="bg-"]:not(.bg-light):not(.bg-white):not(.bg-primary-subtle):not(.bg-success-subtle):not(.bg-info-subtle):not(.bg-warning-subtle):not(.bg-danger-subtle):not(.bg-secondary-subtle):not(.bg-dark-subtle) h1,
-.card-header[class*="bg-"]:not(.bg-light):not(.bg-white):not(.bg-primary-subtle):not(.bg-success-subtle):not(.bg-info-subtle):not(.bg-warning-subtle):not(.bg-danger-subtle):not(.bg-secondary-subtle):not(.bg-dark-subtle) h2,
-.card-header[class*="bg-"]:not(.bg-light):not(.bg-white):not(.bg-primary-subtle):not(.bg-success-subtle):not(.bg-info-subtle):not(.bg-warning-subtle):not(.bg-danger-subtle):not(.bg-secondary-subtle):not(.bg-dark-subtle) h3,
-.card-header[class*="bg-"]:not(.bg-light):not(.bg-white):not(.bg-primary-subtle):not(.bg-success-subtle):not(.bg-info-subtle):not(.bg-warning-subtle):not(.bg-danger-subtle):not(.bg-secondary-subtle):not(.bg-dark-subtle) h4,
-.card-header[class*="bg-"]:not(.bg-light):not(.bg-white):not(.bg-primary-subtle):not(.bg-success-subtle):not(.bg-info-subtle):not(.bg-warning-subtle):not(.bg-danger-subtle):not(.bg-secondary-subtle):not(.bg-dark-subtle) h5,
-.card-header[class*="bg-"]:not(.bg-light):not(.bg-white):not(.bg-primary-subtle):not(.bg-success-subtle):not(.bg-info-subtle):not(.bg-warning-subtle):not(.bg-danger-subtle):not(.bg-secondary-subtle):not(.bg-dark-subtle) h6,
-.card-header[class*="bg-"]:not(.bg-light):not(.bg-white):not(.bg-primary-subtle):not(.bg-success-subtle):not(.bg-info-subtle):not(.bg-warning-subtle):not(.bg-danger-subtle):not(.bg-secondary-subtle):not(.bg-dark-subtle) .card-title,
-.card-header[class*="bg-"]:not(.bg-light):not(.bg-white):not(.bg-primary-subtle):not(.bg-success-subtle):not(.bg-info-subtle):not(.bg-warning-subtle):not(.bg-danger-subtle):not(.bg-secondary-subtle):not(.bg-dark-subtle) .fw-bold {
-    color: #ffffff;
+.card-header:is([class*="bg-"]:not(.bg-light):not(.bg-white):not(.bg-warning):not(.bg-primary-subtle):not(.bg-success-subtle):not(.bg-info-subtle):not(.bg-warning-subtle):not(.bg-danger-subtle):not(.bg-secondary-subtle):not(.bg-dark-subtle)) :is(h1, h2, h3, h4, h5, h6, .card-title, .fw-bold) {
+    color: inherit;
+}
+
+.bill-icon {
+    vertical-align: middle;
+    font-size: 26pt;
 }
 
 /* Student Layout */
 :root {
     --student-sidebar-width: 260px;
-    --student-sidebar-bg: #1a4d47;
-    --student-sidebar-accent: #d4a574;
+    --student-sidebar-bg: #2F4F7F;
+    --student-sidebar-accent: #c9dfff;
 }
 
 .student-shell {
@@ -202,6 +212,11 @@ a:hover {
     font-weight: 700;
     font-size: 1.1rem;
     text-decoration: none;
+}
+
+.student-brand:hover {
+    text-decoration: none;
+    color: #ffffff;
 }
 
 .student-identity {
@@ -296,6 +311,25 @@ a:hover {
     color: #fff;
 }
 
+.student-brand .student-home-icon-bill,
+.student-brand .student-home-icon-store,
+.student-brand .student-home-icon-stock {
+    color: #ffffff;
+    transition: color 0.2s ease;
+}
+
+.student-brand:hover .student-home-icon-bill {
+    color: var(--primary-hover-home-icon-bill);
+}
+.student-brand:hover .student-home-icon-store {
+    color: var(--primary-hover-home-icon-store);
+}
+.student-brand:hover .student-home-icon-stock {
+    color: var(--primary-hover-home-icon-stock);
+}
+
+/* Responsive */
+
 @media (max-width: 991.98px) {
     .student-sidebar {
         position: fixed;
@@ -324,8 +358,9 @@ a:hover {
 }
 
 .form-control:focus, .form-select:focus {
-    border-color: var(--secondary);
-    box-shadow: 0 0 0 3px rgba(246, 195, 68, 0.15);
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(26, 77, 71, 0.25);
+    outline: none;
 }
 
 /* Admin Sidebar */
@@ -387,6 +422,49 @@ a:hover {
     margin: 1.5rem 0 0.5rem 1rem;
 }
 
+/* Accordion Navigation Styles */
+.nav-accordion-btn {
+    background-color: transparent;
+    color: rgba(255, 255, 255, 0.8);
+    border: none;
+    padding: 0.75rem 1rem;
+    font-weight: 500;
+    border-radius: var(--radius-sm);
+    transition: all 0.2s;
+    box-shadow: none;
+}
+
+.nav-accordion-btn:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+    color: white;
+}
+
+.nav-accordion-btn:not(.collapsed) {
+    background-color: rgba(255, 255, 255, 0.15);
+    color: white;
+    box-shadow: none;
+}
+
+.nav-accordion-btn:focus {
+    box-shadow: none;
+    border: none;
+}
+
+.nav-accordion-btn::after {
+    filter: brightness(0) invert(1);
+    opacity: 0.8;
+}
+
+.nav-sub-link {
+    padding-left: 3rem !important;
+    font-size: 0.9rem;
+}
+
+.accordion-body {
+    padding-top: 0.25rem;
+    padding-bottom: 0.25rem;
+}
+
 .main-content {
     margin-left: var(--sidebar-width);
     padding: 2rem;
@@ -407,7 +485,7 @@ a:hover {
 
 /* Student Dashboard Specifics */
 .balance-card {
-    background: linear-gradient(135deg, var(--primary), #004d46);
+    background: linear-gradient(135deg, var(--primary), var(--primary-hover));
     color: white;
     border-radius: var(--radius-lg);
     padding: 2rem;
@@ -668,8 +746,117 @@ body.maintenance-active .main-content {
     gap: 0.4rem;
 }
 
+/* Accessibility: Skip Link */
+.skip-link {
+    position: absolute;
+    top: -9999px;
+    left: 1rem;
+    background: var(--primary);
+    color: white !important;
+    padding: 1rem;
+    z-index: 9999;
+    border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+    text-decoration: none;
+    font-weight: 600;
+    transition: top 0.2s ease;
+}
+
+.skip-link:focus {
+    top: 0;
+    outline: 3px solid var(--secondary);
+}
+
 @media (min-width: 768px) {
     .hall-pass-page {
         padding: 3rem 2rem;
     }
+}
+
+/* PWA Mobile Viewport Fix - prevents horizontal scroll when desktop template is served on mobile */
+@media (max-width: 767.98px) {
+    html, body {
+        width: 100%;
+        max-width: 100%;
+        overflow-x: hidden;
+    }
+
+    /* Hide desktop sidebar on mobile to prevent horizontal overflow */
+    .sidebar,
+    .student-sidebar {
+        display: none !important;
+    }
+
+    /* Reset main content to fill screen without sidebar margin */
+    .main-content,
+    .student-main {
+        margin-left: 0 !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        padding: 1rem !important;
+    }
+
+    /* Ensure page header doesn't overflow */
+    .page-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .page-header-actions {
+        width: 100%;
+        justify-content: flex-start;
+        margin-top: 0.5rem;
+    }
+
+    /* Ensure tables scroll horizontally within their container */
+    .table-responsive {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    /* Add padding at bottom for mobile nav */
+    body {
+        padding-bottom: 70px;
+    }
+}
+
+/* Mobile Bottom Navigation for desktop templates on mobile screens */
+.mobile-bottom-nav {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: #ffffff;
+    display: flex;
+    justify-content: space-around;
+    padding: 0.5rem 0;
+    box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
+    z-index: 1000;
+    border-top: 1px solid #e5e5e3;
+}
+
+.mobile-bottom-nav a {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-decoration: none;
+    color: #6c757d;
+    font-size: 0.7rem;
+    padding: 0.25rem 0.5rem;
+    flex: 1;
+    text-align: center;
+}
+
+.mobile-bottom-nav a i {
+    font-size: 1.25rem;
+    margin-bottom: 0.15rem;
+}
+
+.mobile-bottom-nav a.active {
+    color: var(--primary, #1a4d47);
+    font-weight: 600;
+}
+
+.mobile-bottom-nav a:hover {
+    color: var(--primary, #1a4d47);
 }

@@ -13,7 +13,6 @@ from calendar import monthrange
 from datetime import datetime, timedelta, timezone
 
 from flask import Blueprint, redirect, url_for, flash, request, session, jsonify, current_app
-from urllib.parse import urlparse
 from sqlalchemy import or_, func, select, and_
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -32,18 +31,7 @@ from forms import (
 )
 
 # Import utility functions
-from app.utils.helpers import generate_anonymous_code, render_template_with_fallback as render_template
-
-def _is_safe_url(target):
-    """Return True if the URL is a relative path without scheme or netloc (prevents open redirects)."""
-    from urllib.parse import urlparse
-    if not target:
-        return False
-    # Remove backslashes (which browsers may tolerate as slashes)
-    target = target.replace('\\', '')
-    parsed = urlparse(target)
-    # Check that both netloc and scheme are empty (relative URL/path only)
-    return not parsed.netloc and not parsed.scheme
+from app.utils.helpers import generate_anonymous_code, is_safe_url, format_utc_iso, render_template_with_fallback as render_template
 from app.utils.constants import THEME_PROMPTS
 from app.utils.turnstile import verify_turnstile_token
 from app.utils.demo_sessions import cleanup_demo_student_data
@@ -466,13 +454,16 @@ def claim_account():
         join_code = format_join_code(form.join_code.data)
         first_initial = form.first_initial.data.strip().upper()
         last_name = form.last_name.data.strip()
-        dob_sum_str = form.dob_sum.data.strip()
+        dob_input = form.dob_sum.data
 
-        if not dob_sum_str.isdigit():
-            flash("DOB sum must be a number.", "claim")
+        try:
+            if isinstance(dob_input, str):
+                dob_input = dob_input.strip()
+                dob_input = datetime.strptime(dob_input, "%Y-%m-%d").date()
+            dob_sum = dob_input.month + dob_input.day + dob_input.year
+        except (ValueError, AttributeError, TypeError):
+            flash("Please enter a valid birth date.", "claim")
             return redirect(url_for('student.claim_account'))
-
-        dob_sum = int(dob_sum_str)
 
         # Find all unclaimed seats with this join code
         unclaimed_seats = TeacherBlock.query.filter_by(
@@ -718,19 +709,34 @@ def add_class():
 
     def _is_safe_url(target):
         """
-        Returns True if the target is a local URL (preventing open redirect).
+        Returns True if the target is a same-origin URL (preventing open redirect).
+
+        Uses same-origin validation to ensure redirect targets are internal to this
+        application. This prevents open redirect vulnerabilities where attackers could
+        redirect users to malicious external sites.
+
+        Args:
+            target: The URL to validate
+
+        Returns:
+            bool: True if the URL is safe (same origin), False otherwise
         """
-        from urllib.parse import urlparse
+        from urllib.parse import urlparse, urljoin
+
         if not target:
             return False
+
+        # Normalize backslashes to prevent Windows path tricks
         target = target.replace("\\", "")
-        parsed = urlparse(target)
-        # Only allow relative URLs with no scheme and no netloc, nor starting with double slashes
-        if parsed.scheme or parsed.netloc:
-            return False
-        if target.startswith('//'):  # Prevent protocol-relative URLs
-            return False
-        return True
+
+        # Resolve relative URLs against the current application's base URL
+        # This converts relative paths like "dashboard" to full URLs
+        target_url = urlparse(urljoin(request.host_url, target))
+        ref_url = urlparse(request.host_url)
+
+        # Only allow same-origin URLs (same scheme and domain)
+        # This prevents redirects to external sites or protocol-relative URLs
+        return target_url.scheme == ref_url.scheme and target_url.netloc == ref_url.netloc
 
     def _get_return_target(default_endpoint='student.dashboard'):
         """
@@ -757,28 +763,31 @@ def add_class():
         join_code = format_join_code(form.join_code.data)
         first_initial = form.first_initial.data.strip().upper()
         last_name = form.last_name.data.strip()
-        dob_sum_str = form.dob_sum.data.strip()
+        dob_input = form.dob_sum.data
 
-        # Validate DOB sum is numeric
-        if not dob_sum_str.isdigit():
-            flash("DOB sum must be a number.", "danger")
-            return redirect(_get_return_target())
-
-        dob_sum = int(dob_sum_str)
+        # Parse DOB and calculate sum
+        try:
+            if isinstance(dob_input, str):
+                dob_input = dob_input.strip()
+                dob_input = datetime.strptime(dob_input, "%Y-%m-%d").date()
+            dob_sum = dob_input.month + dob_input.day + dob_input.year
+        except (ValueError, AttributeError, TypeError):
+            flash("Invalid date of birth. Please enter a valid date.", "danger")
+            return redirect(_get_return_target())  # nosec # Safe: validated by _is_safe_url() with same-origin check
 
         # Verify the credentials match the logged-in student
         if first_initial != student.first_name[:1].upper():
             flash("The first initial doesn't match your account. Please check and try again.", "danger")
-            return redirect(_get_return_target())
+            return redirect(_get_return_target())  # nosec # Safe: validated by _is_safe_url() with same-origin check
 
         if dob_sum != student.dob_sum:
             flash("The DOB sum doesn't match your account. Please check and try again.", "danger")
-            return redirect(_get_return_target())
+            return redirect(_get_return_target())  # nosec # Safe: validated by _is_safe_url() with same-origin check
 
         # Verify last name matches using the same fuzzy matching logic
         if not verify_last_name_parts(last_name, student.last_name_hash_by_part, student.salt):
             flash("The last name doesn't match your account. Please check and try again.", "danger")
-            return redirect(_get_return_target())
+            return redirect(_get_return_target())  # nosec # Safe: validated by _is_safe_url() with same-origin check
 
         # Find all unclaimed seats with this join code
         unclaimed_seats = TeacherBlock.query.filter_by(
@@ -788,7 +797,7 @@ def add_class():
 
         if not unclaimed_seats:
             flash("Invalid join code or all seats already claimed. Check with your teacher.", "danger")
-            return redirect(_get_return_target())
+            return redirect(_get_return_target())  # nosec # Safe: validated by _is_safe_url() with same-origin check
 
         # Try to find a matching seat for this student
         matched_seat = None
@@ -819,7 +828,7 @@ def add_class():
 
         if not matched_seat:
             flash("No matching seat found for your account. Please verify your join code and credentials.", "danger")
-            return redirect(_get_return_target())
+            return redirect(_get_return_target())  # nosec # Safe: validated by _is_safe_url() with same-origin check
 
         # Check if student is already linked to this teacher
         existing_link = StudentTeacher.query.filter_by(
@@ -829,7 +838,7 @@ def add_class():
 
         if existing_link:
             flash("You are already enrolled in this teacher's class.", "warning")
-            return redirect(_get_return_target())
+            return redirect(_get_return_target())  # nosec # Safe: validated by _is_safe_url() with same-origin check
 
         # Normalize claim hash to canonical pattern
         canonical_claim_hash = compute_primary_claim_hash(first_initial, dob_sum, matched_seat.salt)
@@ -860,12 +869,12 @@ def add_class():
         try:
             db.session.commit()
             flash(f"Successfully added to Block {new_block}! You can now access this class from your dashboard.", "success")
-            return redirect(_get_return_target())
+            return redirect(_get_return_target())  # nosec # Safe: validated by _is_safe_url() with same-origin check
         except Exception as e:
             db.session.rollback()
             current_app.logger.error(f"Error adding class for student {student.id}: {str(e)}")
             flash("An error occurred while adding the class. Please try again or contact your teacher.", "danger")
-            return redirect(_get_return_target())
+            return redirect(_get_return_target())  # nosec # Safe: validated by _is_safe_url() with same-origin check
 
     return render_template('student_add_class.html', form=form)
 
@@ -1129,6 +1138,29 @@ def dashboard():
         if tx.amount < 0 and _occurred_after(tx.timestamp, month_start) and not tx.is_void
     ))
 
+    # Get active announcements for this student
+    # Include: class-specific, system-wide, all students, and teacher's all classes
+    from app.models import Announcement
+    from sqlalchemy import or_
+
+    announcements = Announcement.query.filter(
+        Announcement.is_active.is_(True),
+        or_(
+            Announcement.expires_at.is_(None),
+            Announcement.expires_at > datetime.now(timezone.utc)
+        ),
+        or_(
+            # Class-specific announcements
+            Announcement.join_code == join_code,
+            # System-wide announcements
+            Announcement.audience_type == 'system_wide',
+            # All students announcements
+            Announcement.audience_type == 'all_students',
+            # Teacher's all classes announcements
+            (Announcement.audience_type == 'teacher_all_classes') & (Announcement.target_teacher_id == teacher_id)
+        )
+    ).order_by(Announcement.created_at.desc()).all()
+
     return render_template(
         'student_dashboard.html',
         student=student,
@@ -1162,6 +1194,7 @@ def dashboard():
         earnings_this_month=round(earnings_this_month, 2),
         spending_this_week=round(spending_this_week, 2),
         spending_this_month=round(spending_this_month, 2),
+        announcements=announcements,
     )
 
 
@@ -1215,7 +1248,7 @@ def payroll():
     tap_events_by_block = {}
     for event in all_tap_events:
         # Normalize to the action labels used by the template
-        event.action = 'tap_in' if event.status == 'active' else 'tap_out'
+        event.action = 'start_work' if event.status == 'active' else 'stop_work'
         if event.period not in tap_events_by_block:
             tap_events_by_block[event.period] = []
         tap_events_by_block[event.period].append(event)
@@ -2620,19 +2653,13 @@ def login():
         username = form.username.data.strip()
         pin = form.pin.data.strip()
         
-        current_app.logger.info(f"🔍 LOGIN ATTEMPT - Username: {username}, PIN length: {len(pin)}")
-        
+        # Lookup student by username
         lookup_hash = hash_username_lookup(username)
         student = Student.query.filter_by(username_lookup_hash=lookup_hash).first()
-
-        current_app.logger.info(f"🔍 Lookup hash: {lookup_hash[:16]}... | Student found: {student is not None}")
-        if student:
-            current_app.logger.info(f"🔍 Student ID: {student.id} | Has PIN hash: {student.pin_hash is not None}")
 
         try:
             # Fallback for legacy accounts without deterministic lookup hashes
             if not student:
-                current_app.logger.info(f"🔍 No student found via lookup_hash, trying legacy fallback...")
                 legacy_students_missing_lookup_hash = Student.query.filter(
                     Student.username_lookup_hash.is_(None),
                     Student.username_hash.isnot(None),
@@ -2644,17 +2671,14 @@ def login():
                         candidate_hash = hash_username(username, s.salt)
                         if candidate_hash == s.username_hash:
                             student = s
-                            current_app.logger.info(f"🔍 Found via legacy lookup! Student ID: {s.id}")
                             break
 
             # Validate PIN
             pin_valid = False
             if student:
                 pin_valid = check_password_hash(student.pin_hash or '', pin)
-                current_app.logger.info(f"🔍 PIN check result: {pin_valid}")
-            
+
             if not student or not pin_valid:
-                current_app.logger.warning(f"❌ LOGIN FAILED - Student found: {student is not None}, PIN valid: {pin_valid if student else 'N/A'}")
                 if is_json:
                     return jsonify(status="error", message="Invalid credentials"), 401
                 flash("Invalid credentials", "error")
@@ -2663,17 +2687,14 @@ def login():
             if not student.username_lookup_hash:
                 student.username_lookup_hash = lookup_hash
                 db.session.commit()
-                current_app.logger.info(f"✅ Updated username_lookup_hash for student {student.id}")
-                
+
         except Exception as e:
             db.session.rollback()
-            current_app.logger.error(f"Error during student login authentication: {str(e)}")
+            current_app.logger.error("Error during student login authentication")
             if is_json:
                 return jsonify(status="error", message="An error occurred during login. Please try again."), 500
             flash("An error occurred during login. Please try again.", "error")
             return redirect(url_for('student.login'))
-
-        current_app.logger.info(f"✅ LOGIN SUCCESS - Student {student.id} ({username})")
 
         # --- Set session timeout ---
         # Clear old student-specific session keys without wiping the CSRF token
@@ -2696,7 +2717,7 @@ def login():
             return jsonify(status="success", message="Login successful")
 
         next_url = request.args.get('next')
-        if not _is_safe_url(next_url):
+        if not is_safe_url(next_url):
             return redirect(url_for('student.dashboard'))
         return redirect(next_url or url_for('student.dashboard'))
 
@@ -2902,68 +2923,201 @@ def setup_complete():
     return render_template('student_setup_complete.html', student_name=student.first_name)
 
 
-# -------------------- HELP AND SUPPORT --------------------
+# -------------------- HELP AND SUPPORT - ISSUE RESOLUTION SYSTEM --------------------
 
-@student_bp.route('/help-support', methods=['GET', 'POST'])
+@student_bp.route('/help-support', methods=['GET'])
 @login_required
 def help_support():
-    """Help and Support page with bug reporting, suggestions, and documentation."""
+    """
+    Help and Support page with issue resolution system.
+    Shows knowledge base and student's submitted issues.
+    """
+    from app.models import Issue
+    from app.utils.issue_categories import init_default_categories
+
     student = get_logged_in_student()
+    class_context = get_current_class_context()
 
-    if request.method == 'POST':
-        # Handle bug report submission
-        report_type = request.form.get('report_type', 'bug')
-        error_code = request.form.get('error_code', '')
-        title = request.form.get('title', '').strip()
-        description = request.form.get('description', '').strip()
-        steps_to_reproduce = request.form.get('steps_to_reproduce', '').strip()
-        expected_behavior = request.form.get('expected_behavior', '').strip()
-        page_url = request.form.get('page_url', '').strip()
+    if not class_context:
+        flash("Please select a class first.", "warning")
+        return redirect(url_for('student.dashboard'))
 
-        # Validation
-        if not title or not description:
-            flash("Please provide both a title and description for your report.", "error")
-            return redirect(url_for('student.help_support'))
+    # Initialize default categories if they don't exist
+    init_default_categories()
 
-        # Generate anonymous code derived from a secret to prevent reversal by admins
-        anonymous_code = generate_anonymous_code(f"student:{student.id}")
+    # Get student's issues for current class (last 20)
+    my_issues = Issue.query.filter_by(
+        student_id=student.id,
+        join_code=class_context['join_code']
+    ).order_by(Issue.submitted_at.desc()).limit(20).all()
 
-        # Create report
-        try:
-            report = UserReport(
-                anonymous_code=anonymous_code,
-                user_type='student',
-                report_type=report_type,
-                error_code=error_code if error_code else None,
-                title=title,
-                description=description,
-                steps_to_reproduce=steps_to_reproduce if steps_to_reproduce else None,
-                expected_behavior=expected_behavior if expected_behavior else None,
-                page_url=page_url if page_url else None,
-                ip_address=get_real_ip(),
-                user_agent=request.headers.get('User-Agent'),
-                _student_id=student.id,  # Hidden from sysadmin, used only for rewards
-                status='new'
-            )
-            db.session.add(report)
-            db.session.commit()
-
-            flash("Thank you for your report! If it's a legitimate bug, you may receive a reward.", "success")
-            return redirect(url_for('student.help_support'))
-        except Exception as e:
-            db.session.rollback()
-            current_app.logger.error(f"Error submitting report: {str(e)}")
-            flash("An error occurred while submitting your report. Please try again.", "error")
-            return redirect(url_for('student.help_support'))
-
-    # Get student's previous reports (last 10)
-    my_reports = UserReport.query.filter_by(_student_id=student.id).order_by(UserReport.submitted_at.desc()).limit(10).all()
-
-    return render_template('student_help_support.html',
+    return render_template('student_help_support_new.html',
                          current_page='help',
                          page_title='Help & Support',
-                         my_reports=my_reports,
-                         help_content=HELP_ARTICLES['student'])
+                         my_issues=my_issues,
+                         help_content=HELP_ARTICLES['student'],
+                         format_utc_iso=format_utc_iso)
+
+
+@student_bp.route('/help-support/submit-issue', methods=['GET', 'POST'])
+@login_required
+def submit_general_issue():
+    """Submit a general (non-transaction) issue."""
+    from app.models import TeacherBlock
+    from app.utils.issue_categories import get_active_categories
+    from app.utils.issue_helpers import create_issue
+    from forms import StudentIssueSubmissionForm
+
+    student = get_logged_in_student()
+    class_context = get_current_class_context()
+
+    if not class_context:
+        flash("Please select a class first.", "warning")
+        return redirect(url_for('student.dashboard'))
+
+    form = StudentIssueSubmissionForm()
+
+    # Populate category choices
+    form.category_id.choices = [(0, 'Select an issue type...')] + get_active_categories('general')
+
+    if form.validate_on_submit():
+        try:
+            issue = create_issue(
+                student=student,
+                teacher_id=class_context['teacher_id'],
+                join_code=class_context['join_code'],
+                category_id=form.category_id.data,
+                explanation=form.explanation.data,
+                expected_outcome=form.expected_outcome.data
+            )
+
+            flash("Your issue has been submitted. Your teacher will review it soon.", "success")
+            return redirect(url_for('student.help_support'))
+
+        except Exception as e:
+            db.session.rollback()
+            current_app.logger.error(f"Error submitting issue: {str(e)}")
+            flash("An error occurred while submitting your issue. Please try again.", "error")
+
+    return render_template('student_submit_issue.html',
+                         current_page='help',
+                         page_title='Report an Issue',
+                         form=form,
+                         issue_type='general')
+
+
+@student_bp.route('/help-support/transaction/<int:transaction_id>/report', methods=['GET', 'POST'])
+@login_required
+def report_transaction_issue(transaction_id):
+    """Report an issue with a specific transaction."""
+    from app.utils.issue_categories import get_active_categories
+    from app.utils.issue_helpers import create_issue
+    from forms import TransactionIssueSubmissionForm
+
+    student = get_logged_in_student()
+    class_context = get_current_class_context()
+
+    if not class_context:
+        flash("Please select a class first.", "warning")
+        return redirect(url_for('student.dashboard'))
+
+    # Get the transaction and verify it belongs to this student and class
+    transaction = Transaction.query.filter_by(
+        id=transaction_id,
+        student_id=student.id,
+        join_code=class_context['join_code']
+    ).first_or_404()
+
+    form = TransactionIssueSubmissionForm()
+
+    # Populate category choices
+    form.category_id.choices = [(0, 'Select an issue type...')] + get_active_categories('transaction')
+
+    if form.validate_on_submit():
+        try:
+            issue = create_issue(
+                student=student,
+                teacher_id=class_context['teacher_id'],
+                join_code=class_context['join_code'],
+                category_id=form.category_id.data,
+                explanation=form.explanation.data,
+                expected_outcome=form.expected_outcome.data,
+                related_transaction_id=transaction_id,
+                related_record_type='transaction',
+                related_record_id=transaction_id
+            )
+
+            flash("Your transaction issue has been submitted. Your teacher will review it soon.", "success")
+            return redirect(url_for('student.help_support'))
+
+        except Exception as e:
+            db.session.rollback()
+            current_app.logger.error(f"Error submitting transaction issue: {str(e)}")
+            flash("An error occurred while submitting your issue. Please try again.", "error")
+
+    return render_template('student_submit_issue.html',
+                         current_page='help',
+                         page_title='Report Transaction Issue',
+                         form=form,
+                         issue_type='transaction',
+                         transaction=transaction)
+
+
+@student_bp.route('/help-support/tap-event/<int:tap_event_id>/report', methods=['GET', 'POST'])
+@login_required
+def report_tap_event_issue(tap_event_id):
+    """Report an issue with a specific tap event (clock in/out record)."""
+    from app.utils.issue_categories import get_active_categories
+    from app.utils.issue_helpers import create_issue
+    from forms import StudentIssueSubmissionForm
+
+    student = get_logged_in_student()
+    class_context = get_current_class_context()
+
+    if not class_context:
+        flash("Please select a class first.", "warning")
+        return redirect(url_for('student.dashboard'))
+
+    # Get the tap event and verify it belongs to this student and class
+    tap_event = TapEvent.query.filter_by(
+        id=tap_event_id,
+        student_id=student.id,
+        join_code=class_context['join_code']
+    ).first_or_404()
+
+    form = StudentIssueSubmissionForm()
+
+    # Populate category choices with general categories (includes "Clock In/Out Not Working")
+    form.category_id.choices = [(0, 'Select an issue type...')] + get_active_categories('general')
+
+    if form.validate_on_submit():
+        try:
+            issue = create_issue(
+                student=student,
+                teacher_id=class_context['teacher_id'],
+                join_code=class_context['join_code'],
+                category_id=form.category_id.data,
+                explanation=form.explanation.data,
+                expected_outcome=form.expected_outcome.data,
+                related_transaction_id=None,  # No transaction for tap events
+                related_record_type='tap_event',
+                related_record_id=tap_event_id
+            )
+
+            flash("Your attendance issue has been submitted. Your teacher will review it soon.", "success")
+            return redirect(url_for('student.help_support'))
+
+        except Exception as e:
+            db.session.rollback()
+            current_app.logger.error(f"Error submitting tap event issue: {str(e)}")
+            flash("An error occurred while submitting your issue. Please try again.", "error")
+
+    return render_template('student_submit_issue.html',
+                         current_page='help',
+                         page_title='Report Attendance Issue',
+                         form=form,
+                         issue_type='attendance',
+                         tap_event=tap_event)
 
 
 # ================== TEACHER ACCOUNT RECOVERY ==================

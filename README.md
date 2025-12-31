@@ -2,7 +2,7 @@
 
 An interactive banking and classroom management platform for teaching students about money while tracking classroom participation.
 
-**Version:** 1.1.1
+**Version:** 1.4.0
 
 ---
 
@@ -12,7 +12,7 @@ An interactive banking and classroom management platform for teaching students a
 
 **License:** [PolyForm Noncommercial License 1.0.0](https://polyformproject.org/licenses/noncommercial/1.0.0/) - Free for educational and nonprofit use, not for commercial applications.
 
-**Project Status:** Version 1.1.1 Released! Latest patch delivers authentication, theming, redirect, and static asset fixes. See [RELEASE_NOTES_v1.1.1.md](RELEASE_NOTES_v1.1.1.md) for the bug-fix summary (v1.1.0 introduced the dashboard, projection graphs, and UI redesign).
+**Project Status:** Version 1.4.0 Released! This release adds a comprehensive announcement system for class communication, major UI/UX improvements including personalized greetings and enhanced dashboards, accordion-style admin navigation, streamlined authentication flow, and comprehensive security improvements including CodeQL alerts remediation (62 alerts addressed), DOM XSS vulnerability fixes, enhanced open redirect protection, and Grafana access improvements. See [RELEASE_NOTES_v1.4.0.md](docs/archive/releases/RELEASE_NOTES_v1.4.0.md) for full details.
 
 ---
 
@@ -25,7 +25,7 @@ An interactive banking and classroom management platform for teaching students a
 - **Student Portal** — View balances, redeem store items, track attendance, and manage hall passes
 - **Join-Code Rosters** — Upload rosters and let students self-claim seats securely
 - **Shared Students** — Link multiple teachers to the same student via `student_teachers`
-- **Attendance Tracking** — Tap in/out system with automatic time logging
+- **Attendance Tracking** — Start Work/Break Done system with automatic time logging
 - **Automated Payroll** — Configurable pay rates, schedules, and rewards/fines
 - **Transaction Logging** — Complete audit trail of all financial activities scoped by teacher
 - **Classroom Store** — Virtual/physical items with bundles, expirations, and redemption tracking
@@ -33,6 +33,27 @@ An interactive banking and classroom management platform for teaching students a
 - **Insurance System** — Policies, enrollments, and claims managed in-app
 - **Rent & Fees** — Optional recurring rent with waivers and late-fee configuration
 - **TOTP Authentication** — Secure admin access with two-factor authentication
+
+### Mobile & PWA Features 
+
+- **Progressive Web App** — Install as mobile app on iOS and Android devices
+- **Offline Support** — Intelligent caching with offline fallback page
+- **Mobile-Optimized UI** — Dedicated mobile templates with responsive navigation
+- **Touch-Friendly** — Larger buttons and improved touch targets throughout
+- **Fast Performance** — Aggressive caching for quick load times
+- **Home Screen Installation** — Add to home screen for app-like experience
+
+### Accessibility Features 
+
+- **Enhanced Accessibility** — Improvements following WCAG 2.1 AA guidelines
+- **Screen Reader Support** — Optimized for NVDA, JAWS, and VoiceOver
+- **Keyboard Navigation** — Full keyboard accessibility throughout
+- **ARIA Labels** — Comprehensive labeling for assistive technologies
+- **High Contrast** — Improved color contrast ratios for better readability
+- **Responsive Design** — Works seamlessly across all device sizes
+
+> [!IMPORTANT]
+> While the app is designed to be accessible and meet WCAG 2.1 guidelines, no claims of compliance of any kind is being made or implied. It is not recommended to deploy this app without external audits or validations if compliance is required by law.
 
 ### Security Features
 
@@ -125,8 +146,8 @@ An interactive banking and classroom management platform for teaching students a
 
 ### Testing with Sample Data
 
-- Use `student_upload_template.csv` as a reference for CSV roster uploads
-- Run `python seed_dummy_students.py` to seed the database with sample students
+- Use `app/resources/student_upload_template.csv` as a reference for CSV roster uploads
+- Run `python scripts/seed_dummy_students.py` to seed the database with sample students
 
 ---
 
@@ -144,14 +165,14 @@ An interactive banking and classroom management platform for teaching students a
 - **[Architecture Guide](docs/technical-reference/architecture.md)** — System design and patterns
 - **[Database Schema](docs/technical-reference/database_schema.md)** — Up-to-date database reference
 - **[API Reference](docs/technical-reference/api_reference.md)** — REST API documentation
-- **[Development Priorities](DEVELOPMENT.md)** — Current priorities, roadmap, and tasks
-- **[Changelog](CHANGELOG.md)** — Version history and notable changes
+- **[Development Priorities](docs/development/DEVELOPMENT.md)** — Current priorities, roadmap, and tasks
+- **[Changelog](docs/CHANGELOG.md)** — Version history and notable changes
 
 ### Deployment & Operations
 
 - **[Deployment Guide](docs/DEPLOYMENT.md)** — Production deployment instructions
 - **[Operations Guides](docs/operations/)** — Operational procedures and troubleshooting
-- **[Contributing Guide](CONTRIBUTING.md)** — How to contribute to the project
+- **[Contributing Guide](.github/CONTRIBUTING.md)** — How to contribute to the project
 
 ---
 
@@ -201,6 +222,8 @@ classroom-economy/
 ├── migrations/               # Database migrations
 ├── docs/                     # Documentation
 ├── scripts/                  # Utility scripts
+├── deploy/                   # Deployment configuration (nginx, etc.)
+├── tools/                    # Editor/tooling helpers
 ├── wsgi.py                   # WSGI entry point
 └── requirements.txt          # Python dependencies
 ```
@@ -230,16 +253,16 @@ flask db downgrade                 # Rollback
 ```bash
 flask run                     # Run development server
 flask create-sysadmin         # Create system admin
-python create_admin.py        # Create teacher account
-python manage_invites.py      # Manage admin invites
-python seed_dummy_students.py # Seed test data
+python scripts/create_admin.py        # Create teacher account
+python scripts/manage_invites.py      # Manage admin invites
+python scripts/seed_dummy_students.py # Seed test data
 ```
 
 ---
 
 ## Roadmap
 
-Active development priorities and the path to version 1.0 are tracked in [DEVELOPMENT.md](DEVELOPMENT.md).
+Active development priorities and the path to version 1.0 are tracked in [docs/development/DEVELOPMENT.md](docs/development/DEVELOPMENT.md).
 
 **Version 1.0 Status:** All critical blockers (P0 and P1) have been resolved! The platform is ready for staging deployment and final validation before production release.
 
@@ -257,11 +280,11 @@ curl http://your-domain/health
 
 ## Contributing
 
-We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+We welcome contributions! Please see [.github/CONTRIBUTING.md](.github/CONTRIBUTING.md) for guidelines.
 
 **Before contributing:**
 1. Review the [Architecture Guide](docs/technical-reference/architecture.md)
-2. Check [DEVELOPMENT.md](DEVELOPMENT.md) for current priorities
+2. Check [docs/development/DEVELOPMENT.md](docs/development/DEVELOPMENT.md) for current priorities
 3. Ensure all tests pass
 4. Follow the existing code style
 
@@ -297,4 +320,4 @@ This project is licensed under the [PolyForm Noncommercial License 1.0.0](https:
 
 Built for educators and students to make learning about finance engaging and practical.
 
-**Last Updated:** 2025-12-12
+**Last Updated:** 2025-12-21
