@@ -276,7 +276,7 @@ def passkey_register_finish():
 
         # Save credential metadata (credential_id is optional, stored on passwordless.dev)
         credential = SystemAdminCredential(
-            system_admin_id=sysadmin_id,
+            sysadmin_id=sysadmin_id,  # Correct column name is sysadmin_id, not system_admin_id
             credential_id=None,  # Not needed - stored on passwordless.dev servers
             authenticator_name=authenticator_name
         )
