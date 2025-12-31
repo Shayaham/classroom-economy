@@ -26,7 +26,16 @@
         </h2>
         <div id="bankingGuideOverview" class="accordion-collapse collapse mt-2" aria-labelledby="bankingGuideHeadingOverview" data-bs-parent="#bankingGuideAccordion">
           <div class="accordion-body">
-            <p>Review totals for checking, savings, and deposits to understand overall student balances.</p>
+            <p><strong>What you'll see:</strong></p>
+            <ul class="mb-3">
+              <li><strong>Total Checking</strong> — All money available for immediate spending</li>
+              <li><strong>Total Savings</strong> — Money set aside earning interest</li>
+              <li><strong>Total Deposits</strong> — Combined checking + savings across all students</li>
+              <li><strong>Students w/ Savings</strong> — How many students are actively saving</li>
+            </ul>
+            <div class="alert alert-info mb-0">
+              <strong><i class="bi bi-lightbulb-fill me-1"></i>Teaching Tip:</strong> Encourage at least 30% of students to use savings accounts. This teaches delayed gratification and financial planning!
+            </div>
           </div>
         </div>
       </div>
@@ -68,15 +77,29 @@
         </h2>
         <div id="bankingGuideBreakdown" class="accordion-collapse collapse mt-2" aria-labelledby="bankingGuideHeadingBreakdown" data-bs-parent="#bankingGuideAccordion">
           <div class="accordion-body">
-            <ul class="mb-0">
-              <li><strong>Savings APY:</strong> annual rate used to calculate interest.</li>
-              <li><strong>Monthly rate:</strong> the monthly interest percentage applied to savings.</li>
-              <li><strong>Interest schedule:</strong> determines how often interest posts.</li>
-              <li><strong>Overdraft protection:</strong> blocks withdrawals that would take balances below zero.</li>
-              <li><strong>Overdraft fees:</strong> adds a fee when protection is off and an account goes negative.</li>
+            <p class="mb-2"><strong><i class="bi bi-gear-fill me-1"></i>Basic Settings:</strong></p>
+            <ul class="mb-3">
+              <li><strong>Savings APY:</strong> Annual percentage yield (e.g., 5% APY means ~$0.42 earned per $100 saved monthly)</li>
+              <li><strong>Interest schedule:</strong> How often students earn interest
+                <ul class="small mt-1">
+                  <li><em>Weekly:</em> More frequent rewards, great for younger students</li>
+                  <li><em>Monthly:</em> Mirrors real banking, better for older students</li>
+                </ul>
+              </li>
             </ul>
-            <div class="alert alert-info mt-3 mb-0">
-              <strong>Side effects:</strong> Changing rates affects future interest only, not past posted interest.
+
+            <p class="mb-2"><strong><i class="bi bi-sliders me-1"></i>Advanced Settings:</strong></p>
+            <ul class="mb-3">
+              <li><strong>Overdraft protection:</strong> When enabled, prevents students from spending below $0 (recommended for beginners)</li>
+              <li><strong>Overdraft fees:</strong> When protection is OFF, charge a fee if balance goes negative (teaches consequences)</li>
+            </ul>
+
+            <div class="alert alert-warning mt-3 mb-3">
+              <strong><i class="bi bi-exclamation-triangle-fill me-1"></i>Side effects:</strong> Rate changes only affect future interest, not past payments. Interest schedule changes take effect on the next scheduled run.
+            </div>
+
+            <div class="alert alert-info mb-0">
+              <strong><i class="bi bi-lightbulb-fill me-1"></i>Recommended Setup:</strong> Start with 5% APY, weekly schedule, and overdraft protection enabled. Adjust based on student engagement!
             </div>
           </div>
         </div>

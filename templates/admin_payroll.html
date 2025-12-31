@@ -60,15 +60,45 @@
         </h2>
         <div id="payrollGuideSettingsBreakdown" class="accordion-collapse collapse mt-2" aria-labelledby="payrollGuideHeadingSettingsBreakdown" data-bs-parent="#payrollGuideAccordion">
           <div class="accordion-body">
-            <ul class="mb-0">
-              <li><strong>Pay rate:</strong> controls how much students earn per hour or per minute.</li>
-              <li><strong>Pay schedule:</strong> sets when payroll runs automatically.</li>
-              <li><strong>Attendance rules:</strong> defines which tap types count toward pay.</li>
-              <li><strong>Expected weekly hours:</strong> drives CWI calculations and balance guidance.</li>
-              <li><strong>Auto run:</strong> enables scheduled runs without manual action.</li>
+            <p class="mb-2"><strong><i class="bi bi-gear-fill me-1"></i>Basic Settings:</strong></p>
+            <ul class="mb-3">
+              <li><strong>Pay rate:</strong> How much students earn per time unit
+                <ul class="small mt-1">
+                  <li><em>Per hour:</em> Simpler math (e.g., $10/hour)</li>
+                  <li><em>Per minute:</em> More granular for short class periods (e.g., $0.17/minute = ~$10/hour)</li>
+                </ul>
+              </li>
+              <li><strong>Expected weekly hours:</strong> Drives your Classroom Wage Index (CWI)
+                <ul class="small mt-1">
+                  <li><em>Example:</em> $10/hour × 5 hours/week = $50 weekly CWI</li>
+                  <li>Use this to balance rent, insurance, and store prices</li>
+                </ul>
+              </li>
             </ul>
-            <div class="alert alert-warning mt-3 mb-0">
-              <strong>Side effects:</strong> Changing rates or schedules affects future payroll runs only.
+
+            <p class="mb-2"><strong>⚙️ Schedule Settings:</strong></p>
+            <ul class="mb-3">
+              <li><strong>Pay schedule:</strong> When payroll runs automatically
+                <ul class="small mt-1">
+                  <li><em>Weekly:</em> Consistent income, easier budgeting for students</li>
+                  <li><em>Bi-weekly:</em> Mirrors real paychecks, requires more planning</li>
+                  <li><em>Monthly:</em> Advanced students only, teaches long-term budgeting</li>
+                </ul>
+              </li>
+              <li><strong>Auto run:</strong> When enabled, payroll runs on schedule without you clicking "Run Payroll"</li>
+            </ul>
+
+            <p class="mb-2"><strong>🎯 Advanced Settings:</strong></p>
+            <ul class="mb-3">
+              <li><strong>Attendance rules:</strong> Choose which tap types count (Start Work, Break, Done)</li>
+            </ul>
+
+            <div class="alert alert-warning mt-3 mb-3">
+              <strong>⚠️ Side effects:</strong> Rate or schedule changes only affect future payroll runs. Past payments remain unchanged.
+            </div>
+
+            <div class="alert alert-info mb-0">
+              <strong>💡 Recommended Start:</strong> $10/hour, weekly schedule, 5 expected hours/week. This creates a $50 weekly CWI—easy for students to work with!
             </div>
           </div>
         </div>
