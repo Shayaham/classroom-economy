@@ -1661,6 +1661,21 @@ def students():
                 unclaimed_seats_list_by_block[block_name].append(tb)
                 unclaimed_seats_by_block[block_name] += 1
 
+    # CRITICAL: Add scoped balances for each student in each block
+    # This prevents multi-tenancy violations where students see aggregated balances across all classes
+    student_balances_by_block = {}  # {(student_id, block): {'checking': X, 'savings': Y, 'earnings': Z}}
+
+    for block in blocks:
+        if block != "Unassigned" and block in join_codes_by_block:
+            join_code = join_codes_by_block[block]
+            for student in students_by_block.get(block, []):
+                key = (student.id, block)
+                student_balances_by_block[key] = {
+                    'checking': student.get_checking_balance(join_code=join_code),
+                    'savings': student.get_savings_balance(join_code=join_code),
+                    'earnings': student.get_total_earnings(join_code=join_code)
+                }
+
     # Ensure all blocks with students have join codes (for legacy teachers with pre-c3aa3a0 classes)
     # If a block has students but no TeacherBlock records, look up or generate a join code
     # Fetch all claimed TeacherBlock records for current admin upfront
@@ -1735,6 +1750,7 @@ def students():
                          class_labels_by_block=class_labels_by_block,
                          unclaimed_seats_by_block=unclaimed_seats_by_block,
                          unclaimed_seats_list_by_block=unclaimed_seats_list_by_block,
+                         student_balances_by_block=student_balances_by_block,
                          current_page="students")
 
 
