@@ -7242,8 +7242,7 @@ def passkey_register_finish():
         admin_id = session.get('admin_id')
         data = request.get_json()
 
-        if not data or 'token' not in data:
-            return jsonify({"error": "Missing token"}), 400
+        # No need to check for or use 'token' in the request payload.
 
         # Note: Credential is stored on passwordless.dev servers
         # We just track that registration occurred for UX purposes

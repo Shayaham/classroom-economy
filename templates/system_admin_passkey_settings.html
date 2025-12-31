@@ -122,7 +122,7 @@
                 this.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
 
                 const response = await fetch(`{{ url_for("sysadmin.passkey_delete", credential_id=0) }}`.replace('/0/', `/${credentialId}/`), {
-                    method: 'POST',
+                    method: 'DELETE',
                     headers: {
                         'Content-Type': 'application/json'
                     }
