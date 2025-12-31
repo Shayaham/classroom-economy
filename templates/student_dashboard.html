@@ -76,7 +76,7 @@
 {% if announcements %}
     {% for announcement in announcements %}
     <div class="alert {{ announcement.get_priority_class() }} d-flex align-items-start mb-3 border-0 shadow-sm" role="alert">
-        <span class="me-3 fs-4">{{ announcement.get_priority_icon() }}</span>
+        <span class="material-symbols-outlined me-3 fs-4">{{ announcement.get_priority_icon() }}</span>
         <div class="flex-grow-1">
             <h6 class="alert-heading fw-bold mb-2">{{ announcement.title }}</h6>
             <p class="mb-1">{{ announcement.message|nl2br|safe }}</p>

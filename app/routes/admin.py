@@ -1808,7 +1808,35 @@ def student_detail(student_id):
             'done_for_day_date': student_block.done_for_day_date if student_block else None
         }
 
-    return render_template('student_detail.html', student=student, transactions=transactions, student_items=student_items, latest_tap_event=latest_tap_event, active_insurance=active_insurance, blocks=blocks, student_blocks_settings=student_blocks_settings)
+    # CRITICAL: Get scoped balances for current join_code to prevent multi-tenancy violations
+    # Teacher clicked from a specific class tab, so show balances for that period only
+    join_code = session.get('current_join_code')
+    scoped_checking_balance = 0
+    scoped_savings_balance = 0
+    scoped_total_earnings = 0
+
+    if join_code:
+        scoped_checking_balance = student.get_checking_balance(join_code=join_code)
+        scoped_savings_balance = student.get_savings_balance(join_code=join_code)
+        scoped_total_earnings = student.get_total_earnings(join_code=join_code)
+    else:
+        # Fallback: use aggregated balances (shouldn't happen in normal flow)
+        scoped_checking_balance = student.checking_balance
+        scoped_savings_balance = student.savings_balance
+        scoped_total_earnings = student.total_earnings
+
+    return render_template('student_detail.html',
+                         student=student,
+                         transactions=transactions,
+                         student_items=student_items,
+                         latest_tap_event=latest_tap_event,
+                         active_insurance=active_insurance,
+                         blocks=blocks,
+                         student_blocks_settings=student_blocks_settings,
+                         scoped_checking_balance=scoped_checking_balance,
+                         scoped_savings_balance=scoped_savings_balance,
+                         scoped_total_earnings=scoped_total_earnings,
+                         current_join_code=join_code)
 
 
 @admin_bp.route('/student/<int:student_id>/set-hall-passes', methods=['POST'])
@@ -1893,19 +1921,15 @@ def edit_student():
     old_blocks = set(b.strip().upper() for b in (student.block or '').split(',') if b.strip())
     new_blocks_set = set(b.strip().upper() for b in selected_blocks)
 
-    # Get balance action preference
-    balance_action = request.form.get('balance_action', 'keep_separate')
-
     # Determine which blocks are being removed/added
     removed_blocks = old_blocks - new_blocks_set
     added_blocks = new_blocks_set - old_blocks
 
-    # Handle balance transfers if requested and blocks are changing
-    if balance_action == 'transfer' and (removed_blocks or added_blocks):
-        # Get join codes for old and new blocks
+    # Handle per-period balance transfers
+    transferred_blocks = []
+    if added_blocks:
+        # Get join codes for old blocks (source of transfers)
         old_join_codes = []
-        new_join_codes = []
-
         for block in removed_blocks:
             tb = TeacherBlock.query.filter_by(
                 teacher_id=current_admin_id,
@@ -1914,27 +1938,34 @@ def edit_student():
             if tb and tb.join_code:
                 old_join_codes.append(tb.join_code)
 
+        # For each added block, check if teacher wants to transfer balance
         for block in added_blocks:
-            tb = TeacherBlock.query.filter_by(
-                teacher_id=current_admin_id,
-                block=block
-            ).first()
-            if tb and tb.join_code:
-                new_join_codes.append(tb.join_code)
+            # Get the balance action for this specific period
+            balance_action_key = f'balance_action_{block}'
+            balance_action = request.form.get(balance_action_key, 'start_fresh')
 
-        # Transfer transactions from old blocks to first new block (if any)
-        if old_join_codes and new_join_codes:
-            target_join_code = new_join_codes[0]
-            for old_join_code in old_join_codes:
-                # Update all transactions for this student from old join_code to new join_code
-                Transaction.query.filter_by(
-                    student_id=student.id,
-                    join_code=old_join_code
-                ).update({'join_code': target_join_code})
+            if balance_action == 'transfer' and old_join_codes:
+                # Get join code for this new block
+                tb = TeacherBlock.query.filter_by(
+                    teacher_id=current_admin_id,
+                    block=block
+                ).first()
 
-            current_app.logger.info(
-                f"Transferred transactions for student {student.id} from {old_join_codes} to {target_join_code}"
-            )
+                if tb and tb.join_code:
+                    target_join_code = tb.join_code
+
+                    # Transfer transactions from old blocks to this new block
+                    for old_join_code in old_join_codes:
+                        Transaction.query.filter_by(
+                            student_id=student.id,
+                            join_code=old_join_code
+                        ).update({'join_code': target_join_code})
+
+                    transferred_blocks.append(block)
+                    current_app.logger.info(
+                        f"Transferred transactions for student {student.id} from {old_join_codes} to {target_join_code} (block: {block})"
+                    )
+            # If 'start_fresh', do nothing - student starts with $0 in that period
 
     # Check if name changed (need to recalculate hashes)
     name_changed = (new_first_name != student.first_name or new_last_initial != student.last_initial)
@@ -2081,13 +2112,13 @@ def edit_student():
     try:
         db.session.commit()
 
-        # Build flash message with balance action info
+        # Build flash message with balance transfer info
         message = f"Successfully updated {student.full_name}'s information."
-        if balance_action == 'transfer' and (removed_blocks or added_blocks):
-            if old_join_codes and new_join_codes:
-                message += " Balance transferred to new class."
-            else:
-                message += " Note: Balance kept in original class."
+        if transferred_blocks:
+            blocks_str = ', '.join(transferred_blocks)
+            message += f" Balance transferred to: {blocks_str}."
+        elif added_blocks and not transferred_blocks:
+            message += " Student will start fresh in new period(s)."
 
         flash(message, "success")
     except Exception as e:
@@ -6111,13 +6142,7 @@ def feature_settings():
                 'rent_enabled': 'rent_enabled' in request.form,
                 'hall_pass_enabled': 'hall_pass_enabled' in request.form,
                 'store_enabled': 'store_enabled' in request.form,
-                'bug_reports_enabled': 'bug_reports_enabled' in request.form,
-                'bug_rewards_enabled': 'bug_rewards_enabled' in request.form,
             }
-
-            # Bug rewards is a subfeature of bug reports - if bug reports is disabled, disable bug rewards too
-            if not features_data['bug_reports_enabled']:
-                features_data['bug_rewards_enabled'] = False
 
             # Apply settings to selected periods
             if apply_to == 'all':
@@ -6221,8 +6246,6 @@ def feature_settings():
             ('rent_enabled', 'Rent', 'home', 'Housing costs and payments'),
             ('hall_pass_enabled', 'Hall Pass', 'confirmation_number', 'Bathroom and water break passes'),
             ('store_enabled', 'Store', 'storefront', 'Marketplace for student rewards'),
-            ('bug_reports_enabled', 'Bug Reports', 'bug_report', 'Allow students to report issues'),
-            ('bug_rewards_enabled', 'Bug Rewards', 'redeem', 'Reward students for valid bug reports'),
         ]
     )
 
@@ -6255,17 +6278,11 @@ def update_period_feature_settings(period):
             'rent': 'rent_enabled',
             'hall_pass': 'hall_pass_enabled',
             'store': 'store_enabled',
-            'bug_reports': 'bug_reports_enabled',
-            'bug_rewards': 'bug_rewards_enabled',
         }
 
         for feature_key, db_column in feature_map.items():
             if feature_key in data:
                 setattr(settings, db_column, bool(data[feature_key]))
-
-        # Bug rewards is a subfeature of bug reports - if bug reports is disabled, disable bug rewards too
-        if not settings.bug_reports_enabled:
-            settings.bug_rewards_enabled = False
 
         settings.updated_at = datetime.now(timezone.utc)
         db.session.commit()
@@ -6324,7 +6341,6 @@ def copy_feature_settings():
         valid_feature_columns = {
             'payroll_enabled', 'insurance_enabled', 'banking_enabled',
             'rent_enabled', 'hall_pass_enabled', 'store_enabled',
-            'bug_reports_enabled', 'bug_rewards_enabled'
         }
 
         # Copy to target periods
@@ -6933,8 +6949,8 @@ def onboarding_status():
             teacher_block.class_label.strip() != ''
         )
 
-        # Passkey is always incomplete (to be revamped)
-        completion['passkey'] = False
+        # Passkey is complete if at least one credential exists
+        completion['passkey'] = AdminCredential.query.filter_by(admin_id=admin_id).first() is not None
 
         return jsonify({
             'status': 'success',

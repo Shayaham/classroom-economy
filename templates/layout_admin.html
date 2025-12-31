@@ -214,9 +214,11 @@
                 <div class="meta" id="current-time"></div>
             </div>
             <div class="page-header-actions">
-                <a href="{{ url_for('admin.help_support') }}" class="btn btn-white d-none d-md-inline-flex align-items-center gap-2">
-                    <span class="material-symbols-outlined">help</span> Help
-                </a>
+                {% block page_header_actions %}
+                    <a href="{{ url_for('admin.help_support') }}" class="btn btn-white d-none d-md-inline-flex align-items-center gap-2">
+                        <span class="material-symbols-outlined">help</span> Help
+                    </a>
+                {% endblock %}
             </div>
         </div>
 

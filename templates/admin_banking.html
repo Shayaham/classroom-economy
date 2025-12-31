@@ -3,7 +3,87 @@
 {% set current_page = "banking" %}
 {% block title %}Banking Management{% endblock %}
 {% block page_icon %}account_balance{% endblock %}
+{% block page_header_actions %}
+  <button class="btn btn-primary d-none d-md-inline-flex align-items-center gap-2" type="button" data-bs-toggle="offcanvas" data-bs-target="#bankingGuide" aria-controls="bankingGuide">
+    <span class="material-symbols-outlined">quick_reference_all</span> Need Help?
+{% endblock %}
 {% block content %}
+
+<div class="offcanvas offcanvas-end" tabindex="-1" id="bankingGuide" aria-labelledby="bankingGuideLabel">
+  <div class="offcanvas-header">
+    <h5 class="offcanvas-title" id="bankingGuideLabel">How to: Banking Management</h5>
+    <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+  </div>
+  <div class="offcanvas-body">
+    <p>Monitor student balances, review transactions, and configure savings settings.</p>
+    <div class="accordion mt-4 mb-4" id="bankingGuideAccordion">
+      <div class="accordion-item">
+        <h2 class="accordion-header" id="bankingGuideHeadingOverview">
+          <button class="accordion-button collapsed bg-secondary text-muted" type="button" data-bs-toggle="collapse" data-bs-target="#bankingGuideOverview" aria-expanded="false" aria-controls="bankingGuideOverview">
+            <span class="material-symbols-outlined me-2" style="font-size:25pt; vertical-align:middle;">grid_view</span>
+            <strong>Overview Stats</strong>
+          </button>
+        </h2>
+        <div id="bankingGuideOverview" class="accordion-collapse collapse mt-2" aria-labelledby="bankingGuideHeadingOverview" data-bs-parent="#bankingGuideAccordion">
+          <div class="accordion-body">
+            <p>Review totals for checking, savings, and deposits to understand overall student balances.</p>
+          </div>
+        </div>
+      </div>
+      <div class="accordion-item">
+        <h2 class="accordion-header" id="bankingGuideHeadingTransactions">
+          <button class="accordion-button collapsed bg-secondary text-muted" type="button" data-bs-toggle="collapse" data-bs-target="#bankingGuideTransactions" aria-expanded="false" aria-controls="bankingGuideTransactions">
+            <span class="material-symbols-outlined me-2" style="font-size:25pt; vertical-align:middle;">receipt_long</span>
+            <strong>Transactions</strong>
+          </button>
+        </h2>
+        <div id="bankingGuideTransactions" class="accordion-collapse collapse mt-2" aria-labelledby="bankingGuideHeadingTransactions" data-bs-parent="#bankingGuideAccordion">
+          <div class="accordion-body">
+            <p>Use the Transactions tab to review deposits, withdrawals, and transfers for each student.</p>
+          </div>
+        </div>
+      </div>
+      <div class="accordion-item">
+        <h2 class="accordion-header" id="bankingGuideHeadingSettings">
+          <button class="accordion-button collapsed bg-secondary text-muted" type="button" data-bs-toggle="collapse" data-bs-target="#bankingGuideSettings" aria-expanded="false" aria-controls="bankingGuideSettings">
+            <span class="material-symbols-outlined me-2" style="font-size:25pt; vertical-align:middle;">settings</span>
+            <strong>Banking Settings</strong>
+          </button>
+        </h2>
+        <div id="bankingGuideSettings" class="accordion-collapse collapse mt-2" aria-labelledby="bankingGuideHeadingSettings" data-bs-parent="#bankingGuideAccordion">
+          <div class="accordion-body">
+            <p>Configure savings interest, schedules, and overdraft rules in the Settings tab.</p>
+            <div class="alert alert-warning mb-0">
+              <strong>Reminder:</strong> Setting changes apply moving forward and do not alter past transactions.
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="accordion-item">
+        <h2 class="accordion-header" id="bankingGuideHeadingBreakdown">
+          <button class="accordion-button collapsed bg-secondary text-muted" type="button" data-bs-toggle="collapse" data-bs-target="#bankingGuideBreakdown" aria-expanded="false" aria-controls="bankingGuideBreakdown">
+            <span class="material-symbols-outlined me-2" style="font-size:25pt; vertical-align:middle;">tune</span>
+            <strong>Settings Breakdown</strong>
+          </button>
+        </h2>
+        <div id="bankingGuideBreakdown" class="accordion-collapse collapse mt-2" aria-labelledby="bankingGuideHeadingBreakdown" data-bs-parent="#bankingGuideAccordion">
+          <div class="accordion-body">
+            <ul class="mb-0">
+              <li><strong>Savings APY:</strong> annual rate used to calculate interest.</li>
+              <li><strong>Monthly rate:</strong> the monthly interest percentage applied to savings.</li>
+              <li><strong>Interest schedule:</strong> determines how often interest posts.</li>
+              <li><strong>Overdraft protection:</strong> blocks withdrawals that would take balances below zero.</li>
+              <li><strong>Overdraft fees:</strong> adds a fee when protection is off and an account goes negative.</li>
+            </ul>
+            <div class="alert alert-info mt-3 mb-0">
+              <strong>Side effects:</strong> Changing rates affects future interest only, not past posted interest.
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 
 <!-- Nav Tabs -->
 <ul class="nav nav-tabs mb-4" id="bankingTabs" role="tablist">

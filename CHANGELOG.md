@@ -9,6 +9,10 @@ and this project follows semantic versioning principles.
 ## [Unreleased]
 
 ### Fixed
+- **Multi-Tenancy Violation** - Fixed critical bug where `HallPassSettings` records were created without `teacher_id`, violating NOT NULL constraint and breaking multi-tenancy isolation
+  - Fixed `/api/hall-pass/settings` endpoint to scope settings by `teacher_id` from session
+  - Fixed hall pass creation in `/tap` endpoint to retrieve `teacher_id` from `join_code` via `TeacherBlock` lookup
+  - All `HallPassSettings` queries now properly scoped by `teacher_id` and `block`
 - **Content Security Policy** - Restored `'unsafe-eval'` directive to `script-src` CSP policy as it is required by passwordless.dev library's minified build (uses `new Function()` internally)
 - **Passkey Authentication** - Fixed environment variables not loading by specifying explicit path to `.env` file in `load_dotenv()` call - ensures environment is loaded regardless of gunicorn working directory
 - **Passkey Authentication** - Fixed token destructuring in `signinWithDiscoverable()` to properly handle error responses from passwordless.dev SDK

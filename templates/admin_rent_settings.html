@@ -3,6 +3,11 @@
 {% set current_page = "rent" %}
 {% block title %}Rent Management{% endblock %}
 {% block page_icon %}home{% endblock %}
+{% block page_header_actions %}
+  <button class="btn btn-primary d-none d-md-inline-flex align-items-center gap-2" type="button" data-bs-toggle="offcanvas" data-bs-target="#rentGuide" aria-controls="rentGuide">
+    <span class="material-symbols-outlined">quick_reference_all</span> Need Help?
+  </button>
+{% endblock %}
 
 {% block extra_styles %}
 <style>
@@ -21,6 +26,100 @@
 {% endblock %}
 
 {% block content %}
+
+<div class="offcanvas offcanvas-end" tabindex="-1" id="rentGuide" aria-labelledby="rentGuideLabel">
+  <div class="offcanvas-header">
+    <h5 class="offcanvas-title" id="rentGuideLabel">How to: Rent Management</h5>
+    <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+  </div>
+  <div class="offcanvas-body">
+    <p>Configure rent rules, review collection status, and manage waivers.</p>
+    <div class="accordion mt-4 mb-4" id="rentGuideAccordion">
+      <div class="accordion-item">
+        <h2 class="accordion-header" id="rentGuideHeadingEnable">
+          <button class="accordion-button collapsed bg-secondary text-muted" type="button" data-bs-toggle="collapse" data-bs-target="#rentGuideEnable" aria-expanded="false" aria-controls="rentGuideEnable">
+            <span class="material-symbols-outlined me-2" style="font-size:25pt; vertical-align:middle;">toggle_on</span>
+            <strong>Enable Rent</strong>
+          </button>
+        </h2>
+        <div id="rentGuideEnable" class="accordion-collapse collapse mt-2" aria-labelledby="rentGuideHeadingEnable" data-bs-parent="#rentGuideAccordion">
+          <div class="accordion-body">
+            <p>Use the Settings tab to turn rent on, set frequency, and define the rent amount.</p>
+            <div class="alert alert-warning mb-0">
+              <strong>Reminder:</strong> When rent is disabled, students will not see rent or rent notifications.
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="accordion-item">
+        <h2 class="accordion-header" id="rentGuideHeadingSettings">
+          <button class="accordion-button collapsed bg-secondary text-muted" type="button" data-bs-toggle="collapse" data-bs-target="#rentGuideSettings" aria-expanded="false" aria-controls="rentGuideSettings">
+            <span class="material-symbols-outlined me-2" style="font-size:25pt; vertical-align:middle;">tune</span>
+            <strong>Settings Breakdown</strong>
+          </button>
+        </h2>
+        <div id="rentGuideSettings" class="accordion-collapse collapse mt-2" aria-labelledby="rentGuideHeadingSettings" data-bs-parent="#rentGuideAccordion">
+          <div class="accordion-body">
+            <ul class="mb-0">
+              <li><strong>Class selector:</strong> update settings per class section.</li>
+              <li><strong>Rent amount:</strong> the base charge students owe each rent period.</li>
+              <li><strong>Frequency:</strong> daily, weekly, monthly, or custom intervals; controls how often rent posts.</li>
+              <li><strong>First due date / due day:</strong> sets the first billing date or the day of month rent is due.</li>
+              <li><strong>Grace period:</strong> days after the due date before late penalties apply.</li>
+              <li><strong>Late penalty:</strong> amount charged when rent is late; can apply once or recur.</li>
+              <li><strong>Recurring penalty frequency:</strong> how often the late fee repeats (when recurring is enabled).</li>
+              <li><strong>Bill preview:</strong> shows upcoming rent to students a set number of days early.</li>
+              <li><strong>Incremental payments:</strong> allows partial payments instead of a single full payment.</li>
+              <li><strong>Block purchases when late:</strong> prevents store purchases if rent is overdue.</li>
+            </ul>
+            <div class="alert alert-info mt-3 mb-0">
+              <strong>Side effects:</strong> Changing frequency or due dates can shift when students are billed next.
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="accordion-item">
+        <h2 class="accordion-header" id="rentGuideHeadingOverview">
+          <button class="accordion-button collapsed bg-secondary text-muted" type="button" data-bs-toggle="collapse" data-bs-target="#rentGuideOverview" aria-expanded="false" aria-controls="rentGuideOverview">
+            <span class="material-symbols-outlined me-2" style="font-size:25pt; vertical-align:middle;">insights</span>
+            <strong>Review Overview</strong>
+          </button>
+        </h2>
+        <div id="rentGuideOverview" class="accordion-collapse collapse mt-2" aria-labelledby="rentGuideHeadingOverview" data-bs-parent="#rentGuideAccordion">
+          <div class="accordion-body">
+            <p>Check paid vs. unpaid totals to understand how rent is impacting the class.</p>
+          </div>
+        </div>
+      </div>
+      <div class="accordion-item">
+        <h2 class="accordion-header" id="rentGuideHeadingWaivers">
+          <button class="accordion-button collapsed bg-secondary text-muted" type="button" data-bs-toggle="collapse" data-bs-target="#rentGuideWaivers" aria-expanded="false" aria-controls="rentGuideWaivers">
+            <span class="material-symbols-outlined me-2" style="font-size:25pt; vertical-align:middle;">event_busy</span>
+            <strong>Manage Waivers</strong>
+          </button>
+        </h2>
+        <div id="rentGuideWaivers" class="accordion-collapse collapse mt-2" aria-labelledby="rentGuideHeadingWaivers" data-bs-parent="#rentGuideAccordion">
+          <div class="accordion-body">
+            <p>Add waivers for special cases or missed periods in the Waivers tab.</p>
+          </div>
+        </div>
+      </div>
+      <div class="accordion-item">
+        <h2 class="accordion-header" id="rentGuideHeadingBalance">
+          <button class="accordion-button collapsed bg-secondary text-muted" type="button" data-bs-toggle="collapse" data-bs-target="#rentGuideBalance" aria-expanded="false" aria-controls="rentGuideBalance">
+            <span class="material-symbols-outlined me-2" style="font-size:25pt; vertical-align:middle;">balance</span>
+            <strong>Balance Against CWI</strong>
+          </button>
+        </h2>
+        <div id="rentGuideBalance" class="accordion-collapse collapse mt-2" aria-labelledby="rentGuideHeadingBalance" data-bs-parent="#rentGuideAccordion">
+          <div class="accordion-body">
+            <p>Use Economy Health to check whether rent aligns to student earnings.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 
 <!-- Nav Tabs -->
 <ul class="nav nav-tabs mb-4" id="rentTabs" role="tablist">
