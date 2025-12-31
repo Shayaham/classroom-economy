@@ -11,7 +11,7 @@ import hashlib
 import secrets
 
 from app.extensions import db
-from app.models import Issue, IssueStatusHistory, IssueResolutionAction, Transaction, Student
+from app.models import Issue, IssueStatusHistory, IssueResolutionAction, Transaction, Student, StudentBlock
 from app.utils.helpers import generate_anonymous_code
 from app.utils.ip_handler import get_real_ip
 
