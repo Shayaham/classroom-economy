@@ -423,7 +423,7 @@ class SystemAdminCredential(db.Model):
     sysadmin_id = db.Column(db.Integer, db.ForeignKey('system_admins.id', ondelete='CASCADE'), nullable=False)
 
     # Credential metadata
-    credential_id = db.Column(db.String(255), unique=True, nullable=False, index=True)
+    credential_id = db.Column(db.Text, unique=False, nullable=True, index=False)  # Optional: not needed for passwordless.dev SaaS
     authenticator_name = db.Column(db.String(100))  # User-friendly name
 
     # Timestamps (UTC)
@@ -1176,7 +1176,7 @@ class AdminCredential(db.Model):
     admin_id = db.Column(db.Integer, db.ForeignKey('admins.id', ondelete='CASCADE'), nullable=False)
 
     # Credential metadata
-    credential_id = db.Column(db.String(255), unique=True, nullable=False, index=True)
+    credential_id = db.Column(db.Text, unique=False, nullable=True, index=False)  # Optional: not needed for passwordless.dev SaaS
     authenticator_name = db.Column(db.String(100))  # User-friendly name
 
     # Timestamps (UTC)

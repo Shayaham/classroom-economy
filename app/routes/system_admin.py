@@ -270,19 +270,14 @@ def passkey_register_finish():
         if not data or 'token' not in data:
             return jsonify({"error": "Missing token"}), 400
 
-        # Extract credential ID from token
-        credential_id = data['token']
+        # Note: Credential is stored on passwordless.dev servers
+        # We just track that registration occurred for UX purposes
         authenticator_name = data.get('authenticatorName', 'Unnamed Passkey')
 
-        # Check if credential already exists
-        existing = SystemAdminCredential.query.filter_by(credential_id=credential_id).first()
-        if existing:
-            return jsonify({"error": "This credential is already registered"}), 409
-
-        # Save credential metadata
+        # Save credential metadata (credential_id is optional, stored on passwordless.dev)
         credential = SystemAdminCredential(
-            sysadmin_id=sysadmin_id,
-            credential_id=credential_id,
+            system_admin_id=sysadmin_id,
+            credential_id=None,  # Not needed - stored on passwordless.dev servers
             authenticator_name=authenticator_name
         )
 
