@@ -220,7 +220,9 @@ def create_app():
         # Allow system admin login/logout routes so admins can establish a bypass session.
         if request.endpoint in {
             "sysadmin.login",
-            "sysadmin.logout"
+            "sysadmin.logout",
+            "sysadmin.passkey_auth_start",
+            "sysadmin.passkey_auth_finish"
         }:
             return None
 

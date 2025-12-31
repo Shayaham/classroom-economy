@@ -70,7 +70,7 @@ def create_register_token(user_id: str, username: str, displayname: str) -> str:
 
     register_token = RegisterToken(
         user_id=user_id,
-        username=username,
+        username=displayname,
         aliases=[username]
     )
 
