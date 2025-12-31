@@ -1893,6 +1893,49 @@ def edit_student():
     old_blocks = set(b.strip().upper() for b in (student.block or '').split(',') if b.strip())
     new_blocks_set = set(b.strip().upper() for b in selected_blocks)
 
+    # Get balance action preference
+    balance_action = request.form.get('balance_action', 'keep_separate')
+
+    # Determine which blocks are being removed/added
+    removed_blocks = old_blocks - new_blocks_set
+    added_blocks = new_blocks_set - old_blocks
+
+    # Handle balance transfers if requested and blocks are changing
+    if balance_action == 'transfer' and (removed_blocks or added_blocks):
+        # Get join codes for old and new blocks
+        old_join_codes = []
+        new_join_codes = []
+
+        for block in removed_blocks:
+            tb = TeacherBlock.query.filter_by(
+                teacher_id=current_admin_id,
+                block=block
+            ).first()
+            if tb and tb.join_code:
+                old_join_codes.append(tb.join_code)
+
+        for block in added_blocks:
+            tb = TeacherBlock.query.filter_by(
+                teacher_id=current_admin_id,
+                block=block
+            ).first()
+            if tb and tb.join_code:
+                new_join_codes.append(tb.join_code)
+
+        # Transfer transactions from old blocks to first new block (if any)
+        if old_join_codes and new_join_codes:
+            target_join_code = new_join_codes[0]
+            for old_join_code in old_join_codes:
+                # Update all transactions for this student from old join_code to new join_code
+                Transaction.query.filter_by(
+                    student_id=student.id,
+                    join_code=old_join_code
+                ).update({'join_code': target_join_code})
+
+            current_app.logger.info(
+                f"Transferred transactions for student {student.id} from {old_join_codes} to {target_join_code}"
+            )
+
     # Check if name changed (need to recalculate hashes)
     name_changed = (new_first_name != student.first_name or new_last_initial != student.last_initial)
     dob_changed = False
@@ -2037,7 +2080,16 @@ def edit_student():
 
     try:
         db.session.commit()
-        flash(f"Successfully updated {student.full_name}'s information.", "success")
+
+        # Build flash message with balance action info
+        message = f"Successfully updated {student.full_name}'s information."
+        if balance_action == 'transfer' and (removed_blocks or added_blocks):
+            if old_join_codes and new_join_codes:
+                message += " Balance transferred to new class."
+            else:
+                message += " Note: Balance kept in original class."
+
+        flash(message, "success")
     except Exception as e:
         db.session.rollback()
         flash(f"Error updating student: {str(e)}", "error")
