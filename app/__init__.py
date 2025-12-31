@@ -22,22 +22,6 @@ project_root = Path(__file__).parent.parent
 dotenv_path = project_root / '.env'
 load_dotenv(dotenv_path=dotenv_path)
 
-# TEMPORARY DIAGNOSTIC: Log passwordless.dev environment variables
-import logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-passwordless_key = os.getenv("PASSWORDLESS_API_KEY")
-passwordless_public = os.getenv("PASSWORDLESS_API_PUBLIC")
-if passwordless_key:
-    logger.info(f"✓ PASSWORDLESS_API_KEY loaded (length: {len(passwordless_key)})")
-else:
-    logger.warning("⚠ PASSWORDLESS_API_KEY is NOT loaded")
-if passwordless_public:
-    logger.info(f"✓ PASSWORDLESS_API_PUBLIC loaded (length: {len(passwordless_public)})")
-else:
-    logger.warning("⚠ PASSWORDLESS_API_PUBLIC is NOT loaded")
-
-
 # Validate required environment variables
 required_env_vars = ["SECRET_KEY", "DATABASE_URL", "FLASK_ENV", "ENCRYPTION_KEY", "PEPPER_KEY"]
 missing_vars = [var for var in required_env_vars if not os.getenv(var)]
@@ -234,7 +218,6 @@ def create_app():
             return None
 
         # Allow system admin login/logout routes so admins can establish a bypass session.
-        # Also allow passkey authentication endpoints for passwordless login.
         if request.endpoint in {
             "sysadmin.login",
             "sysadmin.logout",
@@ -585,15 +568,26 @@ def create_app():
 
         # Content Security Policy (CSP)
         # Restricts resource loading to prevent XSS attacks
-        # Adjusted for Google Fonts, Material Icons, Cloudflare Turnstile, jsdelivr CDN (Bootstrap, EasyMDE, zxcvbn), Font Awesome, and Passwordless.dev
-        # Note: 'unsafe-eval' is required for passwordless.dev library (minified build uses new Function() internally)
+        # Adjusted for Google Fonts, Material Icons, Cloudflare Turnstile, jsdelivr CDN, Font Awesome, and Passwordless.dev
+        passwordless_script_src = "https://cdn.passwordless.dev"
+        passwordless_connect_src = "https://cdn.passwordless.dev https://v4.passwordless.dev"
         csp_directives = [
             "default-src 'self'",
-            "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://challenges.cloudflare.com https://cdn.jsdelivr.net https://static.cloudflareinsights.com https://cdn.passwordless.dev",
+            (
+                "script-src 'self' 'unsafe-inline' 'unsafe-eval' "
+                "https://challenges.cloudflare.com https://cdn.jsdelivr.net "
+                "https://static.cloudflareinsights.com "
+                f"{passwordless_script_src}"
+            ),
             "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com",
             "font-src 'self' https://fonts.gstatic.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com",
             "img-src 'self' data: https:",
-            "connect-src 'self' https://challenges.cloudflare.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://cdn.passwordless.dev https://v4.passwordless.dev https://static.cloudflareinsights.com",
+            (
+                "connect-src 'self' https://challenges.cloudflare.com "
+                "https://cdn.jsdelivr.net https://cdnjs.cloudflare.com "
+                "https://static.cloudflareinsights.com "
+                f"{passwordless_connect_src}"
+            ),
             "frame-src https://challenges.cloudflare.com",
             "worker-src 'self' blob:",
             "base-uri 'self'",
