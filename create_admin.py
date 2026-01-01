@@ -20,7 +20,7 @@ def create_system_admin(username):
         # Check if username already exists
         existing = SystemAdmin.query.filter_by(username=username).first()
         if existing:
-            print(f"❌ SystemAdmin '{username}' already exists!")
+            print(f"SystemAdmin '{username}' already exists.")
             return False
 
         # Generate TOTP secret
@@ -35,7 +35,7 @@ def create_system_admin(username):
         db.session.commit()
 
         print("=" * 70)
-        print(f"✅ SystemAdmin '{username}' created successfully!")
+        print(f"SystemAdmin '{username}' created successfully.")
         print("=" * 70)
         print()
         print("TOTP Setup Instructions:")
@@ -62,7 +62,7 @@ def create_regular_admin(username):
         # Check if username already exists
         existing = Admin.query.filter_by(username=username).first()
         if existing:
-            print(f"❌ Admin '{username}' already exists!")
+            print(f"Admin '{username}' already exists.")
             return False
 
         # Generate TOTP secret
@@ -77,7 +77,7 @@ def create_regular_admin(username):
         db.session.commit()
 
         print("=" * 70)
-        print(f"✅ Admin '{username}' created successfully!")
+        print(f"Admin '{username}' created successfully.")
         print("=" * 70)
         print()
         print("TOTP Setup Instructions:")
@@ -141,27 +141,27 @@ def main():
         list_admins()
     elif command in ['sysadmin', 'systemadmin', 'sys']:
         if len(sys.argv) < 3:
-            print("❌ Please provide a username")
+            print("Please provide a username")
             print("Usage: python create_admin.py sysadmin <username>")
             sys.exit(1)
         username = sys.argv[2]
         create_system_admin(username)
     elif command == 'admin':
         if len(sys.argv) < 3:
-            print("❌ Please provide a username")
+            print("Please provide a username")
             print("Usage: python create_admin.py admin <username>")
             sys.exit(1)
         username = sys.argv[2]
         create_regular_admin(username)
     else:
-        print(f"❌ Unknown command: {command}")
+        print(f"Unknown command: {command}")
         print("Valid commands: sysadmin, admin, list")
         sys.exit(1)
 
 if __name__ == '__main__':
     # Check DATABASE_URL is set
     if not os.getenv('DATABASE_URL'):
-        print("❌ DATABASE_URL environment variable not set!")
+        print("DATABASE_URL environment variable not set.")
         print("Please set it before running this script.")
         sys.exit(1)
 

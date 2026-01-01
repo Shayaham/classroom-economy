@@ -851,11 +851,11 @@ def signup():
 
     # Debug logging
     if request.method == 'POST':
-        current_app.logger.info(f"📥 Signup POST request received (TOTP submission: {is_totp_submission})")
+        current_app.logger.info(f"Signup POST request received (TOTP submission: {is_totp_submission})")
         current_app.logger.info(f"   Form data: username={request.form.get('username')}, invite_code={repr(request.form.get('invite_code'))}")
 
     if form.validate_on_submit():
-        current_app.logger.info(f"✅ Form validation passed")
+        current_app.logger.info("Form validation passed")
 
         # Get form data
         if is_totp_submission:
@@ -868,7 +868,7 @@ def signup():
             try:
                 dob_input = datetime.strptime(dob_string, "%Y-%m-%d").date()
             except (ValueError, TypeError):
-                current_app.logger.warning(f"🛑 TOTP submission failed: invalid DOB string")
+                current_app.logger.warning("TOTP submission failed: invalid DOB string")
                 msg = "Invalid date of birth. Please try again."
                 flash(msg, "error")
                 return redirect(url_for('admin.signup'))
@@ -886,27 +886,27 @@ def signup():
                 dob_input = datetime.strptime(dob_input, "%Y-%m-%d").date()
             dob_sum = dob_input.month + dob_input.day + dob_input.year
         except (ValueError, AttributeError, TypeError):
-            current_app.logger.warning(f"🛑 Admin signup failed: invalid DOB input")
+            current_app.logger.warning("Admin signup failed: invalid DOB input")
             msg = "Invalid date of birth. Please enter a valid date."
             if is_json:
                 return jsonify(status="error", message=msg), 400
             flash(msg, "error")
             return redirect(url_for('admin.signup'))
         # Step 1: Validate invite code
-        current_app.logger.info(f"🔍 Validating invite code: {repr(invite_code)}")
+        current_app.logger.info(f"Validating invite code: {repr(invite_code)}")
         code_row = db.session.execute(
             text("SELECT * FROM admin_invite_codes WHERE TRIM(code) = :code"),
             {"code": invite_code}
         ).fetchone()
         if not code_row:
-            current_app.logger.warning(f"🛑 Admin signup failed: invalid invite code {repr(invite_code)}")
+            current_app.logger.warning(f"Admin signup failed: invalid invite code {repr(invite_code)}")
             msg = "Invalid invite code."
             if is_json:
                 return jsonify(status="error", message=msg), 400
             flash(msg, "error")
             return redirect(url_for('admin.signup'))
         if code_row.used:
-            current_app.logger.warning(f"🛑 Admin signup failed: invite code already used")
+            current_app.logger.warning("Admin signup failed: invite code already used")
             msg = "Invite code already used."
             if is_json:
                 return jsonify(status="error", message=msg), 400
@@ -923,7 +923,7 @@ def signup():
             # Database stores UTC times as naive, make them aware for comparison
             expires_aware = expires_dt.replace(tzinfo=timezone.utc) if expires_dt.tzinfo is None else expires_dt
             if expires_aware < datetime.now(timezone.utc):
-                current_app.logger.warning(f"🛑 Admin signup failed: invite code expired")
+                current_app.logger.warning("Admin signup failed: invite code expired")
                 msg = "Invite code expired."
                 if is_json:
                     return jsonify(status="error", message=msg), 400
@@ -931,7 +931,7 @@ def signup():
                 return redirect(url_for('admin.signup'))
         # Step 2: Check username uniqueness
         if Admin.query.filter_by(username=username).first():
-            current_app.logger.warning(f"🛑 Admin signup failed: username already exists")
+            current_app.logger.warning("Admin signup failed: username already exists")
             msg = "Username already exists."
             if is_json:
                 return jsonify(status="error", message=msg), 400
@@ -969,12 +969,12 @@ def signup():
                 totp_secret=totp_secret
             )
         # Step 5: Validate entered TOTP code
-        current_app.logger.info(f"🔐 TOTP code submitted (length: {len(totp_code)})")
+        current_app.logger.info(f"TOTP code submitted (length: {len(totp_code)})")
         totp = pyotp.TOTP(totp_secret)
         is_valid = totp.verify(totp_code)
-        current_app.logger.info(f"🔐 TOTP verification result: {is_valid}")
+        current_app.logger.info(f"TOTP verification result: {is_valid}")
         if not is_valid:
-            current_app.logger.warning(f"🛑 TOTP verification failed for user: {username}")
+            current_app.logger.warning(f"TOTP verification failed for user: {username}")
             msg = "Invalid TOTP code. Please try again."
             if is_json:
                 return jsonify(status="error", message=msg), 400
@@ -998,7 +998,7 @@ def signup():
                 totp_secret=totp_secret
             )
         # Step 6: Create admin account and mark invite as used
-        current_app.logger.info(f"✅ TOTP verified! Creating admin account for: {username}")
+        current_app.logger.info(f"TOTP verified. Creating admin account for: {username}")
         # Hash DOB sum
         salt = get_random_salt()
         dob_sum_str = str(dob_sum).encode()
@@ -1013,7 +1013,7 @@ def signup():
             {"code": invite_code}
         )
         db.session.commit()
-        current_app.logger.info(f"✅ Admin account created successfully: {username}")
+        current_app.logger.info(f"Admin account created successfully: {username}")
         # Clear session
         session.pop("admin_totp_secret", None)
         session.pop("admin_totp_username", None)
@@ -1026,7 +1026,7 @@ def signup():
         return redirect(url_for("admin.login"))
     # GET or invalid POST: render signup form with form instance (for CSRF)
     if request.method == 'POST':
-        current_app.logger.warning(f"❌ Form validation failed")
+        current_app.logger.warning("Form validation failed")
         current_app.logger.warning(f"   Form errors: {form.errors}")
     return render_template("admin_signup.html", form=form)
 
@@ -1098,7 +1098,7 @@ def recover():
         expected_hash = hash_hmac(dob_sum_str, teacher.salt)
 
         if teacher.dob_sum_hash != expected_hash:
-            current_app.logger.warning(f"🛑 Admin recovery failed: DOB sum mismatch for teacher {teacher_id}")
+            current_app.logger.warning(f"Admin recovery failed: DOB sum mismatch for teacher {teacher_id}")
             flash("Unable to verify your identity. Please check your DOB sum.", "error")
             return render_template("admin_recover.html", form=form)
 
@@ -1170,7 +1170,7 @@ def recover():
         db.session.commit()
 
         session['recovery_request_id'] = recovery_request.id
-        current_app.logger.info(f"🔐 Admin recovery: request created for teacher {teacher.id}, expires {expires_at}")
+        current_app.logger.info(f"Admin recovery: request created for teacher {teacher.id}, expires {expires_at}")
 
         flash(f"Recovery request created! Your students have been notified. You have 5 days to complete this process.", "success")
         return redirect(url_for('admin.recovery_status'))
@@ -1258,7 +1258,7 @@ def reset_credentials():
 
         # Verify count matches
         if len(entered_codes) != len(student_codes):
-            current_app.logger.warning(f"🛑 Admin recovery: code count mismatch for request {recovery_request.id} - expected {len(student_codes)}, got {len(entered_codes)}")
+            current_app.logger.warning(f"Admin recovery: code count mismatch for request {recovery_request.id} - expected {len(student_codes)}, got {len(entered_codes)}")
             # Invalidate ALL codes
             _invalidate_all_recovery_codes(student_codes)
             flash(f"Wrong number of codes entered. All codes have been invalidated. Your students must generate new codes.", "error")
@@ -1269,7 +1269,7 @@ def reset_credentials():
         for code in entered_codes:
             # Validate format
             if not code.isdigit() or len(code) != 6:
-                current_app.logger.warning(f"🛑 Admin recovery: invalid code format for request {recovery_request.id}")
+                current_app.logger.warning(f"Admin recovery: invalid code format for request {recovery_request.id}")
                 _invalidate_all_recovery_codes(student_codes)
                 flash("Invalid code format detected. All codes have been invalidated. Your students must generate new codes.", "error")
                 return redirect(url_for('admin.recovery_status'))
@@ -1280,7 +1280,7 @@ def reset_credentials():
         stored_hashes = set(sc.code_hash for sc in student_codes)
 
         if entered_hashes != stored_hashes:
-            current_app.logger.warning(f"🛑 Admin recovery: code mismatch for request {recovery_request.id}")
+            current_app.logger.warning(f"Admin recovery: code mismatch for request {recovery_request.id}")
             # Invalidate ALL codes on failed attempt
             _invalidate_all_recovery_codes(student_codes)
             flash("Recovery codes do not match. All codes have been invalidated. Your students must generate new codes.", "error")
@@ -1334,7 +1334,7 @@ def _invalidate_all_recovery_codes(student_codes):
         sc.code_hash = None
         sc.verified_at = None
     db.session.commit()
-    current_app.logger.info(f"🔄 Invalidated {len(student_codes)} recovery codes - students must regenerate")
+    current_app.logger.info(f"Invalidated {len(student_codes)} recovery codes - students must regenerate")
 
 
 @admin_bp.route('/confirm-reset', methods=['POST'])
@@ -1429,7 +1429,7 @@ def save_recovery_progress():
     recovery_request.resume_new_username = new_username
     db.session.commit()
 
-    current_app.logger.info(f"💾 Admin recovery: saved partial progress for request {recovery_request.id}")
+    current_app.logger.info(f"Admin recovery: saved partial progress for request {recovery_request.id}")
 
     # Show the PIN to the teacher
     return render_template("admin_recovery_saved.html",
@@ -1466,7 +1466,7 @@ def resume_credentials():
     ).first()
 
     if not recovery_request:
-        current_app.logger.warning(f"🛑 Admin recovery: invalid resume PIN attempt")
+        current_app.logger.warning("Admin recovery: invalid resume PIN attempt")
         flash("Invalid or expired resume PIN. Please check your PIN or start a new recovery.", "error")
         return render_template("admin_resume_credentials.html")
 
@@ -1474,7 +1474,7 @@ def resume_credentials():
     session['recovery_request_id'] = recovery_request.id
     session['resume_mode'] = True
 
-    current_app.logger.info(f"🔄 Admin recovery: resumed progress for request {recovery_request.id}")
+    current_app.logger.info(f"Admin recovery: resumed progress for request {recovery_request.id}")
     flash(f"Progress resumed! You have {len(recovery_request.partial_codes or [])} code(s) already saved.", "info")
     return redirect(url_for('admin.reset_credentials'))
 
@@ -3943,7 +3943,7 @@ def void_transaction(transaction_id):
         return redirect(return_url)
     if is_json:
         return jsonify(status="success", message="Transaction voided.")
-    flash("✅ Transaction voided.", "success")
+    flash("Transaction voided.", "success")
     # Safe redirect: validate referrer to prevent open redirects
     ref = request.referrer or ""
     potential_url = ref.replace('\\', '')
@@ -4008,7 +4008,7 @@ def hall_pass():
     )
 
 
-# -------------------- PAYROLL --------------------
+# -------------------- ECONOMY HEALTH --------------------
 
 @admin_bp.route('/economy-health')
 @admin_required
@@ -4184,14 +4184,14 @@ def economy_health():
 @admin_required
 def payroll_history():
     """View payroll history with filtering."""
-    current_app.logger.info("🧭 Entered admin_payroll_history route")
+    current_app.logger.info("Entered admin_payroll_history route")
     student_ids_subq = _student_scope_subquery()
 
     block = request.args.get("block")
-    current_app.logger.info(f"📊 Block filter: {block}")
+    current_app.logger.info(f"Block filter: {block}")
     start_date_str = request.args.get("start_date")
     end_date_str = request.args.get("end_date")
-    current_app.logger.info(f"📅 Date filters: start={start_date_str}, end={end_date_str}")
+    current_app.logger.info(f"Date filters: start={start_date_str}, end={end_date_str}")
 
     query = Transaction.query.filter(
         Transaction.student_id.in_(student_ids_subq),
@@ -4201,7 +4201,7 @@ def payroll_history():
     if block:
         # Stream students in batches for this block
         student_ids = [s.id for s in _scoped_students().filter_by(block=block).yield_per(50).all()]
-        current_app.logger.info(f"👥 Student IDs in block '{block}': {student_ids}")
+        current_app.logger.info(f"Student IDs in block '{block}': {student_ids}")
         query = query.filter(Transaction.student_id.in_(student_ids))
 
     if start_date_str:
@@ -4213,7 +4213,7 @@ def payroll_history():
         query = query.filter(Transaction.timestamp < end_date)
 
     payroll_transactions = query.order_by(desc(Transaction.timestamp)).all()
-    current_app.logger.info(f"🔎 Payroll transactions found: {len(payroll_transactions)}")
+    current_app.logger.info(f"Payroll transactions found: {len(payroll_transactions)}")
 
     # Stream students in batches to reduce memory usage for the lookup
     student_lookup = {s.id: s for s in _scoped_students().yield_per(50)}
@@ -4239,7 +4239,7 @@ def payroll_history():
             'notes': tx.description,
         })
 
-    current_app.logger.info(f"📄 Payroll records prepared: {len(payroll_records)}")
+    current_app.logger.info(f"Payroll records prepared: {len(payroll_records)}")
 
     # Current timestamp for header (Pacific Time)
     pacific = pytz.timezone('America/Los_Angeles')
@@ -4276,7 +4276,7 @@ def run_payroll():
 
         if not current_admin_id:
             error_msg = "No admin_id in session"
-            current_app.logger.error(f"❌ Payroll error: {error_msg}")
+            current_app.logger.error(f"Payroll error: {error_msg}")
             if is_json:
                 return jsonify(status="error", message=error_msg), 401
             flash(error_msg, "admin_error")
@@ -4288,7 +4288,7 @@ def run_payroll():
             teacher_id=current_admin_id
         ).order_by(Transaction.timestamp.desc()).first()
         last_payroll_time = last_payroll_tx.timestamp if last_payroll_tx else None
-        current_app.logger.info(f"🧮 RUN PAYROLL: Last payroll at {last_payroll_time}")
+        current_app.logger.info(f"Run payroll: last payroll at {last_payroll_time}")
 
         students = _scoped_students().all()
         # Pass teacher_id to ensure correct payroll settings are used
@@ -4317,7 +4317,7 @@ def run_payroll():
             db.session.add(tx)
 
         db.session.commit()
-        current_app.logger.info(f"✅ Payroll complete. Paid {len(summary)} students.")
+        current_app.logger.info(f"Payroll complete. Paid {len(summary)} students.")
 
         success_message = f"Payroll complete. Paid {len(summary)} students."
         if is_json:
@@ -4329,7 +4329,7 @@ def run_payroll():
         db.session.rollback()
         is_db_error = isinstance(e, SQLAlchemyError)
         error_type = "database" if is_db_error else "unexpected"
-        current_app.logger.error(f"❌ Payroll {error_type} error: {e}", exc_info=True)
+        current_app.logger.error(f"Payroll {error_type} error: {e}", exc_info=True)
 
         if is_json:
             message = "Database error during payroll. Check logs." if is_db_error else "Unexpected error during payroll."
@@ -5994,7 +5994,7 @@ def deletion_requests():
         try:
             db.session.commit()
             flash(
-                f'✅ Deletion request submitted successfully. '
+                f'Deletion request submitted successfully. '
                 f'A system administrator will review your {request_type} deletion request.',
                 'success'
             )
@@ -6814,7 +6814,7 @@ def onboarding_complete():
         onboarding_record.complete_onboarding()
         db.session.commit()
 
-        flash('🎉 Welcome to Classroom Economy! Your setup is complete.', 'success')
+        flash('Welcome to Classroom Economy! Your setup is complete.', 'success')
 
         return jsonify({
             'status': 'success',

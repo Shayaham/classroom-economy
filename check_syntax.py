@@ -18,17 +18,17 @@ def check_migration_syntax(migrations_dir: Path):
             py_compile.compile(str(filepath), doraise=True)
             checked += 1
         except py_compile.PyCompileError as e:
-            issues.append(f"❌ SYNTAX ERROR in {filepath.name}: {e}")
+            issues.append(f"SYNTAX ERROR in {filepath.name}: {e}")
 
-    print(f"\n✅ Checked {checked} migration files")
+    print(f"\nChecked {checked} migration files")
 
     if issues:
-        print("\n⚠️  SYNTAX ERRORS FOUND:")
+        print("\nSYNTAX ERRORS FOUND:")
         for issue in issues:
             print(f"  {issue}")
         return 1
     else:
-        print("✅ All migration files have valid Python syntax\n")
+        print("All migration files have valid Python syntax\n")
         return 0
 
 if __name__ == '__main__':

@@ -17,7 +17,7 @@ def cleanup_invite_codes():
     try:
         conn = psycopg2.connect(DATABASE_URL)
     except Exception as e:
-        print(f"❌ Error connecting to database: {e}")
+        print(f"Error connecting to database: {e}")
         return
 
     try:
@@ -45,10 +45,10 @@ def cleanup_invite_codes():
                         updated += 1
 
                 conn.commit()
-                print(f"\n✅ Cleanup complete: {updated} codes updated, {len(codes) - updated} already clean")
+                print(f"\nCleanup complete: {updated} codes updated, {len(codes) - updated} already clean")
 
     except Exception as e:
-        print(f"❌ Error during cleanup: {e}")
+        print(f"Error during cleanup: {e}")
         conn.rollback()
     finally:
         conn.close()

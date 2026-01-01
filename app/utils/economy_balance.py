@@ -944,7 +944,7 @@ def format_warnings_for_display(warnings: List[BalanceWarning]) -> str:
         HTML string
     """
     if not warnings:
-        return '<div class="alert alert-success">✓ Economy is balanced!</div>'
+        return '<div class="alert alert-success"><i class="bi bi-check-circle-fill me-1"></i>Economy is balanced!</div>'
 
     # Group by level
     critical = [w for w in warnings if w.level == WarningLevel.CRITICAL]
@@ -954,19 +954,19 @@ def format_warnings_for_display(warnings: List[BalanceWarning]) -> str:
     html_parts = []
 
     if critical:
-        html_parts.append('<div class="alert alert-danger"><strong>⚠️ Critical Issues:</strong><ul>')
+        html_parts.append('<div class="alert alert-danger"><strong><i class="bi bi-exclamation-octagon-fill me-1"></i>Critical Issues:</strong><ul>')
         for w in critical:
             html_parts.append(f'<li>{w.message}</li>')
         html_parts.append('</ul></div>')
 
     if warning:
-        html_parts.append('<div class="alert alert-warning"><strong>⚠ Warnings:</strong><ul>')
+        html_parts.append('<div class="alert alert-warning"><strong><i class="bi bi-exclamation-triangle-fill me-1"></i>Warnings:</strong><ul>')
         for w in warning:
             html_parts.append(f'<li>{w.message}</li>')
         html_parts.append('</ul></div>')
 
     if info and not (critical or warning):  # Only show info if no problems
-        html_parts.append('<div class="alert alert-info"><strong>ℹ️ Balance Info:</strong><ul>')
+        html_parts.append('<div class="alert alert-info"><strong><i class="bi bi-info-circle-fill me-1"></i>Balance Info:</strong><ul>')
         for w in info[:5]:  # Limit to 5 info messages
             html_parts.append(f'<li>{w.message}</li>')
         html_parts.append('</ul></div>')
