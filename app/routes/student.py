@@ -150,16 +150,15 @@ def get_feature_settings_for_student():
         # Return defaults if no student logged in
         return FeatureSettings.get_defaults()
 
-    teacher_id = get_current_teacher_id()
+    context = get_current_class_context()
+    if not context:
+        return FeatureSettings.get_defaults()
+
+    teacher_id = context.get('teacher_id')
     if not teacher_id:
         return FeatureSettings.get_defaults()
 
-    # Get the student's current block/period
-    current_block = session.get('current_period')
-    if not current_block and student.block:
-        # Default to first block, handling empty strings after split
-        blocks = [b.strip().upper() for b in student.block.split(',') if b.strip()]
-        current_block = blocks[0] if blocks else None
+    current_block = (context.get('block') or '').strip().upper() or None
 
     # Try block-specific settings first
     if current_block:
