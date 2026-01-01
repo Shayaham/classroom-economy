@@ -35,15 +35,24 @@
     <p>Manage store items, approve redemptions, and review purchase history.</p>
     <div class="accordion mt-4 mb-4" id="storeGuideAccordion">
       <div class="accordion-item">
-        <h2 class="accordion-header" id="storeGuideHeadingItems">
-          <button class="accordion-button collapsed bg-secondary text-muted" type="button" data-bs-toggle="collapse" data-bs-target="#storeGuideItems" aria-expanded="false" aria-controls="storeGuideItems">
+        <h2 class="accordion-header" id="storeGuideHeadingBasic">
+          <button class="accordion-button collapsed bg-secondary text-muted" type="button" data-bs-toggle="collapse" data-bs-target="#storeGuideBasic" aria-expanded="false" aria-controls="storeGuideBasic">
             <span class="material-symbols-outlined me-2" style="font-size:25pt; vertical-align:middle;">inventory_2</span>
-            <strong>Manage Items</strong>
+            <strong>Basic Setup</strong>
           </button>
         </h2>
-        <div id="storeGuideItems" class="accordion-collapse collapse mt-2" aria-labelledby="storeGuideHeadingItems" data-bs-parent="#storeGuideAccordion">
+        <div id="storeGuideBasic" class="accordion-collapse collapse mt-2" aria-labelledby="storeGuideHeadingBasic" data-bs-parent="#storeGuideAccordion">
           <div class="accordion-body">
-            <p>Use the Manage Items tab to add, edit, and activate store items.</p>
+            <p>Start here to get your store running. Use the Manage Items tab to add and activate items.</p>
+            <ul class="mb-3">
+              <li><strong>Name/description:</strong> What students see in the store.</li>
+              <li><strong>Price &amp; tier:</strong> Sets cost and grouping for your pricing structure.</li>
+              <li><strong>Item type:</strong> Immediate vs delayed redemption.</li>
+              <li><strong>Active:</strong> Inactive items are hidden from students.</li>
+              <li><strong>Class visibility:</strong> Limit items to specific periods.</li>
+              <li><strong>Inventory:</strong> Caps total redemptions available.</li>
+              <li><strong>Limit per student:</strong> Restricts how many times each student can redeem.</li>
+            </ul>
             <div class="alert alert-info mb-0">
               <strong>Tip:</strong> Keep prices aligned to your CWI so rewards feel achievable.
             </div>
@@ -51,29 +60,22 @@
         </div>
       </div>
       <div class="accordion-item">
-        <h2 class="accordion-header" id="storeGuideHeadingSettingsBreakdown">
-          <button class="accordion-button collapsed bg-secondary text-muted" type="button" data-bs-toggle="collapse" data-bs-target="#storeGuideSettingsBreakdown" aria-expanded="false" aria-controls="storeGuideSettingsBreakdown">
+        <h2 class="accordion-header" id="storeGuideHeadingAdvanced">
+          <button class="accordion-button collapsed bg-secondary text-muted" type="button" data-bs-toggle="collapse" data-bs-target="#storeGuideAdvanced" aria-expanded="false" aria-controls="storeGuideAdvanced">
             <span class="material-symbols-outlined me-2" style="font-size:25pt; vertical-align:middle;">tune</span>
-            <strong>Settings Breakdown</strong>
+            <strong>Advanced Options</strong>
           </button>
         </h2>
-        <div id="storeGuideSettingsBreakdown" class="accordion-collapse collapse mt-2" aria-labelledby="storeGuideHeadingSettingsBreakdown" data-bs-parent="#storeGuideAccordion">
+        <div id="storeGuideAdvanced" class="accordion-collapse collapse mt-2" aria-labelledby="storeGuideHeadingAdvanced" data-bs-parent="#storeGuideAccordion">
           <div class="accordion-body">
-            <ul class="mb-0">
-              <li><strong>Name/description:</strong> what students see in the store.</li>
-              <li><strong>Price &amp; tier:</strong> sets cost and grouping for your pricing structure.</li>
-              <li><strong>Item type:</strong> controls how redemption works (immediate vs delayed use).</li>
-              <li><strong>Active:</strong> inactive items are hidden from students.</li>
-              <li><strong>Class visibility:</strong> limit items to specific periods.</li>
-              <li><strong>Inventory:</strong> caps how many total redemptions are available.</li>
-              <li><strong>Limit per student:</strong> restricts how many times each student can redeem.</li>
-              <li><strong>Bundles:</strong> set quantity per purchase (for multi-use items).</li>
-              <li><strong>Bulk discount:</strong> lowers price when students buy in larger quantities.</li>
-              <li><strong>Collective goal:</strong> requires class-wide progress before redemption.</li>
-              <li><strong>Auto delist/expiry:</strong> removes items after a date or number of days.</li>
-              <li><strong>Redemption prompt:</strong> collects details from students at checkout.</li>
+            <ul class="mb-3">
+              <li><strong>Bundles:</strong> Set quantity per purchase for multi-use items.</li>
+              <li><strong>Bulk discount:</strong> Lower price when students buy in larger quantities.</li>
+              <li><strong>Collective goal:</strong> Require class-wide progress before redemption.</li>
+              <li><strong>Auto delist/expiry:</strong> Remove items after a date or number of days.</li>
+              <li><strong>Redemption prompt:</strong> Collect details from students at checkout.</li>
             </ul>
-            <div class="alert alert-info mt-3 mb-0">
+            <div class="alert alert-info mb-0">
               <strong>Side effects:</strong> Deactivating or delisting items hides them immediately; inventory limits can block redemptions once exhausted.
             </div>
           </div>
