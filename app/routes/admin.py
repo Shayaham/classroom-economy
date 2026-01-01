@@ -1820,10 +1820,11 @@ def student_detail(student_id):
         scoped_savings_balance = student.get_savings_balance(join_code=join_code)
         scoped_total_earnings = student.get_total_earnings(join_code=join_code)
     else:
-        # Fallback: use aggregated balances (shouldn't happen in normal flow)
-        scoped_checking_balance = student.checking_balance
-        scoped_savings_balance = student.savings_balance
-        scoped_total_earnings = student.total_earnings
+        # Fallback: Log a warning and show $0 balances if no join_code is available.
+        # This prevents accidentally showing aggregated data.
+        current_app.logger.warning(
+            f"No join_code in session for student_detail view for student {student.id}. Displaying $0 balances."
+        )
 
     return render_template('student_detail.html',
                          student=student,
