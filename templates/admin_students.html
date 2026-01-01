@@ -960,46 +960,93 @@ document.addEventListener('DOMContentLoaded', function() {
 
       // Show balance transfer section only if blocks are being added
       if (addedBlocks.length > 0) {
-        // Build HTML for each new period's balance options
-        const optionsHtml = addedBlocks.map(block => {
+        // Clear any existing options
+        newPeriodsBalanceOptions.textContent = '';
+
+        // Build DOM elements for each new period's balance options
+        addedBlocks.forEach(block => {
           const fromText = removedBlocks.length > 0
             ? `from ${removedBlocks.join(', ')}`
             : 'from existing period(s)';
 
-          return `
-            <div class="mb-3 pb-3 border-bottom">
-              <strong class="d-block mb-2">
-                <span class="material-symbols-outlined align-middle me-1 fs-6">folder</span>
-                ${block}
-              </strong>
-              <div class="form-check mb-1">
-                <input class="form-check-input" type="radio"
-                       name="balance_action_${block}"
-                       id="balance_start_fresh_${block}"
-                       value="start_fresh"
-                       checked>
-                <label class="form-check-label" for="balance_start_fresh_${block}">
-                  <strong>Start Fresh</strong> — Student begins with $0 in this period (recommended)
-                </label>
-              </div>
-              <div class="form-check">
-                <input class="form-check-input" type="radio"
-                       name="balance_action_${block}"
-                       id="balance_transfer_${block}"
-                       value="transfer">
-                <label class="form-check-label" for="balance_transfer_${block}">
-                  <strong>Transfer Balance</strong> — Move all transactions ${fromText}
-                </label>
-              </div>
-            </div>
-          `;
-        }).join('');
+          const container = document.createElement('div');
+          container.className = 'mb-3 pb-3 border-bottom';
 
-        newPeriodsBalanceOptions.innerHTML = optionsHtml;
+          const strongEl = document.createElement('strong');
+          strongEl.className = 'd-block mb-2';
+
+          const iconSpan = document.createElement('span');
+          iconSpan.className = 'material-symbols-outlined align-middle me-1 fs-6';
+          iconSpan.textContent = 'folder';
+          strongEl.appendChild(iconSpan);
+
+          const blockTextNode = document.createTextNode(' ' + block);
+          strongEl.appendChild(blockTextNode);
+
+          container.appendChild(strongEl);
+
+          const startFreshDiv = document.createElement('div');
+          startFreshDiv.className = 'form-check mb-1';
+
+          const startFreshInput = document.createElement('input');
+          startFreshInput.className = 'form-check-input';
+          startFreshInput.type = 'radio';
+          startFreshInput.name = `balance_action_${block}`;
+          startFreshInput.id = `balance_start_fresh_${block}`;
+          startFreshInput.value = 'start_fresh';
+          startFreshInput.checked = true;
+
+          const startFreshLabel = document.createElement('label');
+          startFreshLabel.className = 'form-check-label';
+          startFreshLabel.htmlFor = `balance_start_fresh_${block}`;
+
+          const startFreshStrong = document.createElement('strong');
+          startFreshStrong.textContent = 'Start Fresh';
+          startFreshLabel.appendChild(startFreshStrong);
+
+          startFreshLabel.appendChild(
+            document.createTextNode(' — Student begins with $0 in this period (recommended)')
+          );
+
+          startFreshDiv.appendChild(startFreshInput);
+          startFreshDiv.appendChild(startFreshLabel);
+
+          container.appendChild(startFreshDiv);
+
+          const transferDiv = document.createElement('div');
+          transferDiv.className = 'form-check';
+
+          const transferInput = document.createElement('input');
+          transferInput.className = 'form-check-input';
+          transferInput.type = 'radio';
+          transferInput.name = `balance_action_${block}`;
+          transferInput.id = `balance_transfer_${block}`;
+          transferInput.value = 'transfer';
+
+          const transferLabel = document.createElement('label');
+          transferLabel.className = 'form-check-label';
+          transferLabel.htmlFor = `balance_transfer_${block}`;
+
+          const transferStrong = document.createElement('strong');
+          transferStrong.textContent = 'Transfer Balance';
+          transferLabel.appendChild(transferStrong);
+
+          transferLabel.appendChild(
+            document.createTextNode(` — Move all transactions ${fromText}`)
+          );
+
+          transferDiv.appendChild(transferInput);
+          transferDiv.appendChild(transferLabel);
+
+          container.appendChild(transferDiv);
+
+          newPeriodsBalanceOptions.appendChild(container);
+        });
+
         balanceTransferSection.style.display = 'block';
       } else {
         balanceTransferSection.style.display = 'none';
-        newPeriodsBalanceOptions.innerHTML = '';
+        newPeriodsBalanceOptions.textContent = '';
       }
     }
   }
