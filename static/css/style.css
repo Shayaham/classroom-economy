@@ -162,7 +162,6 @@ a:hover {
 .card {
     background: var(--surface);
     border: 1px solid var(--border-color);
-    border-radius: var(--radius-md);
     box-shadow: var(--shadow-sm);
 }
 
@@ -449,7 +448,8 @@ a:hover {
     color: white;
 }
 
-.nav-accordion-btn:not(.collapsed) {
+.dropdown.show .nav-accordion-btn,
+.nav-accordion-btn.show {
     background-color: rgba(255, 255, 255, 0.15);
     color: white;
     box-shadow: none;
@@ -497,7 +497,6 @@ a:hover {
 .balance-card {
     background: linear-gradient(135deg, var(--primary), var(--primary-hover));
     color: white;
-    border-radius: var(--radius-lg);
     padding: 2rem;
     box-shadow: var(--shadow-md);
     position: relative;
@@ -703,7 +702,6 @@ body.maintenance-active .main-content {
 .hall-pass-card {
     background: var(--surface);
     border: 1px solid var(--border-color);
-    border-radius: var(--radius-md);
     box-shadow: var(--shadow-md);
     padding: 1.25rem;
     position: relative;

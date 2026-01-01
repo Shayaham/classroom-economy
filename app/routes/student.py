@@ -1052,7 +1052,7 @@ def dashboard():
     tz = pytz.timezone('America/Los_Angeles')
     local_now = datetime.now(tz)
     # --- DASHBOARD DEBUG LOGGING ---
-    current_app.logger.info(f"📊 DASHBOARD DEBUG: Student {student.id} - Block states:")
+    current_app.logger.info(f"DASHBOARD DEBUG: Student {student.id} - Block states:")
     for blk, blk_state in period_states.items():
         active = blk_state.get("active")
         done = blk_state.get("done")
@@ -3199,7 +3199,7 @@ def verify_recovery(code_id):
 
         # Verify passphrase
         if not student.passphrase_hash or not check_password_hash(student.passphrase_hash, passphrase):
-            current_app.logger.warning(f"🛑 Recovery verification failed: incorrect passphrase for student {student.id}")
+            current_app.logger.warning(f"Recovery verification failed: incorrect passphrase for student {student.id}")
             flash("Incorrect passphrase. Please try again.", "error")
             return render_template('student_verify_recovery.html',
                                  recovery_code=recovery_code,
@@ -3213,7 +3213,7 @@ def verify_recovery(code_id):
         recovery_code.verified_at = datetime.now(timezone.utc)
         db.session.commit()
 
-        current_app.logger.info(f"🔐 Student {student.id} verified recovery request {recovery_code.recovery_request_id}")
+        current_app.logger.info(f"Student {student.id} verified recovery request {recovery_code.recovery_request_id}")
 
         return render_template('student_verify_recovery.html',
                              recovery_code=recovery_code,

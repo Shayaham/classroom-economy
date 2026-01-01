@@ -1643,12 +1643,12 @@ class Announcement(db.Model):
     def get_priority_icon(self):
         """Get icon for announcement priority."""
         priority_icons = {
-            'low': '📌',
-            'normal': '📢',
-            'high': '⚠️',
-            'urgent': '🚨'
+            'low': 'push_pin',
+            'normal': 'campaign',
+            'high': 'warning',
+            'urgent': 'error'
         }
-        return priority_icons.get(self.priority, '📢')
+        return priority_icons.get(self.priority, 'campaign')
 
     def get_audience_label(self):
         """Get human-readable label for audience type."""

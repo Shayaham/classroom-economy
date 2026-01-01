@@ -3,6 +3,11 @@
 {% set current_page = "insurance" %}
 {% block title %}Insurance Management{% endblock %}
 {% block page_icon %}shield{% endblock %}
+{% block page_header_actions %}
+  <button class="btn btn-primary d-none d-md-inline-flex align-items-center gap-2" type="button" data-bs-toggle="offcanvas" data-bs-target="#insuranceGuide" aria-controls="insuranceGuide">
+    <span class="material-symbols-outlined">quick_reference_all</span> Need Help?
+  </button>
+{% endblock %}
 
 {% block extra_head %}
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/easymde/dist/easymde.min.css">
@@ -21,6 +26,96 @@
 {% endblock %}
 
 {% block content %}
+
+<div class="offcanvas offcanvas-end" tabindex="-1" id="insuranceGuide" aria-labelledby="insuranceGuideLabel">
+  <div class="offcanvas-header">
+    <h5 class="offcanvas-title" id="insuranceGuideLabel">How to: Insurance Management</h5>
+    <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+  </div>
+  <div class="offcanvas-body">
+    <p>Create insurance policies, enroll students, and review claims.</p>
+    <div class="accordion mt-4 mb-4" id="insuranceGuideAccordion">
+      <div class="accordion-item">
+        <h2 class="accordion-header" id="insuranceGuideHeadingPolicies">
+          <button class="accordion-button collapsed bg-secondary text-muted" type="button" data-bs-toggle="collapse" data-bs-target="#insuranceGuidePolicies" aria-expanded="false" aria-controls="insuranceGuidePolicies">
+            <span class="material-symbols-outlined me-2" style="font-size:25pt; vertical-align:middle;">policy</span>
+            <strong>Manage Policies</strong>
+          </button>
+        </h2>
+        <div id="insuranceGuidePolicies" class="accordion-collapse collapse mt-2" aria-labelledby="insuranceGuideHeadingPolicies" data-bs-parent="#insuranceGuideAccordion">
+          <div class="accordion-body">
+            <p>Create or update policies in the Existing Policies or Add New Policy tabs.</p>
+          </div>
+        </div>
+      </div>
+      <div class="accordion-item">
+        <h2 class="accordion-header" id="insuranceGuideHeadingSettingsBreakdown">
+          <button class="accordion-button collapsed bg-secondary text-muted" type="button" data-bs-toggle="collapse" data-bs-target="#insuranceGuideSettingsBreakdown" aria-expanded="false" aria-controls="insuranceGuideSettingsBreakdown">
+            <span class="material-symbols-outlined me-2" style="font-size:25pt; vertical-align:middle;">tune</span>
+            <strong>Policy Settings Breakdown</strong>
+          </button>
+        </h2>
+        <div id="insuranceGuideSettingsBreakdown" class="accordion-collapse collapse mt-2" aria-labelledby="insuranceGuideHeadingSettingsBreakdown" data-bs-parent="#insuranceGuideAccordion">
+          <div class="accordion-body">
+            <ul class="mb-0">
+              <li><strong>Premium:</strong> amount charged per cycle to stay enrolled.</li>
+              <li><strong>Frequency:</strong> how often premiums are collected.</li>
+              <li><strong>Claim type:</strong> determines whether payouts are monetary or non-monetary.</li>
+              <li><strong>Waiting period:</strong> days before a student can submit a claim.</li>
+              <li><strong>Max claims:</strong> caps total claims per period or overall.</li>
+              <li><strong>Status:</strong> active policies can be enrolled; inactive policies are hidden.</li>
+            </ul>
+            <div class="alert alert-info mt-3 mb-0">
+              <strong>Side effects:</strong> Changing policy terms affects future enrollments and claims.
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="accordion-item">
+        <h2 class="accordion-header" id="insuranceGuideHeadingStudents">
+          <button class="accordion-button collapsed bg-secondary text-muted" type="button" data-bs-toggle="collapse" data-bs-target="#insuranceGuideStudents" aria-expanded="false" aria-controls="insuranceGuideStudents">
+            <span class="material-symbols-outlined me-2" style="font-size:25pt; vertical-align:middle;">group</span>
+            <strong>Student Enrollment</strong>
+          </button>
+        </h2>
+        <div id="insuranceGuideStudents" class="accordion-collapse collapse mt-2" aria-labelledby="insuranceGuideHeadingStudents" data-bs-parent="#insuranceGuideAccordion">
+          <div class="accordion-body">
+            <p>Use the Active Student Policies tab to see who is enrolled and manage coverage.</p>
+          </div>
+        </div>
+      </div>
+      <div class="accordion-item">
+        <h2 class="accordion-header" id="insuranceGuideHeadingClaims">
+          <button class="accordion-button collapsed bg-secondary text-muted" type="button" data-bs-toggle="collapse" data-bs-target="#insuranceGuideClaims" aria-expanded="false" aria-controls="insuranceGuideClaims">
+            <span class="material-symbols-outlined me-2" style="font-size:25pt; vertical-align:middle;">assignment</span>
+            <strong>Review Claims</strong>
+          </button>
+        </h2>
+        <div id="insuranceGuideClaims" class="accordion-collapse collapse mt-2" aria-labelledby="insuranceGuideHeadingClaims" data-bs-parent="#insuranceGuideAccordion">
+          <div class="accordion-body">
+            <p>Open the Claims tab to review and resolve pending requests.</p>
+            <div class="alert alert-info mb-0">
+              <strong>Tip:</strong> Claims follow the waiting period set on each policy.
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="accordion-item">
+        <h2 class="accordion-header" id="insuranceGuideHeadingBalance">
+          <button class="accordion-button collapsed bg-secondary text-muted" type="button" data-bs-toggle="collapse" data-bs-target="#insuranceGuideBalance" aria-expanded="false" aria-controls="insuranceGuideBalance">
+            <span class="material-symbols-outlined me-2" style="font-size:25pt; vertical-align:middle;">balance</span>
+            <strong>Balance Premiums</strong>
+          </button>
+        </h2>
+        <div id="insuranceGuideBalance" class="accordion-collapse collapse mt-2" aria-labelledby="insuranceGuideHeadingBalance" data-bs-parent="#insuranceGuideAccordion">
+          <div class="accordion-body">
+            <p>Compare premium costs with CWI to keep coverage affordable.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 
 <!-- Class Selector Banner -->
 {% if teacher_blocks %}
@@ -601,7 +696,7 @@
           </div><!-- End Advanced Mode Fields -->
 
           <div class="d-grid">
-            {{ form.submit(class="btn btn-primary btn-lg", value="💾 Create Policy") }}
+            {{ form.submit(class="btn btn-primary btn-lg", value="Create Policy") }}
           </div>
         </form>
       </div>

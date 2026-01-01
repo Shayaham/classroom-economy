@@ -1,4 +1,4 @@
-# 📄 seed_dummy_students.py for Classroom Token Hub
+# seed_dummy_students.py for Classroom Token Hub
 
 from app.extensions import db
 from app.models import Student
@@ -39,7 +39,7 @@ def seed_dummy_students():
         db.session.add(new_student)
 
     db.session.commit()
-    print("✅ Dummy students seeded successfully.")
+    print("Dummy students seeded successfully.")
 
 if __name__ == "__main__":
     from app import create_app

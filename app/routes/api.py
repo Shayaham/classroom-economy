@@ -1047,9 +1047,20 @@ def get_hall_pass_queue():
 @admin_required
 def hall_pass_settings():
     """Get or update hall pass settings (admin only)"""
-    settings = HallPassSettings.query.first()
+    # CRITICAL: Scope by teacher_id for multi-tenancy
+    teacher_id = session.get('admin_id')
+    if not teacher_id:
+        return jsonify({"status": "error", "message": "Admin ID not found in session"}), 401
+
+    # Query settings scoped to this teacher (block=None means global default for teacher)
+    settings = HallPassSettings.query.filter_by(teacher_id=teacher_id, block=None).first()
     if not settings:
-        settings = HallPassSettings(queue_enabled=True, queue_limit=10)
+        settings = HallPassSettings(
+            teacher_id=teacher_id,
+            block=None,
+            queue_enabled=True,
+            queue_limit=10
+        )
         db.session.add(settings)
         db.session.commit()
 
@@ -1438,9 +1449,24 @@ def handle_tap():
         else:
             # All other reasons go through the hall pass approval flow
             # Check hall pass settings and queue limits
-            settings = HallPassSettings.query.first()
+
+            # CRITICAL: Get teacher_id from join_code for multi-tenancy scoping
+            from app.models import TeacherBlock
+            teacher_block = TeacherBlock.query.filter_by(join_code=join_code).first()
+            if not teacher_block:
+                return jsonify({"error": "Unable to resolve teacher for this class period."}), 400
+
+            teacher_id = teacher_block.teacher_id
+
+            # Query settings scoped to this teacher (block=None means global default)
+            settings = HallPassSettings.query.filter_by(teacher_id=teacher_id, block=None).first()
             if not settings:
-                settings = HallPassSettings(queue_enabled=True, queue_limit=10)
+                settings = HallPassSettings(
+                    teacher_id=teacher_id,
+                    block=None,
+                    queue_enabled=True,
+                    queue_limit=10
+                )
                 db.session.add(settings)
                 db.session.commit()
 

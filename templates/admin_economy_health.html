@@ -1,6 +1,11 @@
 {% extends "layout_admin.html" %}
 {% block page_title %}Economy Health{% endblock %}
 {% block page_icon %}monitor_heart{% endblock %}
+{% block page_header_actions %}
+  <button class="btn btn-primary d-none d-md-inline-flex align-items-center gap-2" type="button" data-bs-toggle="offcanvas" data-bs-target="#economyHealthGuide" aria-controls="economyHealthGuide">
+    <span class="material-symbols-outlined">quick_reference_all</span> Need Help?
+  </button>
+{% endblock %}
 {% block content %}
 <div class="offcanvas offcanvas-end" tabindex="-1" id="economyHealthGuide" aria-labelledby="economyHealthGuideLabel">
   <div class="offcanvas-header">
@@ -13,7 +18,7 @@
       <div class="accordion-item">
         <h2 class="accordion-header" id="economyHealthGuideHeadingCwi">
           <button class="accordion-button collapsed bg-secondary text-muted" type="button" data-bs-toggle="collapse" data-bs-target="#economyHealthGuideCwi" aria-expanded="false" aria-controls="economyHealthGuideCwi">
-            <span class="material-symbols-outlined me-2 guide-icon">monitor_heart</span>
+            <span class="material-symbols-outlined me-2" style="font-size:25pt; vertical-align:middle;">monitor_heart</span>
             <strong>Understand Your CWI</strong>
           </button>
         </h2>
@@ -32,13 +37,11 @@
             </ul>
 
             <div class="alert alert-success mb-3">
-              <h6 class="mb-1"><span class="material-symbols-outlined me-2 guide-icon-sm">assured_workload</span> Why CWI Matters:</h6> 
-              <p>CWI is a key metric developed by Classroom Token Hub as a reference value to which everything in your classroom economy is scaled to.</p>
-                <p class="mb-0">CWI ensures your rewards, penalties, payroll, and bills create incentives for students to engage and thrive.</p>
+              <strong><i class="bi bi-cash-coin me-1"></i>Why CWI Matters:</strong> Use it to balance your economy. Rent should be 20-40% of CWI; store items should generally range from 10-200% of CWI depending on desirability.
             </div>
 
             <div class="alert alert-info mb-0">
-              <strong>⚙️ Setup:</strong> If payroll is not configured yet, set it up first to unlock CWI calculations.
+              <strong><i class="bi bi-gear-fill me-1"></i>Setup:</strong> If payroll is not configured yet, set it up first to unlock CWI calculations.
             </div>
           </div>
         </div>
@@ -46,7 +49,7 @@
       <div class="accordion-item">
         <h2 class="accordion-header" id="economyHealthGuideHeadingHours">
           <button class="accordion-button collapsed bg-secondary text-muted" type="button" data-bs-toggle="collapse" data-bs-target="#economyHealthGuideHours" aria-expanded="false" aria-controls="economyHealthGuideHours">
-            <span class="material-symbols-outlined me-2 guide-icon">schedule</span>
+            <span class="material-symbols-outlined me-2" style="font-size:25pt; vertical-align:middle;">schedule</span>
             <strong>Update Expected Hours</strong>
           </button>
         </h2>
@@ -59,17 +62,17 @@
       <div class="accordion-item">
         <h2 class="accordion-header" id="economyHealthGuideHeadingSettingsBreakdown">
           <button class="accordion-button collapsed bg-secondary text-muted" type="button" data-bs-toggle="collapse" data-bs-target="#economyHealthGuideSettingsBreakdown" aria-expanded="false" aria-controls="economyHealthGuideSettingsBreakdown">
-            <span class="material-symbols-outlined me-2 guide-icon">tune</span>
+            <span class="material-symbols-outlined me-2" style="font-size:25pt; vertical-align:middle;">tune</span>
             <strong>Settings Breakdown</strong>
           </button>
         </h2>
         <div id="economyHealthGuideSettingsBreakdown" class="accordion-collapse collapse mt-2" aria-labelledby="economyHealthGuideHeadingSettingsBreakdown" data-bs-parent="#economyHealthGuideAccordion">
           <div class="accordion-body">
             <ul class="mb-0">
-              <li><strong>Scope:</strong> toggle between all classes or a single class view.</li>
-              <li><strong>Expected weekly hours:</strong> updates the CWI and balance calculations.</li>
-              <li><strong>Class selector:</strong> changes which class is shown in class scope.</li>
-              <li><strong>Balance snapshot:</strong> flags mismatches between CWI and costs.</li>
+              <li><strong>Scope:</strong> switch between all classes (combined view) and a single class (block-specific view).</li>
+              <li><strong>Expected weekly hours:</strong> updates the CWI and balance calculations for the selected scope.</li>
+              <li><strong>Class selector:</strong> appears in class scope to choose which block you are reviewing.</li>
+              <li><strong>Balance snapshot:</strong> flags mismatches between CWI and costs so you can adjust settings.</li>
             </ul>
             <div class="alert alert-info mt-3 mb-0">
               <strong>Side effects:</strong> Adjusting hours changes CWI immediately for the selected scope.
@@ -80,20 +83,24 @@
       <div class="accordion-item">
         <h2 class="accordion-header" id="economyHealthGuideHeadingScope">
           <button class="accordion-button collapsed bg-secondary text-muted" type="button" data-bs-toggle="collapse" data-bs-target="#economyHealthGuideScope" aria-expanded="false" aria-controls="economyHealthGuideScope">
-            <span class="material-symbols-outlined me-2 guide-icon">tune</span>
+            <span class="material-symbols-outlined me-2" style="font-size:25pt; vertical-align:middle;">tune</span>
             <strong>Switch Between Scopes</strong>
           </button>
         </h2>
         <div id="economyHealthGuideScope" class="accordion-collapse collapse mt-2" aria-labelledby="economyHealthGuideHeadingScope" data-bs-parent="#economyHealthGuideAccordion">
           <div class="accordion-body">
             <p>Use the scope toggle to review all classes at once or focus on a single class.</p>
+            <ul class="mb-0">
+              <li><strong>All classes:</strong> best for a quick health check across your whole economy.</li>
+              <li><strong>Individual class:</strong> best when one period runs a different schedule or needs its own pricing.</li>
+            </ul>
           </div>
         </div>
       </div>
       <div class="accordion-item">
         <h2 class="accordion-header" id="economyHealthGuideHeadingBalance">
           <button class="accordion-button collapsed bg-secondary text-muted" type="button" data-bs-toggle="collapse" data-bs-target="#economyHealthGuideBalance" aria-expanded="false" aria-controls="economyHealthGuideBalance">
-            <span class="material-symbols-outlined me-2 guide-icon">balance</span>
+            <span class="material-symbols-outlined me-2" style="font-size:25pt; vertical-align:middle;">balance</span>
             <strong>Balance Snapshot</strong>
           </button>
         </h2>
