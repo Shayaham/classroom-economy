@@ -1567,6 +1567,162 @@ def logout():
     return redirect(url_for("admin.login"))
 
 
+# -------------------- Rent privilege helpers --------------------
+
+def _build_rent_privileges_by_block(current_admin, blocks, join_codes_by_block, students_by_block):
+    """
+    Build a dict {(student_id, block): [privileges]} using batched queries to avoid N+1 issues.
+    """
+    now = datetime.now(timezone.utc)
+    student_rent_privileges = {}
+
+    for block in blocks:
+        if block == "Unassigned" or block not in join_codes_by_block:
+            continue
+
+        join_code = join_codes_by_block[block]
+        block_students = students_by_block.get(block, [])
+        if not block_students:
+            continue
+
+        rent_settings = RentSettings.query.filter_by(teacher_id=current_admin, block=block).first()
+        if not rent_settings or not rent_settings.is_enabled:
+            continue
+
+        per_period_items = RentItem.query.filter_by(
+            rent_setting_id=rent_settings.id,
+            purchase_duration='per_period',
+            is_available_in_store=True
+        ).all()
+
+        if not per_period_items:
+            continue
+
+        student_ids = [student.id for student in block_students]
+
+        # Batch rent payments for the month
+        rent_payment_rows = (
+            RentPayment.query
+            .filter(
+                RentPayment.student_id.in_(student_ids),
+                RentPayment.period == block,
+                RentPayment.period_month == now.month,
+                RentPayment.period_year == now.year,
+                db.or_(RentPayment.join_code == join_code, RentPayment.join_code.is_(None))
+            )
+            .with_entities(RentPayment.student_id)
+            .all()
+        )
+        paid_student_ids = {row[0] for row in rent_payment_rows}
+
+        store_item_ids = [
+            rent_item.store_item_id
+            for rent_item in per_period_items
+            if getattr(rent_item, "store_item_id", None)
+        ]
+
+        items_by_student = {}
+        if store_item_ids:
+            student_items = StudentItem.query.filter(
+                StudentItem.student_id.in_(student_ids),
+                StudentItem.store_item_id.in_(store_item_ids),
+                StudentItem.status.in_(['purchased', 'redeemed']),
+                db.or_(
+                    StudentItem.expiry_date.is_(None),
+                    StudentItem.expiry_date > now
+                )
+            ).all()
+
+            for si in student_items:
+                items_by_student.setdefault(si.student_id, set()).add(si.store_item_id)
+
+        for student in block_students:
+            privileges = []
+            has_paid_rent = student.id in paid_student_ids
+            student_store_items = items_by_student.get(student.id, set())
+
+            for rent_item in per_period_items:
+                source = None
+
+                if has_paid_rent:
+                    source = 'rent'
+                elif getattr(rent_item, "store_item_id", None) and rent_item.store_item_id in student_store_items:
+                    source = 'purchased'
+
+                if source:
+                    privileges.append({
+                        'name': rent_item.name,
+                        'source': source
+                    })
+
+            if privileges:
+                key = (student.id, block)
+                student_rent_privileges[key] = privileges
+
+    return student_rent_privileges
+
+
+def _get_rent_privileges_for_student(student, teacher_id, join_code):
+    """Return rent privileges for a single student in the current class context."""
+    rent_privileges = []
+    if not (teacher_id and join_code):
+        return rent_privileges
+
+    teacher_block = TeacherBlock.query.filter_by(join_code=join_code).first()
+    current_block = teacher_block.block if teacher_block else None
+    if not current_block:
+        return rent_privileges
+
+    rent_settings = RentSettings.query.filter_by(teacher_id=teacher_id, block=current_block).first()
+    if not rent_settings or not rent_settings.is_enabled:
+        return rent_privileges
+
+    now = datetime.now(timezone.utc)
+    has_paid_rent = RentPayment.query.filter(
+        RentPayment.student_id == student.id,
+        RentPayment.period == current_block,
+        RentPayment.period_month == now.month,
+        RentPayment.period_year == now.year,
+        db.or_(RentPayment.join_code == join_code, RentPayment.join_code.is_(None))
+    ).first() is not None
+
+    per_period_items = RentItem.query.filter_by(
+        rent_setting_id=rent_settings.id,
+        purchase_duration='per_period',
+        is_available_in_store=True
+    ).all()
+
+    store_item_ids = [item.store_item_id for item in per_period_items if item.store_item_id]
+    items_by_student = set()
+    if store_item_ids:
+        student_items = StudentItem.query.filter(
+            StudentItem.student_id == student.id,
+            StudentItem.store_item_id.in_(store_item_ids),
+            StudentItem.status.in_(['purchased', 'redeemed']),
+            db.or_(
+                StudentItem.expiry_date.is_(None),
+                StudentItem.expiry_date > now
+            )
+        ).all()
+        items_by_student = {si.store_item_id for si in student_items}
+
+    for rent_item in per_period_items:
+        source = None
+        if has_paid_rent:
+            source = 'rent'
+        elif rent_item.store_item_id and rent_item.store_item_id in items_by_student:
+            source = 'purchased'
+
+        if source:
+            rent_privileges.append({
+                'name': rent_item.name,
+                'description': rent_item.description,
+                'source': source
+            })
+
+    return rent_privileges
+
+
 # -------------------- STUDENT MANAGEMENT --------------------
 
 @admin_bp.route('/students')
@@ -1676,6 +1832,10 @@ def students():
                     'earnings': student.get_total_earnings(join_code=join_code)
                 }
 
+    # Calculate rent privileges for each student in each block (batched)
+    from app.models import RentItem, RentSettings, RentPayment, StudentItem
+    student_rent_privileges = _build_rent_privileges_by_block(current_admin, blocks, join_codes_by_block, students_by_block)
+
     # Ensure all blocks with students have join codes (for legacy teachers with pre-c3aa3a0 classes)
     # If a block has students but no TeacherBlock records, look up or generate a join code
     # Fetch all claimed TeacherBlock records for current admin upfront
@@ -1751,6 +1911,7 @@ def students():
                          unclaimed_seats_by_block=unclaimed_seats_by_block,
                          unclaimed_seats_list_by_block=unclaimed_seats_list_by_block,
                          student_balances_by_block=student_balances_by_block,
+                         student_rent_privileges=student_rent_privileges,
                          current_page="students")
 
 
@@ -1826,6 +1987,9 @@ def student_detail(student_id):
             f"No join_code in session for student_detail view for student {student.id}. Displaying $0 balances."
         )
 
+    # Get active rent privileges (per-period items)
+    rent_privileges = _get_rent_privileges_for_student(student, teacher_id, join_code)
+
     return render_template('student_detail.html',
                          student=student,
                          transactions=transactions,
@@ -1837,7 +2001,8 @@ def student_detail(student_id):
                          scoped_checking_balance=scoped_checking_balance,
                          scoped_savings_balance=scoped_savings_balance,
                          scoped_total_earnings=scoped_total_earnings,
-                         current_join_code=join_code)
+                         current_join_code=join_code,
+                         rent_privileges=rent_privileges)
 
 
 @admin_bp.route('/student/<int:student_id>/set-hall-passes', methods=['POST'])
@@ -2972,6 +3137,72 @@ def hard_delete_store_item(item_id):
 
 # -------------------- RENT SETTINGS --------------------
 
+def _sync_rent_items_to_store(rent_settings, teacher_id, block):
+    """
+    Sync rent items with store items.
+    Creates or updates store items for rent items that are marked as available in store.
+    Deactivates store items for rent items that are no longer available.
+    """
+    from app.models import RentItem, StoreItem, StoreItemBlock
+
+    rent_items = RentItem.query.filter_by(rent_setting_id=rent_settings.id).all()
+
+    for rent_item in rent_items:
+        if rent_item.is_available_in_store and rent_item.store_price:
+            # Determine purchase limit based on duration type
+            if rent_item.purchase_duration == 'per_period':
+                limit = 1  # Can only buy once per rent period
+                duration_note = "Valid until next rent payment is due."
+            else:  # per_use
+                limit = None  # Unlimited purchases
+                duration_note = "Purchase each time you need to use it."
+
+            # Create or update store item
+            if rent_item.store_item_id:
+                # Update existing store item
+                store_item = StoreItem.query.get(rent_item.store_item_id)
+                if store_item:
+                    store_item.name = rent_item.name
+                    base_desc = rent_item.description or f"Single purchase alternative to rent. By paying rent (${rent_settings.rent_amount:.2f}), you get access to this and other items included in rent."
+                    store_item.description = f"{base_desc}\n\n{duration_note}"
+                    store_item.price = rent_item.store_price
+                    store_item.limit_per_student = limit
+                    store_item.is_active = True
+                    if block:
+                        store_item.set_blocks([block])
+            else:
+                # Create new store item
+                base_desc = rent_item.description or f"Single purchase alternative to rent. By paying rent (${rent_settings.rent_amount:.2f}), you get access to this and other items included in rent."
+                description = f"{base_desc}\n\n{duration_note}"
+                store_item = StoreItem(
+                    teacher_id=teacher_id,
+                    name=rent_item.name,
+                    description=description,
+                    price=rent_item.store_price,
+                    item_type='immediate',
+                    limit_per_student=limit,
+                    is_active=True
+                )
+                db.session.add(store_item)
+                db.session.flush()  # Get the store_item.id
+
+                # Link the rent item to this store item
+                rent_item.store_item_id = store_item.id
+
+                # Set block visibility to match the rent setting's block
+                if block:
+                    store_item_block = StoreItemBlock(store_item_id=store_item.id, block=block)
+                    db.session.add(store_item_block)
+
+        elif rent_item.store_item_id:
+            # Deactivate store item if it exists but is no longer available
+            store_item = StoreItem.query.get(rent_item.store_item_id)
+            if store_item:
+                store_item.is_active = False
+
+    db.session.commit()
+
+
 @admin_bp.route('/rent-settings', methods=['GET', 'POST'])
 @admin_required
 def rent_settings():
@@ -3049,6 +3280,89 @@ def rent_settings():
             block_settings.prevent_purchase_when_late = request.form.get('prevent_purchase_when_late') == 'on'
 
         db.session.commit()
+
+        # Handle rent items (only for the current settings_block, not apply_to_all)
+        if not apply_to_all and settings:
+            from app.models import RentItem
+            # Process rent items from form
+            # Collect all rent item indices from form keys
+            rent_item_indices = set()
+            for key in request.form.keys():
+                if key.startswith('rent_item_name_'):
+                    idx = key.split('_')[-1]
+                    rent_item_indices.add(idx)
+
+            # Get existing rent items for this setting
+            existing_items = {str(item.id): item for item in settings.rent_items.all()}
+            processed_item_ids = set()
+
+            # Process each rent item from the form
+            for idx in sorted(rent_item_indices):
+                item_id = request.form.get(f'rent_item_id_{idx}')
+                name = request.form.get(f'rent_item_name_{idx}', '').strip()
+
+                # Skip empty items
+                if not name:
+                    continue
+
+                description = request.form.get(f'rent_item_description_{idx}', '').strip()
+                is_available = request.form.get(f'rent_item_store_available_{idx}') == 'on'
+                store_price_str = request.form.get(f'rent_item_store_price_{idx}', '').strip()
+                store_price = None
+                if is_available:
+                    if not store_price_str:
+                        flash('Store price is required for rent items that are available in the store.', 'error')
+                        is_available = False
+                    else:
+                        try:
+                            store_price = float(store_price_str)
+                            if store_price <= 0:
+                                flash('Store price must be a positive value for rent items that are available in the store.', 'error')
+                                is_available = False
+                                store_price = None
+                        except ValueError:
+                            flash('Store price must be a valid number for rent items that are available in the store.', 'error')
+                            is_available = False
+                            store_price = None
+                purchase_duration = request.form.get(f'rent_item_purchase_duration_{idx}', 'per_use')
+
+                if item_id and item_id in existing_items:
+                    # Update existing item
+                    item = existing_items[item_id]
+                    item.name = name
+                    item.description = description if description else None
+                    item.order_index = int(idx)
+                    item.is_available_in_store = is_available
+                    item.store_price = store_price
+                    item.purchase_duration = purchase_duration
+                    processed_item_ids.add(item_id)
+                else:
+                    # Create new item
+                    item = RentItem(
+                        rent_setting_id=settings.id,
+                        name=name,
+                        description=description if description else None,
+                        order_index=int(idx),
+                        is_available_in_store=is_available,
+                        store_price=store_price,
+                        purchase_duration=purchase_duration
+                    )
+                    db.session.add(item)
+
+            # Delete items that were removed
+            for item_id, item in existing_items.items():
+                if item_id not in processed_item_ids:
+                    # If this item had a linked store item, deactivate it
+                    if item.store_item_id:
+                        store_item = StoreItem.query.get(item.store_item_id)
+                        if store_item:
+                            store_item.is_active = False
+                    db.session.delete(item)
+
+            db.session.commit()
+
+            # Sync rent items with store items
+            _sync_rent_items_to_store(settings, admin_id, settings_block)
         if apply_to_all:
             flash(f"Rent settings applied to all {len(blocks_to_update)} classes!", "success")
         else:
@@ -3116,6 +3430,12 @@ def rent_settings():
         if rent_per_month > estimated_monthly_payroll * 0.8:  # If rent is more than 80% of payroll
             payroll_warning = f"Rent (${rent_per_month:.2f}/month) exceeds recommended 80% of estimated monthly payroll (${estimated_monthly_payroll:.2f}). Students may struggle to afford rent."
 
+    # Get rent items for this setting
+    rent_items = []
+    if settings:
+        from app.models import RentItem
+        rent_items = RentItem.query.filter_by(rent_setting_id=settings.id).order_by(RentItem.order_index).all()
+
     return render_template('admin_rent_settings.html',
                           settings=settings,
                           total_students=total_students,
@@ -3126,7 +3446,8 @@ def rent_settings():
                           payroll_settings=payroll_settings,
                           settings_block=settings_block,
                           teacher_blocks=teacher_blocks,
-                          class_labels_by_block=class_labels_by_block)
+                          class_labels_by_block=class_labels_by_block,
+                          rent_items=rent_items)
 
 
 @admin_bp.route('/rent-waiver/add', methods=['POST'])
@@ -5672,6 +5993,188 @@ def tap_out_students():
         return jsonify({
             "status": "error",
             "message": f"Failed to tap out students: {str(e)}"
+        }), 500
+
+
+@admin_bp.route('/tap-in-students', methods=['POST'])
+@admin_required
+def tap_in_students():
+    """
+    Admin endpoint to tap in one or more students for a specific period.
+    """
+    data = request.get_json()
+
+    # Get parameters
+    student_ids = data.get('student_ids', [])
+    period = data.get('period', '').strip().upper()
+
+    if not period:
+        return jsonify({"status": "error", "message": "Period is required."}), 400
+
+    if not student_ids:
+        return jsonify({"status": "error", "message": "student_ids must be provided."}), 400
+
+    now_utc = datetime.now(timezone.utc)
+    tapped_in = []
+    already_active = []
+    errors = []
+    current_admin_id = session.get('admin_id')
+
+    try:
+        # Process each student ID
+        for student_id in student_ids:
+            student = _get_student_or_404(student_id)
+
+            if not student:
+                errors.append(f"Student ID {student_id} not found")
+                continue
+
+            # Verify the student has this period in their block
+            student_blocks = [b.strip().upper() for b in student.block.split(',') if b.strip()]
+            if period not in student_blocks:
+                errors.append(f"{student.full_name} is not enrolled in period {period}")
+                continue
+
+            join_code = get_join_code_for_student_period(student.id, period, teacher_id=current_admin_id)
+
+            # Check if student is currently active in this period
+            latest_event = (
+                TapEvent.query
+                .filter_by(student_id=student.id, period=period)
+                .filter_by(join_code=join_code)
+                .order_by(TapEvent.timestamp.desc())
+                .first()
+            )
+
+            if latest_event and latest_event.status == "active":
+                already_active.append(student.full_name)
+                continue
+
+            # Create tap-in event
+            tap_in_event = TapEvent(
+                student_id=student.id,
+                period=period,
+                status="active",
+                timestamp=now_utc,
+                reason="Teacher tap-in",
+                join_code=join_code
+            )
+            db.session.add(tap_in_event)
+            tapped_in.append(student.full_name)
+
+            current_app.logger.info(
+                f"Admin tapped in student {student.id} ({student.full_name}) for period {period}"
+            )
+
+        # Commit all tap-ins
+        db.session.commit()
+
+        # Build response message
+        message_parts = []
+        if tapped_in:
+            message_parts.append(f"Successfully tapped in {len(tapped_in)} student(s)")
+        if already_active:
+            message_parts.append(f"{len(already_active)} student(s) were already active")
+        if errors:
+            message_parts.append(f"{len(errors)} error(s) occurred")
+
+        return jsonify({
+            "status": "success",
+            "message": ". ".join(message_parts),
+            "tapped_in": tapped_in,
+            "already_active": already_active,
+            "errors": errors
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Admin tap-in failed: {e}", exc_info=True)
+        return jsonify({
+            "status": "error",
+            "message": "Failed to tap in students. Please try again or contact support."
+        }), 500
+
+
+@admin_bp.route('/students/bulk-update-hall-passes', methods=['POST'])
+@admin_required
+def bulk_update_hall_passes():
+    """
+    Admin endpoint to bulk update hall passes for selected students.
+    Supports set, add, and subtract operations.
+    """
+    data = request.get_json()
+
+    # Get parameters
+    student_ids = data.get('student_ids', [])
+    update_type = data.get('update_type', 'set')  # 'set', 'add', or 'subtract'
+    value = data.get('value', 0)
+
+    if not student_ids:
+        return jsonify({"status": "error", "message": "student_ids must be provided."}), 400
+
+    if update_type not in ['set', 'add', 'subtract']:
+        return jsonify({"status": "error", "message": "update_type must be 'set', 'add', or 'subtract'."}), 400
+
+    try:
+        value = int(value)
+        if value < 0:
+            return jsonify({"status": "error", "message": "Value must be non-negative."}), 400
+    except (ValueError, TypeError):
+        return jsonify({"status": "error", "message": "Value must be a valid integer."}), 400
+
+    updated = []
+    errors = []
+
+    try:
+        # Process each student ID
+        for student_id in student_ids:
+            student = _get_student_or_404(student_id)
+
+            if not student:
+                errors.append(f"Student ID {student_id} not found")
+                continue
+
+            # Update hall passes based on operation type
+            if update_type == 'set':
+                student.hall_passes = value
+            elif update_type == 'add':
+                student.hall_passes = (student.hall_passes or 0) + value
+            elif update_type == 'subtract':
+                student.hall_passes = max(0, (student.hall_passes or 0) - value)
+
+            updated.append(student.full_name)
+
+            current_app.logger.info(
+                f"Admin updated hall passes for student {student.id} ({student.full_name}): {update_type} {value}, new value: {student.hall_passes}"
+            )
+
+        # Commit all updates
+        db.session.commit()
+
+        # Build response message
+        action_text = {
+            'set': f'set to {value}',
+            'add': f'increased by {value}',
+            'subtract': f'decreased by {value}'
+        }
+
+        message = f"Successfully updated hall passes for {len(updated)} student(s) ({action_text[update_type]})"
+        if errors:
+            message += f". {len(errors)} error(s) occurred"
+
+        return jsonify({
+            "status": "success",
+            "message": message,
+            "updated": updated,
+            "errors": errors
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Bulk hall pass update failed: {e}", exc_info=True)
+        return jsonify({
+            "status": "error",
+            "message": "Failed to update hall passes. Please try again or contact support."
         }), 500
 
 
