@@ -193,7 +193,61 @@ See [RELEASE_NOTES_v1.2.0.md](docs/archive/releases/RELEASE_NOTES_v1.2.0.md) for
 - Pre-built lesson plans
 - Financial literacy assessment tools
 
-### Version 2.0 - Internationalization
+### Version 2.0 - Flexible Attendance & Payroll System 🚧 **IN PLANNING**
+**Status:** Planning Phase - Not Yet Implemented
+**Feature Branch:** `feature/v2.0-attendance-payroll`
+**Documentation:**
+- **[Full Specification](docs/specifications/v2.0-flexible-attendance-payroll.md)** - Complete feature specification
+- **[Agent Instructions](.claude/rules/attendance-payroll-v2.md)** - Development rules and guidelines
+- **[Design Decisions](docs/design-decisions/v2.0-attendance-payroll-decisions.md)** - Architectural decision record
+- **[Implementation Roadmap](docs/roadmaps/v2.0-implementation-roadmap.md)** - Phase-by-phase implementation plan
+
+**Description:** Major feature adding flexible attendance tracking and payroll calculation methods to support classrooms with varying levels of technology access.
+
+**Key Features:**
+- **Dual Payroll System:**
+  - Time-based (existing): Students clock in/out, paid by hours worked
+  - Attendance-based (new): Students mark present/absent, paid flat rate per class
+- **Flexible Tracking Controls:**
+  - Student-only, teacher-only, or hybrid attendance tracking
+  - Per-period attendance control toggles
+  - Configurable conflict resolution (last entry wins vs. teacher priority)
+- **Attendance Management Interface:**
+  - Daily Attendance tab for teachers to mark student presence
+  - Attendance Log for viewing and editing historical records
+  - Bulk operations for efficiency
+- **Smart Hall Pass Integration:**
+  - Time-based: Hall passes pause time tracking (existing behavior)
+  - Attendance-based: Hall passes track only, don't affect pay
+  - Teacher-initiated hall passes for low-tech classrooms
+- **Enhanced Reporting:**
+  - Attendance summaries and trends
+  - Student attendance history
+  - Period comparison analytics
+  - Attendance vs. payroll correlation
+
+**Implementation Phases:**
+1. Database Schema & Migrations
+2. Settings UI
+3. Attendance Utilities
+4. Daily Attendance Interface
+5. Attendance Log Interface
+6. Payroll Calculation Update
+7. Hall Pass Integration
+8. Student UI Updates
+9. Reporting & Analytics
+10. Documentation & Polish
+
+**Estimated Timeline:** 10-12 weeks (one developer, full-time)
+**Target Release:** TBD
+
+**Why This Matters:**
+- Supports classrooms without 1:1 device access
+- Provides simpler payroll model for younger students
+- Maintains backward compatibility with existing time-based system
+- Enables gradual adoption at teacher's pace
+
+### Version 3.0 - Internationalization (Future)
 - Multi-language support
 - Currency localization
 - Regional educational standard alignment
