@@ -534,7 +534,7 @@
             <div class="nav-links" style="font-size:15pt;">
                 <a href="#features">Features</a>
                 <a href="#designs">Designs</a>
-
+                <a href="https://classroomtokenhub.com/docs" target="_blank" rel="noopener">Docs <span class="material-symbols-outlined" style="vertical-align:middle;color:var(--secondary-color)">menu_book</span> </a>
                 <a href="https://status.classroomtokenhub.com" target="_blank" rel="noopener">Status <span class="material-symbols-outlined" style="vertical-align:middle;color:var(--secondary-color)">monitor_heart</span> </a>
 
                 <a href="https://github.com/timwonderer/classroom-economy" target="_blank" rel="noopener">GitHub Repo <span class="material-symbols-outlined" style="vertical-align:middle;color:var(--secondary-color)">graph_8</span> </a>
@@ -546,7 +546,7 @@
     <section class="hero">
         <div class="hero-container">
            <br>
-            <div class="alert alert-success mb-5 text-center" role="alert" style="width:fit-content; margin:auto;"><i class="bi bi-menu-button-fill"></i> v1.6.0 ships with much more organized nav bar, feature offcanvas helper, timezone support, and more!</div>
+            <div class="alert alert-success mb-5 text-center" role="alert" style="width:fit-content; margin:auto;"><i class="bi bi-menu-button-fill"></i> v1.6.0+ brings rent itemization, enhanced documentation, persistent onboarding widgets, and more!</div>
             <h2>Classroom Economy System, <span style="font-weight:600; color:#f9d004">Reimagined.</span></strong></h2>
             <p>New approach to behavioral management that promotes student engagement, personal responsibility, and financial literacy.</p>
 
@@ -626,7 +626,7 @@
                 <div class="feature-card">
                     <div class="feature-icon" aria-hidden="true">health_and_safety</div>
                     <h3>Insurance & Rent</h3>
-                    <p>Optional insurance policies and rent systems add real-world financial complexity for advanced lessons.</p>
+                    <p>Optional insurance policies and rent systems add real-world financial complexity for advanced lessons. <strong>New!</strong> Itemized rent breakdown with store integration.</p>
                 </div>
 
                 <div class="feature-card">
@@ -660,6 +660,9 @@
                     <div class="caption">
                         <h3>Teacher Dashboard</h3>
                         <p>Manage your classroom economy with an intuitive interface. Run payroll, track students, and configure all settings in one place.</p>
+                        <p><strong>New!</strong> Persistent onboarding widget state - progress syncs across logins and devices!</p>
+                        <p><strong>New!</strong> Enhanced documentation system with markdown rendering and better organization.</p>
+                        <p><strong>New!</strong> Redesigned student support ticket flow with tiered intervention for improved privacy protection.</p>
                     </div>
                 </div>
 
@@ -692,6 +695,8 @@
                     <div class="caption">
                         <h3>Classroom Store</h3>
                         <p>Set up virtual and physical items, manage inventory, track redemptions, and create bundles to engage students.</p>
+                        <p><strong>New!</strong> Teachers can now itemize their rent and list individual rent components as store items with options to lock students out from buying non-essentials if their rent is behind.</p>
+                        <p><strong>New!</strong> Per-use or per-period purchase durations with automatic expiration tracking.</p>
                     </div>
                 </div>
             </div>
@@ -714,25 +719,37 @@
 
         <!-- Tech Stack Section -->
         <section class="section">
-            <h2 class="section-title"><span style="font-weight:300;">VERSION </span>1.6.0</h2>
+            <h2 class="section-title"><span style="font-weight:300;">LATEST: </span>v1.6.0+</h2>
             <div class="stats">
                 <div style="margin: 0 auto;">
                     <h4>
-                       Stable Passkey Authentication Implementation
+                       Rent Itemization Feature
                     </h4>
                     <p style="font-size: 1.1rem; margin-bottom: 2rem; color: var(--text-light);">
-                        Previous implementation of passkey through Passwordless.dev SDK had many custom fuctions and add-ons that interfered with the normal operation of the feature. With v1.6.0, we rebuilt the entire passkey feature from scratch using the offical code structure provided by Passwordless.dev. This means a more stable, reliable, and secure passkey experience for all users.
+                        Teachers can now specify what rent pays for and offer items as store alternatives. Students see an itemized breakdown of what their rent covers, and can purchase individual components separately at higher prices if they're late on rent. Includes per-use and per-period purchase options with automatic expiration tracking.
+                    </p>
+                    <h4>
+                       Enhanced Documentation & Organization
+                    </h4>
+                    <p style="font-size: 1.1rem; margin-bottom: 2rem; color: var(--text-light);">
+                        Improved repository structure with consolidated documentation, standardized file paths, and better navigation. Added markdown rendering system for clearer in-app documentation and help resources.
+                    </p>
+                    <h4>
+                       Persistent Onboarding Widget
+                    </h4>
+                    <p style="font-size: 1.1rem; margin-bottom: 2rem; color: var(--text-light);">
+                        Widget state now persists to database instead of browser localStorage. Your onboarding progress syncs across logins and devices, and skipped tasks are properly tracked. No more losing your setup progress!
                     </p>
                     <div>
                     <h4>
                        In-Context Help and Support Offcanvas
                     </h4>
                     <p style="font-size: 1.1rem; margin-bottom: 2rem; color: var(--text-light);">
-                        Previously, if the user needs to look up Help or Support documentation, they would have to leave their current page and navigate to the Help/Support page. With v1.6.0, we introduced an offcanvas sidebar that can be accessed from any feature page on the app via the Need Help? button. This offcanvas contains quick start guides and troubleshooting tips to help users get the most out of the app without leaving their current context.
+                        Access Help and Support documentation without leaving your current page. The offcanvas sidebar contains quick start guides and troubleshooting tips accessible from any feature page via the "Need Help?" button.
                     </p>
                     <img src="off_canvas_example.gif" alt="Offcanvas Help Screenshot" style="max-width:100%; box-shadow: var(--shadow); border-radius: 1rem;">
                     </div>
-                    
+
                 </div>
             </div>
         </section>
@@ -759,7 +776,7 @@
         <div class="footer-container">
             <div class="footer-links">
                 <a href="https://github.com/timwonderer/classroom-economy" target="_blank" rel="noopener">GitHub Repository</a>
-                <a href="https://github.com/timwonderer/classroom-economy/blob/main/docs/README.md" target="_blank" rel="noopener">Documentation</a>
+                <a href="https://classroomtokenhub.com/docs" target="_blank" rel="noopener">Documentation</a>
                 <a href="https://github.com/timwonderer/classroom-economy/blob/main/CHANGELOG.md" target="_blank" rel="noopener">Changelog</a>
                 <a href="https://github.com/timwonderer/classroom-economy/blob/main/CONTRIBUTING.md" target="_blank" rel="noopener">Contributing</a>
                 <a href="https://polyformproject.org/licenses/noncommercial/1.0.0/" target="_blank" rel="noopener">License</a>
