@@ -489,7 +489,7 @@ def claim_account():
         join_code = format_join_code(form.join_code.data)
         first_initial = form.first_initial.data.strip().upper()
         last_name = form.last_name.data.strip()
-        dob_input = form.dob_sum.data
+        dob_input = form.dob.data
 
         try:
             if isinstance(dob_input, str):
@@ -798,7 +798,7 @@ def add_class():
         join_code = format_join_code(form.join_code.data)
         first_initial = form.first_initial.data.strip().upper()
         last_name = form.last_name.data.strip()
-        dob_input = form.dob_sum.data
+        dob_input = form.dob.data
 
         # Parse DOB and calculate sum
         try:
@@ -816,7 +816,7 @@ def add_class():
             return redirect(_get_return_target())  # nosec # Safe: validated by _is_safe_url() with same-origin check
 
         if dob_sum != student.dob_sum:
-            flash("The DOB sum doesn't match your account. Please check and try again.", "danger")
+            flash("The date of birth doesn't match your account. Please check and try again.", "danger")
             return redirect(_get_return_target())  # nosec # Safe: validated by _is_safe_url() with same-origin check
 
         # Verify last name matches using the same fuzzy matching logic
