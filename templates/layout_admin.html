@@ -66,8 +66,16 @@
 
     <div id="flashToastContainer" class="position-fixed bottom-0 end-0 p-3" style="z-index: 1050;"></div>
 
+    <!-- Mobile Menu Toggle Button -->
+    <button class="mobile-menu-toggle" id="mobileMenuToggle" aria-label="Toggle navigation menu" aria-controls="sidebar" aria-expanded="false">
+        <span class="material-symbols-outlined">menu</span>
+    </button>
+
+    <!-- Sidebar Backdrop -->
+    <div class="sidebar-backdrop" id="sidebarBackdrop" aria-hidden="true"></div>
+
     <!-- Sidebar -->
-    <aside class="sidebar d-flex flex-column">
+    <aside id="sidebar" class="sidebar d-flex flex-column" role="navigation" aria-label="Navigation menu" aria-hidden="true">
         <div class="sidebar-brand">
             
                 <div>
@@ -373,6 +381,7 @@
             });
         }
     </script>
+    <script src="{{ static_url('js/mobile-sidebar-toggle.js') }}"></script>
     <!-- TODO: Re-enable View as Student once demo sessions are stable -->
     {% block extra_scripts %}{% endblock %}
 
