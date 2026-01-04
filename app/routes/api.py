@@ -2168,7 +2168,7 @@ def set_timezone():
     now = datetime.now(timezone.utc)
 
     # Check Admin Session
-    if session.get('is_admin'):
+    if session.get('is_admin') and session.get('admin_id'):
         last_activity = session.get('last_activity')
         if last_activity:
             try:
@@ -2185,7 +2185,7 @@ def set_timezone():
              session['last_activity'] = now.isoformat()
 
     # Check System Admin Session (if not already authenticated)
-    if not is_authenticated and session.get('sysadmin_id'):
+    if not is_authenticated and session.get('is_system_admin') and session.get('sysadmin_id'):
         last_activity = session.get('last_activity')
         if last_activity:
             try:

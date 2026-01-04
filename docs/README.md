@@ -1,91 +1,89 @@
 # Classroom Token Hub - Documentation Index
 
-Welcome to the Classroom Token Hub documentation! This index points you to the most relevant resources for your role.
+Welcome to the Classroom Token Hub documentation. This index points you to fast, diagnostic answers first.
 
 ---
 
 ## Start Here
 
 1. Review the [project README](../README.md) for a high-level overview and setup steps.
-2. Skim the [Architecture Guide](technical-reference/architecture.md) for structure, conventions, and security notes.
-3. Check [Development Priorities](development/DEVELOPMENT.md) for current priorities, roadmap, and active tasks.
-4. If you are operating the app, keep the [Deployment Guide](DEPLOYMENT.md) and [Operations README](operations/README.md) handy.
+2. Use the [Student Diagnostics Index](diagnostics/student.md) or [Teacher Diagnostics Index](diagnostics/teacher.md) for fast answers.
+3. Skim the [Architecture Guide](technical-reference/architecture.md) for system structure and security notes.
+4. If you are operating the app, keep the [Deployment Guide](Deployment_Guide.md) and [Operations README](operations/README.md) handy.
 
 ---
 
 ## Documentation Map
 
-### 📖 User Guides
-- **[Student Guide](user-guides/student_guide.md)** — Login, dashboard, store, transfers, hall passes.
-- **[Teacher Manual](user-guides/teacher_manual.md)** — Admin dashboard, payroll, roster uploads, store/rent/insurance management.
+### Diagnostics (Fast Answers)
+- **[Student Diagnostics Index](diagnostics/student.md)** - Login, classes, attendance, money, store, rent, hall passes.
+- **[Teacher Diagnostics Index](diagnostics/teacher.md)** - Feature settings, students, payroll, store, rent, announcements.
+- **[Classroom Economy Guide](user-guides/economy_guide.md)** - Pricing ranges and balance checks.
 
-### 🧭 Quick References
-- **[Architecture Guide](technical-reference/architecture.md)** — Stack, project layout, patterns, and security posture.
-- **[Database Schema](technical-reference/database_schema.md)** — Current models and relationships (includes multi-teacher links and payroll/rent/insurance tables).
-- **[API Reference](technical-reference/api_reference.md)** — REST endpoints and authentication expectations.
-- **[Economy Specification](technical-reference/ECONOMY_SPECIFICATION.md)** — Financial system ratios, CWI calculations, and balancing rules.
-- **[Timezone Handling](technical-reference/TIMEZONE_HANDLING.md)** — UTC storage and timezone conversion patterns.
+### Quick References
+- **[Architecture Guide](technical-reference/architecture.md)** - Stack, project layout, patterns, and security posture.
+- **[Database Schema](technical-reference/database_schema.md)** - Current models and relationships.
+- **[API Reference](technical-reference/api_reference.md)** - REST endpoints and authentication expectations.
+- **[Economy Specification](technical-reference/ECONOMY_SPECIFICATION.md)** - Developer-only ratios and balancing rules.
+- **[Timezone Handling](technical-reference/TIMEZONE_HANDLING.md)** - UTC storage and conversion patterns.
 
-### 🎯 Development
-- **[Development Priorities](development/DEVELOPMENT.md)** — Current priorities, roadmap, version 1.0 status, and active tasks.
-- **[Economy Balance Checker](development/ECONOMY_BALANCE_CHECKER.md)** — CWI implementation guide and API reference.
-- **[Deprecated Code Patterns](development/DEPRECATED_CODE_PATTERNS.md)** — Code modernization tracking for Python 3.12+ and SQLAlchemy 2.0+.
-- **[System Admin Interface](development/SYSADMIN_INTERFACE_DESIGN.md)** — Capabilities and UX principles for sysadmin flows.
-- **[Migration Guide](development/MIGRATION_GUIDE.md)** — Alembic tips, consolidation steps, and conflict resolution.
-- **[Jules Setup](development/JULES_SETUP.md)** — Development environment setup guide.
-- **[Seeding Instructions](development/SEEDING_INSTRUCTIONS.md)** — Test data seeding procedures.
-- **[Testing Summary](development/TESTING_SUMMARY.md)** — Test coverage and validation results.
-- **[Migration Status](development/MIGRATION_STATUS_REPORT.md)** — Database migration status tracking.
+### Development
+- **[Development Priorities](development/DEVELOPMENT.md)** - Current priorities, roadmap, and active tasks.
+- **[Economy Balance Checker](development/ECONOMY_BALANCE_CHECKER.md)** - CWI implementation guide and API reference.
+- **[Deprecated Code Patterns](development/DEPRECATED_CODE_PATTERNS.md)** - Code modernization tracking.
+- **[System Admin Interface](development/SYSADMIN_INTERFACE_DESIGN.md)** - Sysadmin flows and UX principles.
+- **[Migration Guide](development/MIGRATION_GUIDE.md)** - Alembic tips and conflict resolution.
+- **[Jules Setup](development/JULES_SETUP.md)** - Development environment setup.
+- **[Seeding Instructions](development/SEEDING_INSTRUCTIONS.md)** - Test data seeding procedures.
+- **[Testing Summary](development/TESTING_SUMMARY.md)** - Test coverage and validation results.
+- **[Migration Status](development/MIGRATION_STATUS_REPORT.md)** - Database migration status tracking.
 
-### 🗂 Project & Planning
-- **[Project History](project/PROJECT_HISTORY.md)** — Philosophy, evolution, and milestone context.
-- **[Implementation Progress](project/IMPLEMENTATION_PROGRESS.md)** — Feature-by-feature delivery tracking.
+### Project & Planning
+- **[Project History](project/PROJECT_HISTORY.md)** - Philosophy, evolution, and milestone context.
+- **[Implementation Progress](project/IMPLEMENTATION_PROGRESS.md)** - Feature-by-feature delivery tracking.
 
-### 🚀 Deployment & Operations
-- **[Deployment Guide](DEPLOYMENT.md)** — Environment variables, CI/CD references, and production checklist.
-- **[Operations Guides](operations/)** — Cleanup, demo session hygiene, and PII audit procedures.
-- **[Multi-Tenancy Fix Deployment](operations/MULTI_TENANCY_FIX_DEPLOYMENT.md)** — Deployment procedures for multi-tenancy fixes.
-- **[Changelog](CHANGELOG.md)** — Notable changes and release notes.
+### Deployment & Operations
+- **[Deployment Guide](Deployment_Guide.md)** - Environment variables, CI/CD references, and production checklist.
+- **[Operations Guides](operations/)** - Cleanup, demo session hygiene, and PII audit procedures.
+- **[Multi-Tenancy Fix Deployment](operations/MULTI_TENANCY_FIX_DEPLOYMENT.md)** - Deployment procedures for multi-tenancy fixes.
+- **[Changelog](../CHANGELOG.md)** - Notable changes and release notes.
 
-### 🔒 Security
-- **[Security Audit 2025](security/SECURITY_AUDIT_2025.md)** — Comprehensive security audit findings.
-- **[Multi-Tenancy Audit](security/MULTI_TENANCY_AUDIT.md)** — Multi-tenancy security analysis.
-- **[Critical Same-Teacher Leak](security/CRITICAL_SAME_TEACHER_LEAK.md)** — ✅ **RESOLVED** - Data isolation fix deployed (backfill in progress).
-- **[Validation Report](security/VALIDATION_REPORT.md)** — Input/output validation audit.
-- **[Access & Secrets Report](security/ACCESS_AND_SECRETS_REPORT.md)** — Access control and secrets review.
-- **[Source Code Vulnerability Report](security/SOURCE_CODE_VULNERABILITY_REPORT.md)** — Code security analysis.
-- **[Network Vulnerability Report](security/NETWORK_VULNERABILITY_REPORT.md)** — Network security assessment.
+### Security
+- **[Security Audit 2025](security/SECURITY_AUDIT_2025.md)** - Comprehensive security audit findings.
+- **[Multi-Tenancy Audit](security/MULTI_TENANCY_AUDIT.md)** - Multi-tenancy security analysis.
+- **[Critical Same-Teacher Leak](security/CRITICAL_SAME_TEACHER_LEAK.md)** - Resolved data isolation fix.
+- **[Validation Report](security/VALIDATION_REPORT.md)** - Input/output validation audit.
+- **[Access & Secrets Report](security/ACCESS_AND_SECRETS_REPORT.md)** - Access control and secrets review.
+- **[Source Code Vulnerability Report](security/SOURCE_CODE_VULNERABILITY_REPORT.md)** - Code security analysis.
+- **[Network Vulnerability Report](security/NETWORK_VULNERABILITY_REPORT.md)** - Network security assessment.
 
-### 📦 Archive & Releases
-- **[Release Notes v1.4.0](archive/releases/RELEASE_NOTES_v1.4.0.md)** — Announcement system, UI/UX enhancements, security fixes (Dec 27, 2025)
-- **[Release Notes v1.3.0](archive/releases/RELEASE_NOTES_v1.3.0.md)** — Passwordless authentication (passkeys), encrypted TOTP, security audit (Dec 25, 2025)
-- **[Release Notes v1.2.1](archive/releases/RELEASE_NOTES_v1.2.1.md)** — Migration hardening, join code audits, multi-tenancy fixes (Dec 21, 2025)
-- **[Release Notes v1.2.0](archive/releases/RELEASE_NOTES_v1.2.0.md)** — Progressive Web App, mobile experience, accessibility (Dec 18, 2025)
-- **[Release Notes v1.1.1](archive/releases/RELEASE_NOTES_v1.1.1.md)** — Stability patch with auth and theming fixes (Dec 15, 2025)
-- **[Release Notes v1.1.0](archive/releases/RELEASE_NOTES_v1.1.0.md)** — Dashboard analytics and UI redesign (Dec 13, 2024)
-- **[Release Notes v1.0.0](archive/releases/RELEASE_NOTES_v1.0.md)** — First stable release (Nov 29, 2024)
-- **[Archived Fix Reports](archive/)** — Historical bug fix and feature implementation summaries.
-- **[Economy Balancing Report](archive/ECONOMY_BALANCING_IMPLEMENTATION_REPORT.md)** — December 2025 economy feature verification.
-- **[Migration Notes](archive/MIGRATION_NOTE_expected_weekly_hours.md)** — Historical database migration notes.
+### Archive & Releases
+- **[Release Notes v1.4.0](archive/releases/RELEASE_NOTES_v1.4.0.md)** - Announcement system, UI/UX enhancements, security fixes (Dec 27, 2025)
+- **[Release Notes v1.3.0](archive/releases/RELEASE_NOTES_v1.3.0.md)** - Passwordless authentication, encrypted TOTP, security audit (Dec 25, 2025)
+- **[Release Notes v1.2.1](archive/releases/RELEASE_NOTES_v1.2.1.md)** - Migration hardening, join code audits (Dec 21, 2025)
+- **[Release Notes v1.2.0](archive/releases/RELEASE_NOTES_v1.2.0.md)** - Progressive Web App, accessibility (Dec 18, 2025)
+- **[Release Notes v1.1.1](archive/releases/RELEASE_NOTES_v1.1.1.md)** - Stability patch (Dec 15, 2025)
+- **[Release Notes v1.1.0](archive/releases/RELEASE_NOTES_v1.1.0.md)** - Dashboard analytics and UI redesign (Dec 13, 2024)
+- **[Release Notes v1.0.0](archive/releases/RELEASE_NOTES_v1.0.md)** - First stable release (Nov 29, 2024)
+- **[Archived Fix Reports](archive/)** - Historical bug fix and feature implementation summaries.
 
 ---
 
 ## Common Questions
-- **How do I add students?** → [Teacher Manual – Student Management](user-guides/teacher_manual.md#student-management)
-- **How do I run payroll?** → [Teacher Manual – Payroll](user-guides/teacher_manual.md#payroll)
-- **What's the database structure?** → [Database Schema](technical-reference/database_schema.md)
-- **Where are tenancy helpers?** → [`app/auth.py`](../app/auth.py) and [Development Priorities – Multi-Tenancy](development/DEVELOPMENT.md#multi-tenancy-architecture)
-- **How do I clean demo sessions?** → [Operations – Demo Sessions](operations/DEMO_SESSIONS.md)
-- **What are current development priorities?** → [Development Priorities](development/DEVELOPMENT.md)
-- **How does the economy system work?** → [Economy Specification](technical-reference/ECONOMY_SPECIFICATION.md)
+- **Why can't I log in?** -> [Student Login Diagnostics](diagnostics/student-login.md)
+- **Why can't students claim accounts?** -> [Teacher Students Diagnostics](diagnostics/teacher-students.md)
+- **Why didn't payroll run?** -> [Teacher Payroll Diagnostics](diagnostics/teacher-attendance-payroll.md)
+- **What's the database structure?** -> [Database Schema](technical-reference/database_schema.md)
+- **How does the economy system work?** -> [Classroom Economy Guide](user-guides/economy_guide.md)
 
 ---
 
 ## Documentation Standards
 
+- Prefer diagnostic checklists over long explanations.
+- Keep each doc focused on a single feature or route.
+- Use "If X happened, check these" and "This is expected when" sections.
 - Update relevant docs with every feature, schema, or operational change.
-- Keep “Last Updated” stamps current when modifying a document.
-- Link related sections across user, developer, and ops docs to avoid duplication.
 
 ---
 
@@ -93,17 +91,15 @@ Welcome to the Classroom Token Hub documentation! This index points you to the m
 
 | Document | Audience | Purpose | Last Updated |
 |----------|----------|---------|--------------|
+| [Student Diagnostics Index](diagnostics/student.md) | Students | Fast diagnostic entry point | 2026-01-03 |
+| [Teacher Diagnostics Index](diagnostics/teacher.md) | Teachers | Fast diagnostic entry point | 2026-01-03 |
 | [Architecture Guide](technical-reference/architecture.md) | Developers | System architecture and patterns | 2025-11-23 |
 | [Database Schema](technical-reference/database_schema.md) | Developers | Current models and relationships | 2025-11-23 |
 | [API Reference](technical-reference/api_reference.md) | Developers | REST API documentation | 2025-11-23 |
-| [Student Guide](user-guides/student_guide.md) | Students | How to use the platform | 2025-12-28 |
-| [Teacher Manual](user-guides/teacher_manual.md) | Teachers | Admin features and workflows | 2025-12-28 |
-| [Development Priorities](development/DEVELOPMENT.md) | Developers | Current tasks, roadmap, and version status | 2025-12-21 |
-| [Deployment Guide](DEPLOYMENT.md) | DevOps | Deployment instructions | 2025-11-25 |
+| [Classroom Economy Guide](user-guides/economy_guide.md) | Teachers | Economy ranges and balance checks | 2025-12-28 |
+| [Deployment Guide](Deployment_Guide.md) | DevOps | Deployment instructions | 2025-11-25 |
 | [Economy Specification](technical-reference/ECONOMY_SPECIFICATION.md) | Developers | Financial system spec | 2025-12-11 |
-| [Migration Guide](development/MIGRATION_GUIDE.md) | Developers | Database migration help | 2025-11-18 |
-| [Operations Guides](operations/) | Ops | Operational procedures | 2025-11-28 |
-| [Changelog](CHANGELOG.md) | All | Version history and changes | 2025-12-27 |
+| [Changelog](../CHANGELOG.md) | All | Version history and changes | 2025-12-27 |
 | [README](../README.md) | All | Project overview and quick start | 2025-12-21 |
 
 ---

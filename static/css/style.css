@@ -1,7 +1,7 @@
 :root {
     --primary: #1a4d47;
     --primary-hover: #2a5d57;
-    --secondary: #D3AF37;
+    --secondary: #d3af37;
     --secondary-hover: #c49564;
     --background: #f5f5f3;
     --surface: #fafaf8;
@@ -145,6 +145,22 @@ a:hover {
     background-color: var(--background);
     border-color: var(--primary);
     color: var(--primary);
+}
+
+.contextual-help-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    color: #6c757d;
+    transition: color 0.2s;
+}
+
+.contextual-help-link:hover {
+    color: var(--primary);
+}
+
+.contextual-help-link .help-text {
+    font-size: 0.875rem;
 }
 
 .dashboard-greeting {

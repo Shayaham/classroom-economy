@@ -3,8 +3,7 @@ title: Transferring Money Between Accounts
 category: banking
 roles: [student]
 related:
-  - user-guides/student_guide#accounts-and-transactions
-  - features/banking/understanding-savings
+  - diagnostics/student-money
 ---
 
 # Transferring Money Between Accounts
@@ -287,12 +286,11 @@ To earn the most interest:
 
 ## Related Articles
 
-- [Understanding Savings Interest](/docs/features/banking/understanding-savings)
-- [Student Guide: Banking](/docs/user-guides/student_guide#accounts-and-transactions)
-- [Planning for Big Purchases](/docs/features/store/student-buying)
+- [Student Diagnostics: Balances and Transfers](../../diagnostics/student-money.md)
+- [Student Store Diagnostics](../../diagnostics/student-store.md)
 
 ## Need Help?
 
-- Full [Student Guide](/docs/user-guides/student_guide)
+- Full [Student Diagnostics Index](../../diagnostics/student.md)
 - Ask your teacher if you have questions about interest rates
 - Report issues if transfers aren't working
