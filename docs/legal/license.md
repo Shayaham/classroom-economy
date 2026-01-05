@@ -1,8 +1,18 @@
+---
+title: License
+description: PolyForm Noncommercial License 1.0.0 - Full license text for Classroom Token Hub
+category: legal
+keywords: [license, polyform, noncommercial, terms, legal]
+searchable: true
+---
+
 # PolyForm Noncommercial License 1.0.0
 
 <https://polyformproject.org/licenses/noncommercial/1.0.0>
 
-Copyright (c) 2025 Timothy Chang
+**Copyright (c) 2025 Timothy Chang**
+
+---
 
 ## Acceptance
 
@@ -73,3 +83,23 @@ The **licensor** is the individual or entity offering these terms, and the **sof
 **Your licenses** are all the licenses granted to you for the software under these terms.
 
 **Use** means anything you do with the software requiring one of your licenses.
+
+---
+
+## Quick Summary
+
+**Permitted Uses:**
+- Use in classrooms, clubs, and nonprofit educational settings
+- Modify for school use, assignments, or personal learning
+- Share with students or other educators
+- Use for research or academic presentations (non-commercial)
+
+**Prohibited Uses:**
+- Use as part of a commercial product or SaaS platform
+- Host a paid service or subscription
+- Incorporate into revenue-generating offerings
+- Use internally within for-profit businesses
+
+---
+
+**See also:** [Commercial Use Policy](/docs/legal/commercial) for detailed guidance on permitted services vs prohibited software monetization.

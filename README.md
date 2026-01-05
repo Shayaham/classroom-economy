@@ -296,17 +296,27 @@ We welcome contributions! Please see [.github/CONTRIBUTING.md](.github/CONTRIBUT
 
 This project is licensed under the [PolyForm Noncommercial License 1.0.0](https://polyformproject.org/licenses/noncommercial/1.0.0/).
 
-### ✅ You CAN:
+### Permitted Uses:
 - Use in classrooms, clubs, and nonprofit educational settings
 - Modify for school use, assignments, or personal learning
 - Share with students or other educators
 - Use for research or academic presentations (non-commercial)
 
-### ❌ You CANNOT:
+### Prohibited Uses:
 - Use as part of a commercial product or SaaS platform
 - Host a paid service or subscription
 - Incorporate into revenue-generating offerings
 - Use internally within for-profit businesses
+
+### Licensing & Attribution
+
+**Full License:** See [LICENSE](LICENSE) for complete terms
+
+**Commercial Use Policy:** See [COMMERCIAL.md](COMMERCIAL.md) for detailed guidance on permitted and prohibited commercial activities
+
+**Third-Party Attributions:** See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for open-source dependencies and services
+
+**Project Philosophy:** See [ATTRIBUTION.md](ATTRIBUTION.md) for the project's ethical foundations
 
 ---
 
