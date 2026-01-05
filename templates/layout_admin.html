@@ -278,6 +278,11 @@
                 <div class="meta" id="current-time"></div>
             </div>
             <div class="page-header-actions">
+                {% if help_doc_path %}
+                    <span class="d-none d-md-inline-flex">
+                        {{ help.help_link(help_doc_path, text="Guide", tooltip="View guide") }}
+                    </span>
+                {% endif %}
                 {% block page_header_actions %}
                 {% endblock %}
                 {% if not custom_full_guide %}
