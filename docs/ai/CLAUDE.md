@@ -34,7 +34,7 @@ This document provides essential guidance for Claude (or any AI assistant) worki
 
 ## Critical Rules
 
-### 🚨 MUST FOLLOW EVERY TIME
+###  MUST FOLLOW EVERY TIME
 
 1. **ALWAYS read existing code before proposing changes**
    - Never suggest modifications to files you haven't read
@@ -76,15 +76,15 @@ The application uses Flask Blueprints for modular organization:
 
 ```
 app/
-├── routes/
-│   ├── admin.py          # Teacher/admin routes
-│   ├── student.py        # Student routes
-│   ├── system_admin.py   # System admin routes
-│   ├── api.py            # API endpoints
-│   └── auth.py           # Authentication
-├── models.py             # SQLAlchemy models (35+ models)
-├── utils/                # Utility functions
-└── __init__.py           # App factory
+ routes/
+    admin.py          # Teacher/admin routes
+    student.py        # Student routes
+    system_admin.py   # System admin routes
+    api.py            # API endpoints
+    auth.py           # Authentication
+ models.py             # SQLAlchemy models (35+ models)
+ utils/                # Utility functions
+ __init__.py           # App factory
 ```
 
 ### Key Files
@@ -97,7 +97,7 @@ app/
 
 ### Database Models
 
-**35 SQLAlchemy models** including:
+**41 SQLAlchemy models** including:
 - Core: `Admin`, `Student`, `SystemAdmin`, `TeacherBlock`, `StudentBlock`
 - Financial: `Transaction`, `PayrollSettings`, `BankingSettings`
 - Features: `StoreItem`, `InsurancePolicy`, `RentSettings`, `HallPassLog`
@@ -143,11 +143,11 @@ pytest tests/
 
 ### Common Migration Mistakes (DON'T DO THIS)
 
-❌ Modifying models without creating migrations
-❌ Editing old migration files after they're merged
-❌ Creating migrations with generic names like "update database"
-❌ Skipping migration testing before committing
-❌ Forgetting to add foreign key constraints
+ Modifying models without creating migrations
+ Editing old migration files after they're merged
+ Creating migrations with generic names like "update database"
+ Skipping migration testing before committing
+ Forgetting to add foreign key constraints
 
 ---
 
@@ -167,26 +167,26 @@ pytest tests/
 
 ```
 docs/
-├── README.md                  # Documentation index
-├── diagnostics/              # Diagnostic guides for teachers and students
-│   ├── teacher.md
-│   └── student.md
-├── user-guides/              # Design and reference guides for users
-│   └── economy_guide.md
-├── technical-reference/      # Architecture, database, API
-│   ├── architecture.md
-│   ├── database_schema.md
-│   └── ECONOMY_SPECIFICATION.md
-├── operations/               # Deployment, maintenance
-│   ├── Deployment_Guide.md
-│   └── MULTI_TENANCY_FIX_DEPLOYMENT.md
-├── security/                 # Security audits
-│   ├── CRITICAL_SAME_TEACHER_LEAK.md
-│   └── MULTI_TENANCY_AUDIT.md
-├── development/              # Dev guides
-│   ├── DEPRECATED_CODE_PATTERNS.md
-│   └── TESTING_SUMMARY.md
-└── archive/                  # Historical docs
+ README.md                  # Documentation index
+ diagnostics/              # Diagnostic guides for teachers and students
+    teacher.md
+    student.md
+ user-guides/              # Design and reference guides for users
+    economy_guide.md
+ technical-reference/      # Architecture, database, API
+    architecture.md
+    database_schema.md
+    ECONOMY_SPECIFICATION.md
+ operations/               # Deployment, maintenance
+    Deployment_Guide.md
+    MULTI_TENANCY_FIX_DEPLOYMENT.md
+ security/                 # Security audits
+    CRITICAL_SAME_TEACHER_LEAK.md
+    MULTI_TENANCY_AUDIT.md
+ development/              # Dev guides
+    DEPRECATED_CODE_PATTERNS.md
+    TESTING_SUMMARY.md
+ archive/                  # Historical docs
 ```
 
 ---
@@ -285,17 +285,17 @@ def test_feature_name(client, app):
 ### Examples of Proper Scoping
 
 ```python
-# ✅ CORRECT - Scoped by join_code
+#  CORRECT - Scoped by join_code
 students = Student.query.join(StudentBlock).filter(
     StudentBlock.join_code == current_join_code
 ).all()
 
-# ✅ CORRECT - Transaction scoped by join_code
+#  CORRECT - Transaction scoped by join_code
 transactions = Transaction.query.filter_by(
     join_code=current_join_code
 ).all()
 
-# ❌ WRONG - Not scoped, will leak data across periods
+#  WRONG - Not scoped, will leak data across periods
 students = Student.query.filter_by(
     teacher_id=current_teacher_id
 ).all()
