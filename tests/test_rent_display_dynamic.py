@@ -242,7 +242,7 @@ def test_status_text_past_due(client, setup_rent_with_items):
     assert response.status_code == 200
     
     # Should display "Past due, pay now" with black color
-    assert b'Past due, pay now' in response.data or b'past due' in response.data.lower()
+    assert b'Past due, pay now' in response.data or b'Past due' in response.data
 
 
 def test_status_text_no_rent_yet(client, setup_rent_with_items):
@@ -266,7 +266,7 @@ def test_status_text_no_rent_yet(client, setup_rent_with_items):
     assert response.status_code == 200
     
     # Should display "No rent is due yet" with blue color
-    assert b'No rent is due yet' in response.data or b'not yet due' in response.data.lower()
+    assert b'No rent is due yet' in response.data or b'Not yet due' in response.data
 
 
 def test_rent_items_show_store_availability(client, setup_rent_with_items):
