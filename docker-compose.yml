@@ -18,6 +18,8 @@ services:
       # Prefer a single URL if the app supports it
       DATABASE_URL: postgresql://classroom:${POSTGRES_PASSWORD}@db:5432/classroom_economy
       SECRET_KEY: ${SECRET_KEY}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      PEPPER_KEY: ${PEPPER_KEY}
       # anything else your app needs…
     ports:
       - "8117:8000"
