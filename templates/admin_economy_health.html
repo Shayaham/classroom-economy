@@ -119,16 +119,7 @@
 </div>
 
 <div class="container-fluid py-3">
-  <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-3">
-    <div class="d-flex align-items-center gap-2">
-      <p class="text-muted mb-0">Review your current CWI and see how payroll, rent, banking, insurance, and the store fit together.</p>
-      {{ help.help_icon("diagnostics/teacher-attendance-payroll", "Economy health help") }}
-    </div>
-    <div class="btn-group" role="group" aria-label="CWI scope">
-      <a class="btn {% if scope != 'class' %}btn-primary text-white{% else %}btn-outline-primary{% endif %}" href="{{ url_for('admin.economy_health', scope='all') }}">All classes</a>
-      <a class="btn {% if scope == 'class' %}btn-primary text-white{% else %}btn-outline-primary{% endif %}" href="{{ url_for('admin.economy_health', scope='class', block=selected_block or (blocks[0] if blocks else None)) }}">Individual class</a>
-    </div>
-  </div>
+  
 
   {% if scope == 'all' and has_payroll_settings and not has_global_payroll_settings %}
   <div class="alert alert-info d-flex align-items-start gap-2">
@@ -149,6 +140,13 @@
     </div>
   </div>
   {% endif %}
+  <div class="d-flex flex-wrap justify-content-end align-items-center mb-3 gap-3">
+    
+    <div class="btn-group" role="group" aria-label="CWI scope">
+      <a class="btn {% if scope != 'class' %}btn-primary text-white{% else %}btn-outline-primary{% endif %}" href="{{ url_for('admin.economy_health', scope='all') }}">All classes</a>
+      <a class="btn {% if scope == 'class' %}btn-primary text-white{% else %}btn-outline-primary{% endif %}" href="{{ url_for('admin.economy_health', scope='class', block=selected_block or (blocks[0] if blocks else None)) }}">Individual class</a>
+    </div>
+  </div>
 
   <div class="row g-3 mb-3">
     <div class="col-lg-6">

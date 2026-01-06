@@ -100,6 +100,7 @@ a:hover {
     font-weight: 500;
     padding: 0.625rem 1.25rem;
     transition: all 0.2s ease;
+    border-width: 2px;
 }
 
 .btn-primary {
@@ -262,7 +263,7 @@ a:hover {
 /* Cards */
 .card {
     background: var(--surface);
-    border: 1px solid var(--border-color);
+    border: 2px solid var(--border-color);
     box-shadow: var(--shadow-sm);
 }
 
@@ -471,6 +472,82 @@ a:hover {
     border-color: var(--primary);
     box-shadow: 0 0 0 3px rgba(26, 77, 71, 0.25);
     outline: none;
+}
+
+
+
+/* Issues Queue Tabs Styling */
+#issuesTabs .nav-link {
+    border: 2px solid;
+    
+}
+
+/* Pending Review Tab */
+#issuesTabs #pending-tab {
+    background-color: #cd9d0d;
+    color: #fff;
+    border-color: #cd9d0d;
+}
+
+#issuesTabs #pending-tab.active {
+    background-color: #fff;
+    color: #cd9d0d;
+    border-color: #cd9d0d;
+    border-bottom-color: transparent;
+}
+
+/* Resolved Tab */
+#issuesTabs #resolved-tab {
+    background-color: #198754;
+    color: #fff;
+    border-color: #198754;
+}
+
+#issuesTabs #resolved-tab.active {
+    background-color: #fff;
+    color: #198754;
+    border-color: #198754;
+    border-bottom-color: transparent;
+}
+
+/* Escalated Tab */
+#issuesTabs #escalated-tab {
+    background-color: #0dcaf0;
+    color: #fff;
+    border-color: #0dcaf0;
+}
+
+#issuesTabs #escalated-tab.active {
+    background-color: #fff;
+    color: #0dcaf0;
+    border-color: #0dcaf0;
+    border-bottom-color: transparent;
+    
+}
+
+/* Tab Panel Borders */
+#issuesTabsContent #pending {
+    border: 2px solid #cd9d0d;
+    
+    
+}
+
+#issuesTabsContent #resolved {
+    border: 2px solid #198754;
+    
+    
+}
+
+#issuesTabsContent #escalated {
+    border: 2px solid #0dcaf0;
+    
+    
+}
+
+.list-group {
+    border-radius: 0px;
+    border-style:hidden;
+    
 }
 
 /* Admin Sidebar */
