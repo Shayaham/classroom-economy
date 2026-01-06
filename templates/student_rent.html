@@ -60,7 +60,8 @@
     {% set card_header_bg = "bg-success text-white" %}
     {% set status_icon = "check_circle" %}
     {% set status_text = "Paid" %}
-{% elif status.is_late %}
+{% elif status.is_late or (days_until_due is not none and days_until_due < 0) %}
+    {# Past due or late - combine both conditions #}
     {% set card_border = "border-dark" %}
     {% set card_header_bg = "bg-dark text-white" %}
     {% set status_icon = "cancel" %}
@@ -71,13 +72,7 @@
     {% set status_icon = "info" %}
     {% set status_text = "No rent is due yet" %}
 {% elif days_until_due is not none %}
-    {% if days_until_due < 0 %}
-        {# Past due #}
-        {% set card_border = "border-dark" %}
-        {% set card_header_bg = "bg-dark text-white" %}
-        {% set status_icon = "cancel" %}
-        {% set status_text = "Past due, pay now" %}
-    {% elif days_until_due <= 3 %}
+    {% if days_until_due <= 3 %}
         {# Within 3 days - crimson (danger) #}
         {% set card_border = "border-danger" %}
         {% set card_header_bg = "bg-danger text-white" %}
