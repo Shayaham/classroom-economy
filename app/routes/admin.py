@@ -4390,35 +4390,27 @@ def economy_health():
     admin_id = session.get("admin_id")
 
     blocks = _get_teacher_blocks()
-    scope_param = request.args.get('scope')
-    scope = scope_param or 'all'
-    selected_block = None
-    if scope == 'class':
-        selected_block = request.args.get('block') or (blocks[0] if blocks else None)
+    # Always use per-class view since CWI is inherently per-class (multi-tenancy by join_code)
+    selected_block = request.args.get('block') or (blocks[0] if blocks else None)
 
     payroll_query = PayrollSettings.query.filter_by(teacher_id=admin_id, is_active=True)
-    global_payroll_settings = payroll_query.filter_by(block=None).first()
+    # Fetch all active payroll settings for this teacher once to avoid multiple DB queries
+    all_payroll_settings = payroll_query.order_by(PayrollSettings.block.asc()).all()
+    settings_by_block = {s.block: s for s in all_payroll_settings if s.block}
+
     payroll_settings = None
+    if selected_block:
+        payroll_settings = settings_by_block.get(selected_block)
 
-    if scope == 'class':
-        if selected_block:
-            payroll_settings = payroll_query.filter_by(block=selected_block).first()
-        if not payroll_settings:
-            payroll_settings = global_payroll_settings
-    else:
-        payroll_settings = global_payroll_settings
-
-    # Fallback to first class-specific payroll when no global settings exist and
-    # the user did not explicitly request all-classes scope.
-    if not payroll_settings and scope != 'all':
-        first_class_setting = payroll_query.filter(PayrollSettings.block.isnot(None)).order_by(PayrollSettings.block.asc()).first()
+    # Fallback to first class if no settings found for selected block
+    if not payroll_settings and all_payroll_settings:
+        # Find the first setting that has a block
+        first_class_setting = next((s for s in all_payroll_settings if s.block), None)
         if first_class_setting:
             payroll_settings = first_class_setting
             selected_block = first_class_setting.block
-            scope = 'class'
 
-    has_payroll_settings = payroll_query.count() > 0
-    has_global_payroll_settings = global_payroll_settings is not None
+    has_payroll_settings = len(all_payroll_settings) > 0
 
     rent_settings = None
     if selected_block:
@@ -4529,10 +4521,8 @@ def economy_health():
         current_page='economy_health',
         blocks=blocks,
         selected_block=selected_block,
-        scope=scope,
         payroll_settings=payroll_settings,
         has_payroll_settings=has_payroll_settings,
-        has_global_payroll_settings=has_global_payroll_settings,
         cwi_calc=cwi_calc,
         expected_hours=expected_hours,
         pay_rate_per_minute=pay_rate_per_minute,
