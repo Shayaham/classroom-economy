@@ -6,7 +6,7 @@ services:
       POSTGRES_USER: classroom
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
-      - pgdatab:/var/lib/postgresql/data
+      - pgdatab:/var/lib/postgresql/datab
     networks:
       - dokploy-network
 
