@@ -108,9 +108,26 @@ a:hover {
     color: white;
 }
 
-.btn-primary:hover, .btn-primary:focus {
+.btn-primary:hover,
+.btn-primary:focus,
+.btn-primary:focus-visible {
     background-color: var(--primary-hover);
     border-color: var(--primary-hover);
+    color: white;
+}
+
+.btn-primary:active,
+.btn-primary.active {
+    background-color: var(--primary-hover);
+    border-color: var(--primary-hover);
+    color: white;
+}
+
+.btn-primary:disabled,
+.btn-primary.disabled {
+    background-color: var(--primary);
+    border-color: var(--primary);
+    opacity: 0.65;
 }
 
 .btn-secondary {
@@ -119,20 +136,82 @@ a:hover {
     color: var(--primary);
 }
 
-.btn-secondary:hover {
+.btn-secondary:hover,
+.btn-secondary:focus,
+.btn-secondary:focus-visible {
     background-color: var(--secondary-hover);
     border-color: var(--secondary-hover);
     color: var(--primary);
 }
 
+.btn-secondary:active,
+.btn-secondary.active {
+    background-color: var(--secondary-hover);
+    border-color: var(--secondary-hover);
+    color: var(--primary);
+}
+
+.btn-secondary:disabled,
+.btn-secondary.disabled {
+    background-color: var(--secondary);
+    border-color: var(--secondary);
+    opacity: 0.65;
+}
+
 .btn-outline-primary {
     color: var(--primary);
     border-color: var(--primary);
+    background-color: transparent;
 }
 
-.btn-outline-primary:hover {
+.btn-outline-primary:hover,
+.btn-outline-primary:focus,
+.btn-outline-primary:focus-visible {
     background-color: var(--primary);
+    border-color: var(--primary);
     color: white;
+}
+
+.btn-outline-primary:active,
+.btn-outline-primary.active {
+    background-color: var(--primary-hover);
+    border-color: var(--primary-hover);
+    color: white;
+}
+
+.btn-outline-primary:disabled,
+.btn-outline-primary.disabled {
+    color: var(--primary);
+    border-color: var(--primary);
+    opacity: 0.65;
+}
+
+.btn-outline-secondary {
+    color: var(--secondary);
+    border-color: var(--secondary);
+    background-color: transparent;
+}
+
+.btn-outline-secondary:hover,
+.btn-outline-secondary:focus,
+.btn-outline-secondary:focus-visible {
+    background-color: var(--secondary);
+    border-color: var(--secondary);
+    color: var(--primary);
+}
+
+.btn-outline-secondary:active,
+.btn-outline-secondary.active {
+    background-color: var(--secondary-hover);
+    border-color: var(--secondary-hover);
+    color: var(--primary);
+}
+
+.btn-outline-secondary:disabled,
+.btn-outline-secondary.disabled {
+    color: var(--secondary);
+    border-color: var(--secondary);
+    opacity: 0.65;
 }
 
 .btn-white {
@@ -141,10 +220,26 @@ a:hover {
     color: var(--text-primary);
 }
 
-.btn-white:hover {
+.btn-white:hover,
+.btn-white:focus,
+.btn-white:focus-visible {
     background-color: var(--background);
     border-color: var(--primary);
     color: var(--primary);
+}
+
+.btn-white:active,
+.btn-white.active {
+    background-color: var(--background);
+    border-color: var(--primary-hover);
+    color: var(--primary-hover);
+}
+
+.btn-white:disabled,
+.btn-white.disabled {
+    background-color: white;
+    border-color: var(--border-color);
+    opacity: 0.65;
 }
 
 .contextual-help-link {
