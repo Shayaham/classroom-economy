@@ -44,7 +44,7 @@ services:
       - dokploy-network
     restart: unless-stopped
     # adjust if the repo uses a different entrypoint
-    command:     command: >
+    command: >
       sh -c "
         echo 'Running migrations...' &&
         flask db stamp head || true &&
