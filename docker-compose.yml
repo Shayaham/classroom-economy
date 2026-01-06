@@ -20,7 +20,7 @@ services:
       SECRET_KEY: ${SECRET_KEY}
       # anything else your app needs…
     ports:
-      - "8000"
+      - "8117:8000"
     networks:
       - dokploy-network
     restart: unless-stopped
