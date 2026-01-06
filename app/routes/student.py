@@ -2471,6 +2471,11 @@ def rent():
     if settings:
         rent_items = RentItem.query.filter_by(rent_setting_id=settings.id).order_by(RentItem.order_index).all()
 
+    # Calculate days until rent is due for dynamic display
+    days_until_due = None
+    if due_date:
+        days_until_due = (due_date - now).days
+
     return render_template('student_rent.html',
                           student=student,
                           settings=settings,
@@ -2484,7 +2489,8 @@ def rent():
                           grace_end_date=grace_end_date,
                           preview_start_date=preview_start_date,
                           payment_history=payment_history,
-                          rent_items=rent_items)
+                          rent_items=rent_items,
+                          days_until_due=days_until_due)
 
 
 @student_bp.route('/rent/pay/<period>', methods=['POST'])
