@@ -110,12 +110,7 @@ a:hover {
 
 .btn-primary:hover,
 .btn-primary:focus,
-.btn-primary:focus-visible {
-    background-color: var(--primary-hover);
-    border-color: var(--primary-hover);
-    color: white;
-}
-
+.btn-primary:focus-visible,
 .btn-primary:active,
 .btn-primary.active {
     background-color: var(--primary-hover);
