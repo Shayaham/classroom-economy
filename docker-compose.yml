@@ -44,11 +44,8 @@ services:
       - dokploy-network
     restart: unless-stopped
     # adjust if the repo uses a different entrypoint
-    command: >
-      sh -c "
-        python /app/docker/init_db.py &&
-        exec gunicorn -b 0.0.0.0:8000 wsgi:app
-      "
+    command: exec gunicorn -b 0.0.0.0:8000 wsgi:app
+      
 
 volumes:
   pgdatab:
