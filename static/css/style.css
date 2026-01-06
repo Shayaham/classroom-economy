@@ -133,12 +133,7 @@ a:hover {
 
 .btn-secondary:hover,
 .btn-secondary:focus,
-.btn-secondary:focus-visible {
-    background-color: var(--secondary-hover);
-    border-color: var(--secondary-hover);
-    color: var(--primary);
-}
-
+.btn-secondary:focus-visible,
 .btn-secondary:active,
 .btn-secondary.active {
     background-color: var(--secondary-hover);
