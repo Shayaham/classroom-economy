@@ -27,7 +27,11 @@ services:
       - dokploy-network
     restart: unless-stopped
     # adjust if the repo uses a different entrypoint
-    command: flask db upgrade || true; gunicorn -b 0.0.0.0:8000 wsgi:app
+    command: >
+      sh -c "
+         flask db upgrade &&
+         gunicorn -b 0.0.0.0:8000 wsgi:app
+      "
 
 volumes:
   pgdata:
