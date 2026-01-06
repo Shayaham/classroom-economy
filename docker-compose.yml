@@ -30,6 +30,7 @@ services:
       PEPPER_KEY: ${PEPPER_KEY}
       CSRF_SECRET_KEY: ${CSRF_SECRET_KEY}
       FLASK_ENV: production
+      FLASK_APP: wsgi.py
       REDIS_URL: redis://redis:6379/0
       RATELIMIT_STORAGE_URL: redis://redis:6379/0
       # anything else your app needs…
