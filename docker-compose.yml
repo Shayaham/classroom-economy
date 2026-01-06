@@ -29,9 +29,34 @@ services:
     # adjust if the repo uses a different entrypoint
     command: >
       sh -c "
-         flask db upgrade &&
-         gunicorn -b 0.0.0.0:8000 wsgi:app
+        echo 'Checking alembic_version...' &&
+        python - <<'PY'
+    import os
+    from sqlalchemy import create_engine, text
+
+    db = os.environ['DATABASE_URL']
+    e = create_engine(db)
+    with e.connect() as c:
+    exists = c.execute(text(\"SELECT to_regclass('public.alembic_version')\")).scalar()
+    print('alembic_version exists:', bool(exists))
+    PY
+        if ! python - <<'PY'
+    import os
+    from sqlalchemy import create_engine, text
+    db=os.environ['DATABASE_URL']
+    e=create_engine(db)
+    with e.connect() as c:
+        exists=c.execute(text(\"SELECT to_regclass('public.alembic_version')\")).scalar()
+    raise SystemExit(0 if exists else 1)
+    PY
+        then
+          echo 'No alembic_version table -> stamping head (one-time bootstrap)' &&
+          flask db stamp head ;
+        fi &&
+        flask db upgrade &&
+        exec gunicorn -b 0.0.0.0:8000 wsgi:app
       "
+
 
 volumes:
   pgdata:
