@@ -10,16 +10,26 @@ services:
     networks:
       - dokploy-network
 
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redisdata:/data
+    networks:
+      - dokploy-network
   web:
     build: .
     depends_on:
       - db
+      - redis
     environment:
       # Prefer a single URL if the app supports it
       DATABASE_URL: postgresql://classroom:${POSTGRES_PASSWORD}@db:5432/classroom_economy
       SECRET_KEY: ${SECRET_KEY}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY}
       PEPPER_KEY: ${PEPPER_KEY}
+      REDIS_URL: redis://redis:6379/0
+      RATELIMIT_STORAGE_URL: redis://redis:6379/0
       # anything else your app needs…
     ports:
       - "8117:8000"
