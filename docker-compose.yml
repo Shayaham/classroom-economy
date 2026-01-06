@@ -1,0 +1,35 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: classroom_economy
+      POSTGRES_USER: classroom
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - dokploy-network
+
+  web:
+    build: .
+    depends_on:
+      - db
+    environment:
+      # Prefer a single URL if the app supports it
+      DATABASE_URL: postgresql://classroom:${POSTGRES_PASSWORD}@db:5432/classroom_economy
+      SECRET_KEY: ${SECRET_KEY}
+      # anything else your app needs…
+    ports:
+      - "8000"
+    networks:
+      - dokploy-network
+    restart: unless-stopped
+    # adjust if the repo uses a different entrypoint
+    command: gunicorn -b 0.0.0.0:8000 wsgi:app
+
+volumes:
+  pgdata:
+
+networks:
+  dokploy-network:
+    external: true
