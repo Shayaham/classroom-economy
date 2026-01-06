@@ -4394,20 +4394,23 @@ def economy_health():
     selected_block = request.args.get('block') or (blocks[0] if blocks else None)
 
     payroll_query = PayrollSettings.query.filter_by(teacher_id=admin_id, is_active=True)
-    payroll_settings = None
+    # Fetch all active payroll settings for this teacher once to avoid multiple DB queries
+    all_payroll_settings = payroll_query.order_by(PayrollSettings.block.asc()).all()
+    settings_by_block = {s.block: s for s in all_payroll_settings if s.block}
 
-    # Get payroll settings for the selected block
+    payroll_settings = None
     if selected_block:
-        payroll_settings = payroll_query.filter_by(block=selected_block).first()
+        payroll_settings = settings_by_block.get(selected_block)
 
     # Fallback to first class if no settings found for selected block
-    if not payroll_settings:
-        first_class_setting = payroll_query.filter(PayrollSettings.block.isnot(None)).order_by(PayrollSettings.block.asc()).first()
+    if not payroll_settings and all_payroll_settings:
+        # Find the first setting that has a block
+        first_class_setting = next((s for s in all_payroll_settings if s.block), None)
         if first_class_setting:
             payroll_settings = first_class_setting
             selected_block = first_class_setting.block
 
-    has_payroll_settings = payroll_query.count() > 0
+    has_payroll_settings = len(all_payroll_settings) > 0
 
     rent_settings = None
     if selected_block:
