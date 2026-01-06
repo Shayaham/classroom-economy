@@ -61,7 +61,8 @@
     {% set status_icon = "check_circle" %}
     {% set status_text = "Paid" %}
 {% elif status.is_late or (days_until_due is not none and days_until_due < 0) %}
-    {# Past due or late - combine both conditions #}
+    {# Past due status: status.is_late is authoritative (checks grace period),
+       days_until_due < 0 is a fallback visual indicator for overdue bills #}
     {% set card_border = "border-dark" %}
     {% set card_header_bg = "bg-dark text-white" %}
     {% set status_icon = "cancel" %}
