@@ -717,7 +717,7 @@
                 <div class="mb-3">
                   <label for="expectedWeeklyHoursAdv" class="form-label fw-bold">Expected Weekly Hours:</label>
                   <div class="input-group">
-                    <input type="number" class="form-control" id="expectedWeeklyHoursAdv" name="expected_weekly_hours" step="0.25" min="0.25" max="80" placeholder="5.0" value="{% if default_setting and default_setting.expected_weekly_hours %}{{ default_setting.expected_weekly_hours }}{% else %}5.0{% endif %}" required>
+                    <input type="number" class="form-control" id="expectedWeeklyHoursAdv" name="expected_weekly_hours" step="0.25" min="0.25" max="80" placeholder="5.0" value="{% if default_setting and default_setting.expected_weekly_hours %}{{ default_setting.expected_weekly_hours }}{% else %}5.0{% endif %}">
                     <span class="input-group-text">hours/week</span>
                   </div>
                   <small class="text-muted">Expected class hours per week. Used to calculate CWI (Classroom Wage Index) for economy balance. Example: 5 classes/week × 50 min/class ÷ 60 = 4.17 hours/week</small>
