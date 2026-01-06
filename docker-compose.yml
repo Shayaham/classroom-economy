@@ -28,6 +28,7 @@ services:
       SECRET_KEY: ${SECRET_KEY}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY}
       PEPPER_KEY: ${PEPPER_KEY}
+      CSRF_SECRET_KEY: ${CSRF_SECRET_KEY}
       REDIS_URL: redis://redis:6379/0
       RATELIMIT_STORAGE_URL: redis://redis:6379/0
       # anything else your app needs…
