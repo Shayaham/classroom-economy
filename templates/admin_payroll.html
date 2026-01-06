@@ -1401,6 +1401,9 @@ document.addEventListener("DOMContentLoaded", () => {
                 if (expectedWeeklyHoursAdv) {
                     expectedWeeklyHoursAdv.disabled = false;
                 }
+                
+                // Sync from Simple to Advanced when switching to Advanced mode
+                syncExpectedHoursToAdvanced();
             } else {
                 // Simple mode
                 simpleModeFields.style.display = 'block';
@@ -1416,7 +1419,6 @@ document.addEventListener("DOMContentLoaded", () => {
                 }
             }
 
-            syncExpectedHoursToAdvanced();
             updateCWI();
         });
     }
