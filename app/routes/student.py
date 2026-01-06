@@ -1023,16 +1023,13 @@ def dashboard():
         if rent_settings.bill_preview_enabled and rent_settings.bill_preview_days:
             preview_start_date = due_date - timedelta(days=rent_settings.bill_preview_days)
 
-        rent_is_active = True
+        rent_is_active = False
         is_preview_period = False
-        if rent_settings.first_rent_due_date and now < rent_settings.first_rent_due_date:
-            if preview_start_date and now >= preview_start_date:
-                rent_is_active = True
-                is_preview_period = True
-            else:
-                rent_is_active = False
-        elif preview_start_date and preview_start_date <= now < due_date:
-            is_preview_period = True
+        if preview_start_date and now >= preview_start_date:
+            rent_is_active = True
+            is_preview_period = now < due_date
+        elif now >= due_date:
+            rent_is_active = True
 
         rent_blocks = [b.strip().upper() for b in student.block.split(',') if b.strip()]
         current_month = now.month
@@ -2390,17 +2387,13 @@ def rent():
         preview_start_date = due_date - timedelta(days=settings.bill_preview_days)
 
     # Check if rent is active (due date has arrived or preview period has started)
-    rent_is_active = True
+    rent_is_active = False
     is_preview_period = False
-    if settings.first_rent_due_date and now < settings.first_rent_due_date:
-        # Check if we're in preview period before first due date
-        if preview_start_date and now >= preview_start_date:
-            rent_is_active = True
-            is_preview_period = True
-        else:
-            rent_is_active = False
-    elif preview_start_date and now >= preview_start_date and now < due_date:
-        is_preview_period = True
+    if preview_start_date and now >= preview_start_date:
+        rent_is_active = True
+        is_preview_period = now < due_date
+    elif now >= due_date:
+        rent_is_active = True
     current_month = now.month
     current_year = now.year
 
@@ -2531,12 +2524,20 @@ def rent_pay(period):
     if settings.bill_preview_enabled and settings.bill_preview_days:
         preview_start_date = due_date - timedelta(days=settings.bill_preview_days)
 
-    # Check if rent is even due yet (if first_rent_due_date is in the future and not in preview period)
-    if settings.first_rent_due_date and now < settings.first_rent_due_date:
-        # Allow payment if we're in the preview period
-        if not (preview_start_date and now >= preview_start_date):
-            flash(f"Rent is not due yet. First payment due on {settings.first_rent_due_date.strftime('%B %d, %Y')}.", "info")
-            return redirect(url_for('student.rent'))
+    rent_is_active = False
+    if preview_start_date and now >= preview_start_date:
+        rent_is_active = True
+    elif now >= due_date:
+        rent_is_active = True
+
+    if not rent_is_active:
+        if preview_start_date:
+            available_date = preview_start_date
+            message = f"Rent is not due yet. You can start paying on {available_date.strftime('%B %d, %Y')}."
+        else:
+            message = f"Rent is not due yet. Payment opens on {due_date.strftime('%B %d, %Y')}."
+        flash(message, "info")
+        return redirect(url_for('student.rent'))
 
     current_month = now.month
     current_year = now.year
