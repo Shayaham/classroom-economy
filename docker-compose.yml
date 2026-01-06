@@ -46,9 +46,7 @@ services:
     # adjust if the repo uses a different entrypoint
     command: >
       sh -c "
-        echo 'Running migrations...' &&
-        flask db stamp head || true &&
-        flask db upgrade &&
+        alembic -c /app/migrations/alembic.ini upgrade head &&
         exec gunicorn -b 0.0.0.0:8000 wsgi:app
       "
 
