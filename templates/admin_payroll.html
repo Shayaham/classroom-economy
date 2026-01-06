@@ -555,7 +555,7 @@
                 <div class="mb-3">
                   <label for="simpleExpectedWeeklyHours" class="form-label fw-bold">Expected Weekly Hours:</label>
                   <div class="input-group">
-                    <input type="number" class="form-control" id="simpleExpectedWeeklyHours" name="expected_weekly_hours" step="0.25" min="0.25" max="80" placeholder="5.0" value="{% if default_setting and default_setting.expected_weekly_hours %}{{ default_setting.expected_weekly_hours }}{% else %}5.0{% endif %}" required>
+                    <input type="number" class="form-control" id="simpleExpectedWeeklyHours" name="expected_weekly_hours" step="0.25" min="0.25" max="80" placeholder="5.0" value="{% if default_setting and default_setting.expected_weekly_hours %}{{ default_setting.expected_weekly_hours }}{% else %}5.0{% endif %}">
                     <span class="input-group-text">hours/week</span>
                   </div>
                   <small class="text-muted">Expected class hours per week. Used to calculate CWI (Classroom Wage Index) for economy balance. Example: 5 classes/week × 60 min/class ÷ 60 = 5.0 hours/week</small>
@@ -717,10 +717,10 @@
                 <div class="mb-3">
                   <label for="expectedWeeklyHoursAdv" class="form-label fw-bold">Expected Weekly Hours:</label>
                   <div class="input-group">
-                    <input type="number" class="form-control" id="expectedWeeklyHoursAdv" name="expected_weekly_hours" step="0.25" min="0.25" max="80" placeholder="5.0" value="{% if default_setting and default_setting.expected_weekly_hours %}{{ default_setting.expected_weekly_hours }}{% else %}5.0{% endif %}">
+                    <input type="number" class="form-control" id="expectedWeeklyHoursAdv" name="expected_weekly_hours" step="0.25" min="0.25" max="80" placeholder="5.0" value="{% if default_setting and default_setting.expected_weekly_hours %}{{ default_setting.expected_weekly_hours }}{% else %}5.0{% endif %}" {% if not default_setting or default_setting.settings_mode != 'advanced' %}disabled{% endif %}>
                     <span class="input-group-text">hours/week</span>
                   </div>
-                  <small class="text-muted">Expected class hours per week. Used to calculate CWI (Classroom Wage Index) for economy balance. Example: 5 classes/week × 50 min/class ÷ 60 = 4.17 hours/week</small>
+                  <small class="text-muted">Expected class hours per week. Used to calculate CWI (Classroom Wage Index) for economy balance. Example: 5 classes/week × 60 min/class ÷ 60 = 5.0 hours/week</small>
                 </div>
 
                 <!-- Apply To -->
@@ -1358,6 +1358,33 @@ document.addEventListener("DOMContentLoaded", () => {
     const settingsModeInput = document.getElementById('settingsModeInput');
     const simpleModeFields = document.getElementById('simpleModeFields');
     const advancedModeFields = document.getElementById('advancedModeFields');
+    const simpleExpectedWeeklyHours = document.getElementById('simpleExpectedWeeklyHours');
+    const expectedWeeklyHoursAdv = document.getElementById('expectedWeeklyHoursAdv');
+
+    // Function to sync expected weekly hours between modes
+    function syncExpectedHoursToAdvanced() {
+        if (simpleExpectedWeeklyHours && expectedWeeklyHoursAdv) {
+            expectedWeeklyHoursAdv.value = simpleExpectedWeeklyHours.value;
+        }
+    }
+
+    // Sync values when Simple mode field changes
+    if (simpleExpectedWeeklyHours) {
+        simpleExpectedWeeklyHours.addEventListener('input', function() {
+            if (expectedWeeklyHoursAdv) {
+                expectedWeeklyHoursAdv.value = this.value;
+            }
+        });
+    }
+
+    // Sync values when Advanced mode field changes
+    if (expectedWeeklyHoursAdv) {
+        expectedWeeklyHoursAdv.addEventListener('input', function() {
+            if (simpleExpectedWeeklyHours) {
+                simpleExpectedWeeklyHours.value = this.value;
+            }
+        });
+    }
 
     if (settingsModeToggle) {
         settingsModeToggle.addEventListener('change', function() {
@@ -1366,14 +1393,32 @@ document.addEventListener("DOMContentLoaded", () => {
                 simpleModeFields.style.display = 'none';
                 advancedModeFields.style.display = 'block';
                 settingsModeInput.value = 'advanced';
+                
+                // Disable simple field (won't be submitted), enable advanced field
+                if (simpleExpectedWeeklyHours) {
+                    simpleExpectedWeeklyHours.disabled = true;
+                }
+                if (expectedWeeklyHoursAdv) {
+                    expectedWeeklyHoursAdv.disabled = false;
+                }
+                
+                // Sync from Simple to Advanced when switching to Advanced mode
+                syncExpectedHoursToAdvanced();
             } else {
                 // Simple mode
                 simpleModeFields.style.display = 'block';
                 advancedModeFields.style.display = 'none';
                 settingsModeInput.value = 'simple';
+                
+                // Enable simple field, disable advanced field (won't be submitted)
+                if (simpleExpectedWeeklyHours) {
+                    simpleExpectedWeeklyHours.disabled = false;
+                }
+                if (expectedWeeklyHoursAdv) {
+                    expectedWeeklyHoursAdv.disabled = true;
+                }
             }
 
-            syncExpectedHoursToAdvanced();
             updateCWI();
         });
     }
