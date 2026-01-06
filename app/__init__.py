@@ -525,6 +525,7 @@ def create_app():
     from app.routes.student import student_bp
     from app.routes.admin import admin_bp
     from app.routes.docs import docs_bp
+    from app.routes.analytics import analytics_bp
 
     app.register_blueprint(main_bp)
     app.register_blueprint(api_bp)
@@ -532,6 +533,7 @@ def create_app():
     app.register_blueprint(student_bp)
     app.register_blueprint(admin_bp)
     app.register_blueprint(docs_bp)
+    app.register_blueprint(analytics_bp)
 
     # -------------------- SECURITY HEADERS --------------------
     @app.after_request

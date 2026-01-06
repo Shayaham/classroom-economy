@@ -86,9 +86,16 @@ class AnalyticsEngine:
     
     def _get_cwi(self) -> float:
         """Calculate current CWI for this class."""
+        # PayrollSettings may be linked by block or teacher_id
+        # Try to find by block first (since block is period identifier)
         payroll_settings = PayrollSettings.query.filter_by(
-            teacher_id=self.teacher_id,
-            join_code=self.join_code
+            teacher_id=self.teacher_id
+        ).filter(
+            # Match by block if available, otherwise use global settings
+            or_(
+                PayrollSettings.block == self.join_code,
+                PayrollSettings.block.is_(None)
+            )
         ).first()
         
         if not payroll_settings:
@@ -244,10 +251,14 @@ class AnalyticsEngine:
         if total_students == 0 or cwi == 0:
             return 0.0
         
-        # Get rent settings
+        # Get rent settings - may be linked by block or teacher_id
         rent_settings = RentSettings.query.filter_by(
-            teacher_id=self.teacher_id,
-            join_code=self.join_code
+            teacher_id=self.teacher_id
+        ).filter(
+            or_(
+                RentSettings.block == self.join_code,
+                RentSettings.block.is_(None)
+            )
         ).first()
         
         # Simplified pass rate: students with balance > 0 and increasing
